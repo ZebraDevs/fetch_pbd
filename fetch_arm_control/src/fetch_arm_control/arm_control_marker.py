@@ -23,15 +23,13 @@ from fetch_arm_control.msg import GripperState
 # Constants
 # ######################################################################
 
-DEFAULT_OFFSET = 0.09
+DEFAULT_OFFSET = 0.085
 COLOR_MESH_REACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
 COLOR_MESH_UNREACHABLE = ColorRGBA(0.05, 0.05, 0.05, 0.6)
-ANGLE_GRIPPER_OPEN = 28 * numpy.pi / 180.0
-ANGLE_GRIPPER_CLOSED = 0.0
-STR_MESH_GRIPPER_FOLDER = 'package://pr2_description/meshes/gripper_v0/'
-STR_GRIPPER_PALM_FILE = STR_MESH_GRIPPER_FOLDER + 'gripper_palm.dae'
-STR_GRIPPER_FINGER_FILE = STR_MESH_GRIPPER_FOLDER + 'l_finger.dae'
-STR_GRIPPER_FINGERTIP_FILE = STR_MESH_GRIPPER_FOLDER + 'l_finger_tip.dae'
+STR_MESH_GRIPPER_FOLDER = 'package://fetch_description/meshes/'
+STR_GRIPPER_PALM_FILE = STR_MESH_GRIPPER_FOLDER + 'gripper_link.STL'
+STR_L_GRIPPER_FINGER_FILE = STR_MESH_GRIPPER_FOLDER + 'l_gripper_finger_link.STL'
+STR_R_GRIPPER_FINGER_FILE = STR_MESH_GRIPPER_FOLDER + 'r_gripper_finger_link.STL'
 INT_MARKER_SCALE = 0.2
 GRIPPER_MARKER_SCALE = 1.05
 REF_FRAME = 'base_link'
@@ -398,7 +396,7 @@ class ArmControlMarker:
             control.orientation_mode = InteractiveMarkerControl.FIXED
         return control
 
-    def _make_mesh_marker(self):
+    def _make_mesh_marker(self, color):
         '''Creates and returns a mesh marker.
 
         Returns:
@@ -407,10 +405,10 @@ class ArmControlMarker:
         mesh = Marker()
         mesh.mesh_use_embedded_materials = False
         mesh.type = Marker.MESH_RESOURCE
-        mesh.scale.x = GRIPPER_MARKER_SCALE
-        mesh.scale.y = GRIPPER_MARKER_SCALE
-        mesh.scale.z = GRIPPER_MARKER_SCALE
-        mesh.color = self._get_mesh_marker_color()
+        mesh.scale.x = 1.0
+        mesh.scale.y = 1.0
+        mesh.scale.z = 1.0
+        mesh.color = color
         return mesh
 
     def _get_mesh_marker_color(self):
@@ -440,68 +438,44 @@ class ArmControlMarker:
         Returns:
             InteractiveMarkerControl: The passed control.
         '''
-        # Set angle of meshes based on gripper open vs closed.
-        angle = ANGLE_GRIPPER_OPEN if is_hand_open else ANGLE_GRIPPER_CLOSED
-
-        # Make transforms in preparation for meshes 1, 2, and 3.
-        # NOTE(mbforbes): There are some magic numbers in here that are
-        # used a couple times. Seems like a good candidate for
-        # refactoring to constants, but I think they're more clear if
-        # left in here as (a) they likely won't be changed, and (b) it's
-        # easier to understand the computations with them here.
-        transform1 = tf.transformations.euler_matrix(0, 0, angle)
-        transform1[:3, 3] = [0.07691 - DEFAULT_OFFSET, 0.01, 0]
-        transform2 = tf.transformations.euler_matrix(0, 0, -angle)
-        transform2[:3, 3] = [0.09137, 0.00495, 0]
-        t_proximal = transform1
-        t_distal = tf.transformations.concatenate_matrices(
-            transform1, transform2)
+        mesh_color = self._get_mesh_marker_color()
 
         # Create mesh 1 (palm).
-        mesh1 = self._make_mesh_marker()
+        mesh1 = self._make_mesh_marker(mesh_color)
         mesh1.mesh_resource = STR_GRIPPER_PALM_FILE
-        mesh1.pose.position.x = -DEFAULT_OFFSET
+        mesh1.pose.position.x = DEFAULT_OFFSET
         mesh1.pose.orientation.w = 1
 
-        # Create mesh 2 (finger).
-        mesh2 = self._make_mesh_marker()
-        mesh2.mesh_resource = STR_GRIPPER_FINGER_FILE
-        mesh2.pose = ArmControlMarker.get_pose_from_transform(t_proximal)
+        # TODO (sarah): make all of these numbers into constants
+        if is_hand_open:
+            mesh2 = self._make_mesh_marker(mesh_color)
+            mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
+            mesh2.pose.position.x = 0.08
+            mesh2.pose.position.y = -0.165
+            mesh2.pose.orientation.w = 1
 
-        # Create mesh 3 (fingertip).
-        mesh3 = self._make_mesh_marker()
-        mesh3.mesh_resource = STR_GRIPPER_FINGERTIP_FILE
-        mesh3.pose = ArmControlMarker.get_pose_from_transform(t_distal)
+            mesh3 = self._make_mesh_marker(mesh_color)
+            mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
+            mesh3.pose.position.x = 0.08 
+            mesh3.pose.position.y = 0.165
+            mesh3.pose.orientation.w = 1
+        else:
+            mesh2 = self._make_mesh_marker(mesh_color)
+            mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
+            mesh2.pose.position.x = 0.08 
+            mesh2.pose.position.y = -0.116
+            mesh2.pose.orientation.w = 1
 
-        # Make transforms in preparation for meshes 4 and 5.
-        quat = tf.transformations.quaternion_multiply(
-            tf.transformations.quaternion_from_euler(numpy.pi, 0, 0),
-            tf.transformations.quaternion_from_euler(0, 0, angle)
-        )
-        transform1 = tf.transformations.quaternion_matrix(quat)
-        transform1[:3, 3] = [0.07691 - DEFAULT_OFFSET, -0.01, 0]
-        transform2 = tf.transformations.euler_matrix(0, 0, -angle)
-        transform2[:3, 3] = [0.09137, 0.00495, 0]
-        t_proximal = transform1
-        t_distal = tf.transformations.concatenate_matrices(
-            transform1, transform2)
-
-        # Create mesh 4 (other finger).
-        mesh4 = self._make_mesh_marker()
-        mesh4.mesh_resource = STR_GRIPPER_FINGER_FILE
-        mesh4.pose = ArmControlMarker.get_pose_from_transform(t_proximal)
-
-        # Create mesh 5 (other fingertip).
-        mesh5 = self._make_mesh_marker()
-        mesh5.mesh_resource = STR_GRIPPER_FINGERTIP_FILE
-        mesh5.pose = ArmControlMarker.get_pose_from_transform(t_distal)
+            mesh3 = self._make_mesh_marker(mesh_color)
+            mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
+            mesh3.pose.position.x = 0.08 
+            mesh3.pose.position.y = 0.116
+            mesh3.pose.orientation.w = 1
 
         # Append all meshes we made.
         control.markers.append(mesh1)
         control.markers.append(mesh2)
         control.markers.append(mesh3)
-        control.markers.append(mesh4)
-        control.markers.append(mesh5)
 
         # Return back the control.
         # TODO(mbforbes): Why do we do this?

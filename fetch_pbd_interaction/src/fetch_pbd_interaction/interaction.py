@@ -134,10 +134,11 @@ class Interaction:
         rospy.loginfo('Interaction initialized.')
         self._ping_srv = rospy.Service('interaction_ping', Ping,
                                        self._interaction_ping)
+        self.arm_control.arm.relax_arm()
 
-        CONTROLLER_ACTION_NAME = "/query_controller_states"
-        self.controller_client = actionlib.SimpleActionClient(CONTROLLER_ACTION_NAME, QueryControllerStatesAction)
-        self.controller_client.wait_for_server()
+        # CONTROLLER_ACTION_NAME = "/query_controller_states"
+        # self.controller_client = actionlib.SimpleActionClient(CONTROLLER_ACTION_NAME, QueryControllerStatesAction)
+        # self.controller_client.wait_for_server()
 
     # ##################################################################
     # Internal ("private" methods)
@@ -870,27 +871,28 @@ class Interaction:
             Response.say(RobotSpeech.EXECUTION_ERROR_NOIK)
             Response.perform_gaze_action(GazeGoal.SHAKE)
         # No matter what, we're not executing anymore.
-        start = list()
-        start.append("arm_controller/gravity_compensation")
+        # start = list()
+        # start.append("arm_controller/gravity_compensation")
 
-        stop = list()
-        stop.append("arm_controller/follow_joint_trajectory")
-        stop.append("arm_with_torso_controller/follow_joint_trajectory")
+        # stop = list()
+        # stop.append("arm_controller/follow_joint_trajectory")
+        # stop.append("arm_with_torso_controller/follow_joint_trajectory")
 
-        goal = QueryControllerStatesGoal()
+        # goal = QueryControllerStatesGoal()
         
-        for controller in start:
-            state = ControllerState()
-            state.name = controller
-            state.state = state.RUNNING
-            goal.updates.append(state)
+        # for controller in start:
+        #     state = ControllerState()
+        #     state.name = controller
+        #     state.state = state.RUNNING
+        #     goal.updates.append(state)
 
-        for controller in stop:
-            state = ControllerState()
-            state.name = controller
-            state.state = state.STOPPED
-            goal.updates.append(state)
+        # for controller in stop:
+        #     state = ControllerState()
+        #     state.name = controller
+        #     state.state = state.STOPPED
+        #     goal.updates.append(state)
 
-        self.controller_client.send_goal(goal)
+        # self.controller_client.send_goal(goal)
+        self.arm_control.arm.relax_arm()
         self.arm_control.status = ExecutionStatus.NOT_EXECUTING
 

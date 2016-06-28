@@ -85,7 +85,7 @@ class PbDGUI(Plugin):
         self.commands[Command.NEXT_ACTION] = 'Next action'
         self.commands[Command.PREV_ACTION] = 'Previous action'
         self.commands[Command.SAVE_POSE] = 'Save pose'
-        self.commands[Command.OPEN_HAND] = 'Open and'
+        self.commands[Command.OPEN_HAND] = 'Open hand'
         self.commands[Command.CLOSE_HAND] = 'Close hand'
         self.commands[Command.EXECUTE_ACTION] = 'Execute action'
         self.commands[Command.STOP_EXECUTION] = 'Stop execution'
@@ -95,6 +95,7 @@ class PbDGUI(Plugin):
 
         self.currentAction = -1
         self.currentStep = -1
+        self.current_ref_frames = []
 
         allWidgetsBox = QtGui.QVBoxLayout()
         actionBox = QGroupBox('Actions', self._widget)
@@ -114,22 +115,17 @@ class PbDGUI(Plugin):
         self.stepsBox = QGroupBox('No actions created yet', self._widget)
         self.stepsGrid = QtGui.QGridLayout()
 
-        self.l_model = QtGui.QStandardItemModel(self)
-        self.l_view = self._create_table_view(self.l_model,
-                                              self.l_row_clicked_cb)
-        self.r_model = QtGui.QStandardItemModel(self)
-        self.r_view = self._create_table_view(self.r_model,
-                                              self.r_row_clicked_cb)
+        self.model = QtGui.QStandardItemModel(self)
+        self.view = self._create_table_view(self.model,
+                                              self.row_clicked_cb)
 
         self.stepsGrid.addItem(QtGui.QSpacerItem(280, 10), 0, 0, 2, 3)
         self.stepsGrid.addItem(QtGui.QSpacerItem(10, 10), 0, 1, 2, 3)
         self.stepsGrid.addItem(QtGui.QSpacerItem(280, 10), 0, 2, 2, 3)
 
-        self.stepsGrid.addWidget(QtGui.QLabel('Left Arm'), 0, 0)
-        self.stepsGrid.addWidget(QtGui.QLabel('Right Arm'), 0, 2)
+        self.stepsGrid.addWidget(QtGui.QLabel('Arm'), 0, 0)
 
-        self.stepsGrid.addWidget(self.l_view, 1, 0)
-        self.stepsGrid.addWidget(self.r_view, 1, 2)
+        self.stepsGrid.addWidget(self.view, 1, 0)
 
         stepsBoxLayout = QtGui.QHBoxLayout()
         stepsBoxLayout.addLayout(self.stepsGrid)
@@ -235,17 +231,14 @@ class PbDGUI(Plugin):
         '''Returns a unique id of the marker'''
         return (2 * (index + 1) + arm_index)
 
-    def get_arm_and_index(self, uid):
+    def get_index(self, uid):
         '''Returns a unique id of the marker'''
         arm_index = uid % 2
         index = (uid - arm_index) / 2
-        return (arm_index, (index - 1))
+        return index - 1
 
-    def r_row_clicked_cb(self, logicalIndex):
+    def row_clicked_cb(self, logicalIndex):
         self.step_pressed(self.get_uid(0, logicalIndex))
-
-    def l_row_clicked_cb(self, logicalIndex):
-        self.step_pressed(self.get_uid(1, logicalIndex))
 
     def create_button(self, command):
         btn = QtGui.QPushButton(self.commands[command], self._widget)
@@ -253,7 +246,9 @@ class PbDGUI(Plugin):
         return btn
 
     def update_state(self, state):
-        PbDGUI.loginfo('Received new state')
+        PbDGUI.loginfo('Received new state')        
+
+        self.current_ref_frames = state.ref_frames
 
         n_actions = len(self.actionIcons.keys())
         if n_actions < state.n_actions:
@@ -270,9 +265,7 @@ class PbDGUI(Plugin):
                 self.save_pose()
         elif (n_steps > state.n_steps):
             n_to_remove = n_steps - state.n_steps
-            self.r_model.invisibleRootItem().removeRows(state.n_steps,
-                                                      n_to_remove)
-            self.l_model.invisibleRootItem().removeRows(state.n_steps,
+            self.model.invisibleRootItem().removeRows(state.n_steps,
                                                       n_to_remove)
 
         ## TODO: DEAL with the following arrays!!!
@@ -283,46 +276,42 @@ class PbDGUI(Plugin):
         if (self.currentStep != state.i_current_step):
             if (self.n_steps() > 0):
                 self.currentStep = state.i_current_step
-                arm_index, index = self.get_arm_and_index(self.currentStep)
-                if (arm_index == 0):
-                    self.r_view.selectRow(index)
-                else:
-                    self.l_view.selectRow(index)
+                index = self.get_index(self.currentStep)
+                self.view.selectRow(index)
 
     def save_pose(self, actionIndex=None):
         nColumns = 9
         if actionIndex is None:
             actionIndex = self.currentAction
         stepIndex = self.n_steps(actionIndex)
-        r_step = [QtGui.QStandardItem('Step' + str(stepIndex + 1)),
+        ref_frame = "base_link"
+        rospy.loginfo("Step Index: {}".format(stepIndex))
+        rospy.loginfo("Ref frames: {}".format(self.current_ref_frames))
+        if self.current_ref_frames:
+            if self.current_ref_frames[stepIndex] != '':
+                ref_frame = self.current_ref_frames[stepIndex]
+
+        step = [QtGui.QStandardItem('Step' + str(stepIndex + 1)),
                     QtGui.QStandardItem('Go to pose'),
-                    QtGui.QStandardItem('Absolute')]
-        l_step = [QtGui.QStandardItem('Step' + str(stepIndex + 1)),
-                    QtGui.QStandardItem('Go to pose'),
-                    QtGui.QStandardItem('Absolute')]
-        self.r_model.invisibleRootItem().appendRow(r_step)
-        self.l_model.invisibleRootItem().appendRow(l_step)
+                    QtGui.QStandardItem(ref_frame)]
+        self.model.invisibleRootItem().appendRow(step)
         self.update_table_view()
         self.currentStep = stepIndex
 
     def update_table_view(self):
-        self.l_view.setColumnWidth(0, 50)
-        self.l_view.setColumnWidth(1, 100)
-        self.l_view.setColumnWidth(2, 70)
-        self.r_view.setColumnWidth(0, 50)
-        self.r_view.setColumnWidth(1, 100)
-        self.r_view.setColumnWidth(2, 70)
+        self.view.setColumnWidth(0, 50)
+        self.view.setColumnWidth(1, 100)
+        self.view.setColumnWidth(2, 70)
 
     def n_steps(self, actionIndex=None):
-        return self.l_model.invisibleRootItem().rowCount()
+        return self.model.invisibleRootItem().rowCount()
 
     def delete_all_steps(self, actionIndex=None):
         if actionIndex is None:
             actionIndex = self.currentAction
         n_steps = self.n_steps()
         if (n_steps > 0):
-            self.l_model.invisibleRootItem().removeRows(0, n_steps)
-            self.r_model.invisibleRootItem().removeRows(0, n_steps)
+            self.model.invisibleRootItem().removeRows(0, n_steps)
 
     def n_actions(self):
         return len(self.actionIcons.keys())

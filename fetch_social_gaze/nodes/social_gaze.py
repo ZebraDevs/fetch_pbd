@@ -56,7 +56,7 @@ class SocialGaze:
         # Some constants
         self.doNotInterrupt = [GazeGoal.NOD,
                                GazeGoal.SHAKE]
-        self.nodPositions = [Point(1, 0, 0.80), Point(1, 0, 1.10)]
+        self.nodPositions = [Point(1, 0, 0.70), Point(1, 0, 1.20)]
         self.shakePositions = [Point(1, 0.2, 1.05), Point(1, -0.2, 1.05)]
         self.nNods = 5
         self.nShakes = 5
@@ -187,7 +187,7 @@ class SocialGaze:
     def isTheSame(self, current, target):
         diff = target - current
         dist = linalg.norm(diff)
-        return (dist < 0.0001)
+        return (dist < 0.001)
 
     def filterLookatPosition(self, current, target):
         speed = 0.02
@@ -292,8 +292,8 @@ class SocialGaze:
         elif (self.isTheSame(self.point2array(self.headGoal.target.point),
                              self.point2array(self.targetLookatPoint))):
             if (isActionPossiblyComplete):
-                # if (self.headActionClient.get_state() == GoalStatus.SUCCEEDED):
-                self.isActionComplete = True
+                if (self.headActionClient.get_state() == GoalStatus.SUCCEEDED):
+                    self.isActionComplete = True
                 #self.currentGazeAction = None
                 # rospy.loginfo("Succeeded!!")
         else:
