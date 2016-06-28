@@ -1,0 +1,40 @@
+<launch>
+	<!-- This file runs the PbD backend. It may be run on the robot or on the
+	     desktop (to run in simulation). If running on the desktop, make sure
+	     to pass in sim:=true to get the simulated Kinect. -->
+
+	<!-- These arguments can be passed in. -->
+	<!-- ================================= -->
+	<!-- Should we reload a previously saved experiment state?  -->
+	<arg name="isReload" default="false" />
+
+	<!-- Where is experiment state stored? -->
+	<arg name="dataRoot" default="$(env HOME)" />
+
+	<!-- Which experiment number should we use? (Affects data save
+	directory) -->
+	<arg name="experimentNumber" default="1" />
+
+	<!-- Are we running in simulation or on the real robot? -->
+	<arg name="sim" default="false" />
+
+	<!-- Do we want a code coverage report? -->
+	<arg name="coverage" default="false" />
+
+
+	<!-- This runs all of the prerequisite nodes for the PbD backend to
+	work, such as interactive manipulation backend and social gaze. -->
+	<include file="$(find fetch_pbd_interaction)/launch/pbd_backend_prereqs.launch">
+		<arg name="sim" value="$(arg sim)" />
+	</include>
+
+
+	<!-- This runs the interaction node itself.	It is the main state
+	machine for interaction and PbD -->
+	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_node.py" output="screen">
+		<param name="dataRoot" value="$(arg dataRoot)" />
+		<param name="isReload" value="$(arg isReload)" />
+		<param name="experimentNumber" value="$(arg experimentNumber)" />
+		<param name="coverage" value="$(arg coverage)" />
+	</node>
+</launch>

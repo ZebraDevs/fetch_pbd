@@ -1,0 +1,20 @@
+<library path="src">
+  <class name="PbDGUI" type="fetch_pbd_gui.pbd_gui.PbDGUI" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      A GUI for using the PbD functionality when speech is not plugged in.
+    </description>
+    <qtgui>
+      <!-- optional grouping...
+      <group>
+        <label>Group</group>
+      </group>
+      <group>
+        <label>Subgroup</group>
+      </group>
+      -->
+      <label>Fetch Programming by Demonstration</label>
+      <icon type="theme">system-help</icon>
+      <statustip>Use speech commands to start the interaction.</statustip>
+    </qtgui>
+  </class>
+</library>

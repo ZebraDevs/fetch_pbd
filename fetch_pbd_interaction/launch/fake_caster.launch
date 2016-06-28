@@ -1,0 +1,8 @@
+<launch>
+  <node name="fake_odom_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 odom_combined base_footprint 10" />
+<!--
+  <node name="fake_caster_rot_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 base_link bl_caster_rotation_link 10" />
+  <node name="fake_caster_l_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 bl_caster_rotation_link bl_caster_l_wheel_link 10" />
+  <node name="fake_caster_r_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 bl_caster_rotation_link bl_caster_r_wheel_link 10" />
+-->
+</launch>

@@ -1,0 +1,13 @@
+<!-- Launch Kinect on robot with proper transforms and names -->
+<launch>
+    <include file="$(find openni_launch)/launch/openni.launch">
+        <arg name="depth_registration" value="true"/>
+        <arg name="camera" value="head_mount_kinect"/>
+        <arg name="depth_frame_id" value="head_mount_kinect_ir_optical_frame"/>
+        <!-- <arg name="rgb_frame_id" value="head_mount_kinect_rgb_optical_frame"/> -->
+        <arg name="publish_tf" value="false"/>
+
+        <!-- Publishes in a separate tree from other robot links: -->
+        <!-- <arg name="publish_tf" value="true"/> -->
+    </include>
+</launch>

@@ -1,0 +1,36 @@
+<launch>
+	<!-- This launches everything in the PbD backend stack EXCEPT for
+	PbD itself (the interaction node).
+
+	The purpose of splitting the launch files this way is for testing,
+	both manual and automated. If the interaction node goes down, it can
+	be brought up separately from all of its prerequisites.
+
+	Note that this DOES NOT include the simulated robot. This (and
+	pbd_backend in general) work on both the real and simulated robot.
+	-->
+
+    <arg name="camera_frame_prefix" default="/head_camera" />
+    <arg name="camera_name" default="head_camera" />
+    
+	<!-- These arguments can be passed in. -->
+	<arg name="sim" default="false" />
+
+	<!-- This makes the robot look around appropriately -->
+	<include file="$(find fetch_social_gaze)/launch/gaze.launch"/>
+
+  	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
+
+	<include file="$(find tabletop_object_detector)/launch/tabletop_segmentation.launch">
+	    <arg name="tabletop_segmentation_points_in" value="$(arg camera_name)/depth_registered/points" />
+	</include>
+
+	<node name="fetch_arm_control" pkg="fetch_arm_control" type="arm_control_node.py" output="screen" />
+
+  	<!-- <include file="$(find fetch_pbd_interaction)/launch/fake_caster.launch" /> -->
+
+    <node name="mongo_msg_db" pkg="mongo_msg_db" type="db_node.py" />
+
+	<!-- Kinect launch -->
+	<!-- <include file="$(find fetch_pbd_interaction)/launch/kinect_tf.launch" /> -->
+</launch>

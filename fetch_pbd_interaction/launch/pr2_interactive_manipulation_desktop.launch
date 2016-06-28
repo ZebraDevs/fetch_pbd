@@ -1,0 +1,25 @@
+<launch>
+    <!-- create a temporary rviz file... hopefully $HOME is defined on all the systems we use... --> 
+    <arg name="rviz_config_file" value="$(env HOME)/.ros/pr2_interactive_manipulation_temp.rviz"/>
+    <node pkg="pr2_interactive_manipulation_frontend" type="adjust_rviz_config.py" 
+	  args="$(find pr2_pbd_interaction)/config/pr2_interactive_manipulation_pbd.rviz $(arg rviz_config_file) 
+		false false false false false" 
+	  name="rviz_config_adjuster" output="screen" />
+    
+    <!-- tf republish; the throttler gets launched on the robot side and the republisher on the desktop side -->
+    <node pkg="tf_throttle" name="$(anon tf_republish)" type="tf_republish" respawn="true" output="screen">
+    	<!-- the rate at which everything gets republished -->
+	<param name="rate" value="100.0" />
+
+	<!-- time before dropping a transform that has not been received in a while -->
+	<param name="expiration_time" value="2.0" />
+    </node>
+
+    <!-- rviz -->
+    <node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"
+	  args="-d $(arg rviz_config_file) -s $(find pr2_interactive_manipulation_frontend)/images/splash.png"> 
+
+      <remap from="tf" to="tf_republished"/>
+    </node>
+
+</launch>

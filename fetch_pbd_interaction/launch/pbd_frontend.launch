@@ -1,0 +1,26 @@
+<launch>
+	<!-- This runs the core of the demo -->
+
+	<!-- This is the GUI that lets you send speech commands with buttons
+	and displays what the robot would say. -->
+	<node name="fetch_pbd_gui" pkg="rqt_gui" type="rqt_gui" output="screen"></node>
+
+	<!-- This is the interactive manipulation stuff for visualization
+	(this will run RVIZ). -->
+	<!--<include file="$(find pr2_pbd_interaction)/launch/pr2_interactive_manipulation_desktop.launch" />-->
+
+	<!-- This adds speech generation. -->
+	<node name="soundplay_node" pkg="sound_play" type="soundplay_node.py"/>
+
+	<!-- This adds speech recognition (using pocketsphinx). -->
+	<include file="$(find fetch_pbd_speech_recognition)/launch/command_recognition.launch"/>
+
+    <!-- rviz -->
+
+    <node name="$(anon rviz-1)" pkg="rviz" type="rviz" respawn="false"
+        args="-d $(find fetch_pbd_interaction)/config/fetch_pbd.rviz"
+        output="screen">
+        <rosparam command="load" file="$(find fetch_moveit_config)/config/kinematics.yaml"/>
+    </node>
+
+</launch>

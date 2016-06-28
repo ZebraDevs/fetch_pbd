@@ -1,0 +1,14 @@
+open-hand
+close-hand
+record-object-pose
+save-pose
+execute-action
+stop-execution
+create-new-action
+next-action
+previous-action
+delete-all-steps
+delete-last-step
+start-recording-motion
+stop-recording-motion
+test-microphone

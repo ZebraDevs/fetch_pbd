@@ -1,0 +1,25 @@
+<launch>
+	<!-- These arguments can be passed in. -->
+	<!-- ================================= -->
+	<!-- Should we reload a previously saved experiment state?  -->
+	<arg name="isReload" default="false" />
+
+	<!-- Where is experiment state stored? -->
+	<arg name="dataRoot" default="$(env HOME)" />
+
+	<!-- Which experiment number should we use? (Affects data save
+	directory) -->
+	<arg name="experimentNumber" default="1" />
+
+	<!-- Do we want a code coverage report? -->
+	<arg name="coverage" default="false" />
+
+	<!-- This runs the interaction node itself.	It is the main state
+	machine for interaction and PbD -->
+	<node name="pr2_pbd_interaction" pkg="pr2_pbd_interaction" type="pbd_node.py" output="screen">
+		<param name="dataRoot" value="$(arg dataRoot)" />
+		<param name="isReload" value="$(arg isReload)" />
+		<param name="experimentNumber" value="$(arg experimentNumber)" />
+		<param name="coverage" value="$(arg coverage)" />
+	</node>
+</launch>
