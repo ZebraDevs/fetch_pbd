@@ -14,7 +14,8 @@ if __name__ == '__main__':
     rospy.init_node('fetch_arm_control', anonymous=True)
 
     # Run the system
-    arm_controls = ArmControls()
+    realtime = False
+    arm_controls = ArmControls(realtime)
     while(not rospy.is_shutdown()):
         arm_controls.update()
-        rospy.sleep(0.05)
+        rospy.sleep(0.1)

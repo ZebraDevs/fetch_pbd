@@ -13,7 +13,8 @@ from std_msgs.msg import String
 class ArmControls:
     '''Marker for visualizing the steps of an action.'''
 
-    def __init__(self):
+    def __init__(self, realtime=False):
+        self.realtime = realtime
     	tf_listener = TransformListener()
         arm = Arm(tf_listener)
     	self.marker = ArmControlMarker(arm)
@@ -25,3 +26,6 @@ class ArmControls:
 
     def update(self):
         self.marker.update()
+
+        if self.realtime:
+                    self.marker.move_to_cb(None)

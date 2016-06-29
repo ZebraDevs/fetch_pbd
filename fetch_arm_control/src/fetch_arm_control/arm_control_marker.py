@@ -18,6 +18,10 @@ from visualization_msgs.msg import (
     InteractiveMarkerFeedback)
 import threading
 from fetch_arm_control.msg import GripperState
+import numpy.linalg
+from numpy import *
+
+
 
 # ######################################################################
 # Constants
@@ -58,6 +62,28 @@ class ArmControlMarker:
         self._prev_is_reachable = None
         self._pose = self._arm.get_ee_state()
         self._lock = threading.Lock()
+        self._current_pose = None
+        self._menu_control = None
+
+    @staticmethod
+    def pose2array(p):
+        return array((p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w))
+
+    @staticmethod
+    def isTheSame(pose1, pose2):
+        diff = pose1 - pose2
+        dist = linalg.norm(diff)
+        return (dist < 0.001)
+
+    def _markerMoved(self):
+        moved = True
+        current_pose = self.get_pose()
+        if not self._current_pose is None:
+            if ArmControlMarker.isTheSame(ArmControlMarker.pose2array(current_pose), 
+                ArmControlMarker.pose2array(self._current_pose)):
+                moved = False
+        self._current_pose = current_pose
+        return moved 
 
     def update(self):
 
@@ -79,14 +105,20 @@ class ArmControlMarker:
                 'Open gripper',
                 callback=self.open_gripper_cb)
 
-        menu_control = InteractiveMarkerControl()
-        menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
-        menu_control.always_visible = True
         frame_id = REF_FRAME
         pose = self.get_pose()
 
-        # menu_control = self._make_gripper_marker(
-        #     menu_control, self._is_hand_open())
+        if self._markerMoved() or self._menu_control is None: 
+            rospy.loginfo("Marker moved")
+
+            menu_control = InteractiveMarkerControl()
+            menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
+            menu_control.always_visible = True
+       
+
+            menu_control = self._make_gripper_marker(
+                menu_control, self._is_hand_open())
+            self._menu_control = menu_control
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
@@ -95,7 +127,7 @@ class ArmControlMarker:
         int_marker.pose = pose
         int_marker.scale = INT_MARKER_SCALE
         self._add_6dof_marker(int_marker, True)
-        int_marker.controls.append(menu_control)
+        int_marker.controls.append(self._menu_control)
         ArmControlMarker._im_server.insert(
             int_marker, self.marker_feedback_cb)
 
