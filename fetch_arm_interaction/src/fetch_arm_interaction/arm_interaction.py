@@ -25,4 +25,4 @@ class ArmInteraction:
         self.marker.update()
 
         if self.realtime:
-                    self.marker.move_to_cb(None)
+                self.marker.move_to_cb(None)

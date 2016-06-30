@@ -250,16 +250,15 @@ class ArmControlMarker:
         pose = ArmControlMarker.copy_pose(self._pose)
         self._lock.release()
 
-        target_joints = self._arm.get_ik_for_ee(
-                pose, self._arm.get_joint_state())
+        target_pose = pose
 
-        if target_joints is not None:
-            time_to_pose = self._arm.get_time_to_pose(self.get_pose())
+        if target_pose is not None:
+            # time_to_pose = self._arm.get_time_to_pose(self.get_pose())
 
             thread = threading.Thread(
                 group=None,
-                target=self._arm.move_to_joints,
-                args=(target_joints, time_to_pose),
+                target=self._arm.move_to_pose,
+                args=(target_pose,),
                 name='move_to_arm_state_thread'
             )
             thread.start()

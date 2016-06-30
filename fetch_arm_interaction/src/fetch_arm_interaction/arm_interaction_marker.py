@@ -70,10 +70,13 @@ class ArmInteractionMarker:
         return array((p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w))
 
     @staticmethod
-    def isTheSame(pose1, pose2):
+    def isTheSame(pose1, pose2, tol=0.001):
+        if pose1 is None or pose2 is None:
+            return True
+
         diff = pose1 - pose2
         dist = linalg.norm(diff)
-        return (dist < 0.001)
+        return (dist < tol)
 
     def _markerMoved(self):
         moved = True
@@ -276,31 +279,35 @@ class ArmInteractionMarker:
         Args:
             __ (???): Unused
         '''
-        rospy.loginfo("Move to cb from marker")
 
-        self._lock.acquire()
-        pose = ArmInteractionMarker.copy_pose(self._pose)
-        self._lock.release()
+        if not ArmInteractionMarker.isTheSame(
+            ArmInteractionMarker.pose2array(self._pose), ArmInteractionMarker.pose2array(self._arm.get_ee_state()), 0.01):
+            rospy.loginfo("Move to cb from marker for real")
 
-        target_joints = self._arm.get_ik_for_ee(
-                pose, self._arm.get_joint_state())
+            self._lock.acquire()
+            pose = ArmInteractionMarker.copy_pose(self._pose)
+            self._lock.release()
 
-        if target_joints is not None:
-            time_to_pose = self._arm.get_time_to_pose(self.get_pose())
+            target_pose = pose
 
-            thread = threading.Thread(
-                group=None,
-                target=self._arm.move_to_joints,
-                args=(target_joints, time_to_pose),
-                name='move_to_arm_state_thread'
-            )
-            thread.start()
+            if target_pose is not None:
+                # time_to_pose = self._arm.get_time_to_pose(self.get_pose())
 
-            # Log
-            # side_str = self._arm.side()
-            rospy.loginfo('Started thread to move arm.')
+                thread = threading.Thread(
+                    group=None,
+                    target=self._arm.move_to_pose,
+                    args=(target_pose,),
+                    name='move_to_arm_state_thread'
+                )
+                thread.start()
+
+                # Log
+                # side_str = self._arm.side()
+                rospy.loginfo('Started thread to move arm.')
+            else:
+                rospy.loginfo('Will not move arm; unreachable.')
         else:
-            rospy.loginfo('Will not move arm; unreachable.')
+            rospy.loginfo("move too small?")
 
     def move_pose_to_cb(self, __):
         '''Callback for when a pose change to current is requested.

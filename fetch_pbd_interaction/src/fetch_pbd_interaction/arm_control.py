@@ -400,18 +400,29 @@ class ArmControl:
 
         rospy.loginfo("Move to pose")
         self.status = ExecutionStatus.EXECUTING
-        solution, has_solution = ArmControl.solve_ik_for_arm(arm_state)
-        if has_solution:
-            # Do the raw movement (this only moves arm_index arm).
-            is_successful = self.move_to_joints(solution)
+        target_pose = World.transform(
+            arm_state.ee_pose, arm_state.refFrameLandmark.name, 'base_link')
 
-            # Set status based on what happened.
-            if is_successful:
-                self.status = ExecutionStatus.SUCCEEDED
-            else:
-                self.status = ExecutionStatus.OBSTRUCTED
+        if self.arm.move_to_pose(target_pose):
+            self.status = ExecutionStatus.SUCCEEDED
+            return True
         else:
             self.status = ExecutionStatus.NO_IK
+            return False
+        
+        # solution, has_solution = ArmControl.solve_ik_for_arm(arm_state)
+        # if has_solution:
+        #     # Do the raw movement (this only moves arm_index arm).
+        #     is_successful = self.move_to_joints(solution)
+
+        #     # Set status based on what happened.
+        #     if is_successful:
+        #         self.status = ExecutionStatus.SUCCEEDED
+        #     else:
+        #         self.status = ExecutionStatus.OBSTRUCTED
+        # else:
+        #     self.status = ExecutionStatus.NO_IK
+
 
     def execute_action(self):
         ''' Function to replay the demonstrated two-arm action of type
@@ -596,7 +607,9 @@ class ArmControl:
             # Arm target.
             rospy.loginfo('\tWill perform arm target action step.')
             # Try moving to the joints.
-            if not self.move_to_joints(action_step.armTarget.arm):
+            if not self.move_to_pose(action_step.armTarget.arm):
+                rospy.loginfo('\t Returned False.')
+
                 # We may have been pre-empted.
                 if self.preempt:
                     self.status = ExecutionStatus.PREEMPTED
@@ -605,46 +618,46 @@ class ArmControl:
                     self.status = ExecutionStatus.OBSTRUCTED
                 # Regardless, couldn't get to the joints; return False.
                 return False
-        elif action_step.type == ActionStep.ARM_TRAJECTORY:
-            # Arm trajectory.
-            rospy.loginfo('\tWill perform arm trajectory action step.')
-            # First move to the start frame.
-            if not self.move_to_joints(
-                    action_step.armTrajectory.arm[0]):
-                # We may have been pre-empted.
-                if self.preempt:
-                    self.status = ExecutionStatus.PREEMPTED
-                # Otherwise, we were obstructed.
-                else:
-                    self.status = ExecutionStatus.OBSTRUCTED
-                # Regardless, couldn't move to the start frame; return
-                # False.
-                return False
+        # elif action_step.type == ActionStep.ARM_TRAJECTORY:
+        #     # Arm trajectory.
+        #     rospy.loginfo('\tWill perform arm trajectory action step.')
+        #     # First move to the start frame.
+        #     if not self.move_to_joints(
+        #             action_step.armTrajectory.arm[0]):
+        #         # We may have been pre-empted.
+        #         if self.preempt:
+        #             self.status = ExecutionStatus.PREEMPTED
+        #         # Otherwise, we were obstructed.
+        #         else:
+        #             self.status = ExecutionStatus.OBSTRUCTED
+        #         # Regardless, couldn't move to the start frame; return
+        #         # False.
+        #         return False
 
-            # Then execute the trajectory.
-            ArmControl.arm.execute_joint_traj(
-                action_step.armTrajectory.arm,
-                action_step.armTrajectory.timing
-            )
+        #     # Then execute the trajectory.
+        #     ArmControl.arm.execute_joint_traj(
+        #         action_step.armTrajectory.arm,
+        #         action_step.armTrajectory.timing
+        #     )
 
-            # Wait until both arms complete the trajectory.
-            while(ArmControl.arm.is_executing()  and not self.preempt):
-                rospy.sleep(TRAJECTORY_COMPLETE_SLEEP_INTERVAL)
-            rospy.loginfo('\tTrajectory complete.')
+        #     # Wait until both arms complete the trajectory.
+        #     while(ArmControl.arm.is_executing()  and not self.preempt):
+        #         rospy.sleep(TRAJECTORY_COMPLETE_SLEEP_INTERVAL)
+        #     rospy.loginfo('\tTrajectory complete.')
 
-            # Verify that both arms succeeded.
-            if (not ArmControl.arm.is_successful()):
-                rospy.logwarn(
-                    '\tAborting execution; arms failed to follow trajectory.')
-                # We may have been pre-empted.
-                if self.preempt:
-                    self.status = ExecutionStatus.PREEMPTED
-                # Otherwise, we were obstructed.
-                else:
-                    self.status = ExecutionStatus.OBSTRUCTED
-                # Regardless, couldn't complete trajectory; return
-                # False.
-                return False
+        #     # Verify that both arms succeeded.
+        #     if (not ArmControl.arm.is_successful()):
+        #         rospy.logwarn(
+        #             '\tAborting execution; arms failed to follow trajectory.')
+        #         # We may have been pre-empted.
+        #         if self.preempt:
+        #             self.status = ExecutionStatus.PREEMPTED
+        #         # Otherwise, we were obstructed.
+        #         else:
+        #             self.status = ExecutionStatus.OBSTRUCTED
+        #         # Regardless, couldn't complete trajectory; return
+        #         # False.
+        #         return False
 
         # If hand action, do it for both sides.
         if (action_step.gripperAction.gripper.state !=

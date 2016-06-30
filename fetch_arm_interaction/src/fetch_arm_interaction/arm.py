@@ -13,7 +13,7 @@ from actionlib_msgs.msg import GoalStatus
 from actionlib import SimpleActionClient
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal, FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Quaternion, Point, Pose
+from geometry_msgs.msg import Quaternion, Point, Pose, PoseStamped
 from fetch_arm_interaction.msg import GripperState
 from robot_controllers_msgs.msg import QueryControllerStatesAction, \
                                        QueryControllerStatesGoal, \
@@ -55,6 +55,7 @@ class Arm:
         self.movement_buffer_size = 40
         self.last_unstable_time = rospy.Time.now()
         self.arm_movement = []
+        self.is_executing = False
 
         self.lock = threading.Lock()
         rospy.Subscriber('joint_states', JointState, self.joint_states_cb)
@@ -105,14 +106,16 @@ class Arm:
 
         # Option #2, move joints with MoveIt
 
-        self.move_group = MoveGroupInterface("arm", "base_link")
+        # self.move_group = MoveGroupInterface("arm", "base_link")
 
-        self.move_group.setPlannerId('RRTConnectkConfigDefault')
-        self.move_group.setPlanningTime(2.0)
+        # self.move_group.setPlannerId('RRTConnectkConfigDefault')
+        # self.move_group.setPlanningTime(2.0)
 
         # self.move_group_plan = MoveGroupInterface("arm", "base_link", plan_only=True)
         # self.move_group.setPlannerId('RRTConnectkConfigDefault')
-        self.move_group_plan = moveit_commander.MoveGroupCommander("arm")
+        self.move_group = moveit_commander.MoveGroupCommander("arm")
+        self.move_group.set_planning_time(2.0)
+        self.move_group.set_planner_id('RRTConnectkConfigDefault')
 
         # Define ground plane
         # This creates objects in the planning scene that mimic the ground
@@ -245,11 +248,11 @@ class Arm:
 
         self.ik_request.ik_request.pose_stamped.pose = ee_pose
 
-        self.move_group_plan.set_pose_target(self.ik_request.ik_request.pose_stamped)
+        self.move_group.set_pose_target(self.ik_request.ik_request.pose_stamped)
 
-        self.move_group_plan.set_planning_time(1.0)
+        self.move_group.set_planning_time(1.0)
 
-        plan = self.move_group_plan.plan()
+        plan = self.move_group.plan()
 
         if not plan.joint_trajectory.points:
             return None
@@ -258,6 +261,36 @@ class Arm:
             # rospy.loginfo("Plan: {}".format(plan))
             positions = plan.joint_trajectory.points[-1].positions
             return [positions[i] for i, x in enumerate(joint_names) if x in self.joint_names]
+
+    def move_to_pose(self, ee_pose):
+        ee_pose_stamped = None
+
+        if (type(ee_pose) is Pose):
+            ee_pose_stamped = PoseStamped()
+            ee_pose_stamped.pose = ee_pose
+            ee_pose_stamped.header.frame_id = "base_link"
+
+        elif (type(ee_pose) is PoseStamped):
+            ee_pose_stamped = ee_pose
+        else:
+            rospy.loginfo("Not a pose or pose stamped")
+            return False
+
+        self.move_group.set_pose_target(ee_pose_stamped)
+
+        self.move_group.set_planning_time(1.0)
+
+        plan = self.move_group.plan()
+
+        if not plan.joint_trajectory.points:
+            return False
+        else:
+
+            self.is_executing = True
+            go = self.move_group.go(wait=True)
+            self.is_executing = False
+            rospy.loginfo("Go: {}".format(go))
+            return True
 
 
 
@@ -472,13 +505,15 @@ class Arm:
     #TODO
     def is_executing(self):
         '''Whether or not there is an ongoing action execution on the arm'''
-        return (self.move_group.get_move_action().get_state() == GoalStatus.ACTIVE
-                or self.move_group.get_move_action().get_state() == GoalStatus.PENDING)
+        # return (self.move_group.get_move_action().get_state() == GoalStatus.ACTIVE
+        #         or self.move_group.get_move_action().get_state() == GoalStatus.PENDING)
+        return self.is_executing
 
     #TODO
     def is_successful(self):
         '''Whetehr the execution succeeded'''
-        return (self.move_group.get_move_action().get_state() == GoalStatus.SUCCEEDED)
+        # return (self.move_group.get_move_action().get_state() == GoalStatus.SUCCEEDED)
+        return
 
     def get_ik_for_ee(self, ee_pose, seed):
         ''' Finds the IK solution for given end effector pose'''
