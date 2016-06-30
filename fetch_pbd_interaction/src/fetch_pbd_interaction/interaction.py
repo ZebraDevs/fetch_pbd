@@ -23,7 +23,7 @@ from robot_controllers_msgs.msg import QueryControllerStatesAction, \
                                        ControllerState
 
 # Local
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.msg import GripperState
 from fetch_pbd_interaction.arm_control import ArmControl
 from session import Session
 from fetch_pbd_interaction.msg import (ArmState, ActionStep, ArmTarget, Landmark,
@@ -77,7 +77,7 @@ class Interaction:
         # ROS publishers and subscribers.
         self._viz_publisher = rospy.Publisher('visualization_marker_array',
                                               MarkerArray)
-        self._arm_reset_publisher = rospy.Publisher('arm_control_reset',
+        self._arm_reset_publisher = rospy.Publisher('arm_interaction_reset',
                                                     String)
         rospy.Subscriber('recognized_command', Command,
                          self._speech_command_cb)

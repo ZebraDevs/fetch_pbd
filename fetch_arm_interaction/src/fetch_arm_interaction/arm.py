@@ -11,15 +11,10 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 from trajectory_msgs.msg import JointTrajectory
 from actionlib_msgs.msg import GoalStatus
 from actionlib import SimpleActionClient
-# from pr2_mechanism_msgs.srv import SwitchController
-# from pr2_controllers_msgs.msg import JointTrajectoryAction
-# from pr2_controllers_msgs.msg import JointTrajectoryGoal
-# from pr2_controllers_msgs.msg import Pr2GripperCommandAction
-# from pr2_controllers_msgs.msg import Pr2GripperCommandGoal
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal, FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Quaternion, Point, Pose
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.msg import GripperState
 from robot_controllers_msgs.msg import QueryControllerStatesAction, \
                                        QueryControllerStatesGoal, \
                                        ControllerState

@@ -18,8 +18,8 @@ from geometry_msgs.msg import Pose, Point
 
 # Local
 import actionlib
-from fetch_arm_control.arm import Arm
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.arm import Arm
+from fetch_arm_interaction.msg import GripperState
 from fetch_pbd_interaction.msg import ArmState, ActionStep, ExecutionStatus
 from fetch_social_gaze.msg import GazeGoal
 from response import Response

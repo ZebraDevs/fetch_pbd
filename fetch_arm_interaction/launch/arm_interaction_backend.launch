@@ -5,6 +5,6 @@
 
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
 
-	<node name="fetch_arm_control" pkg="fetch_arm_control" type="arm_control_node.py" output="screen" />
+	<node name="fetch_arm_interaction" pkg="fetch_arm_interaction" type="arm_interaction_node.py" output="screen" />
 
 </launch>

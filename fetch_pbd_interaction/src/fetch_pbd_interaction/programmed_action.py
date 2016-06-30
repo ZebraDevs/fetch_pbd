@@ -21,7 +21,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 
 # Local
 from action_step_marker import ActionStepMarker
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.msg import GripperState
 from fetch_pbd_interaction.msg import Action
 from fetch_pbd_interaction.msg import (ArmState, ActionStepSequence, ActionStep,
                                      ArmTarget, GripperAction, ArmTrajectory)

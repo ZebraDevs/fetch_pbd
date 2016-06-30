@@ -17,7 +17,7 @@ from visualization_msgs.msg import (
     Marker, InteractiveMarker, InteractiveMarkerControl,
     InteractiveMarkerFeedback)
 import threading
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.msg import GripperState
 import numpy.linalg
 from numpy import *
 
@@ -42,7 +42,7 @@ REF_FRAME = 'base_link'
 # Class 
 # ######################################################################
 
-class ArmControlMarker:
+class ArmInteractionMarker:
     '''Marker for visualizing the steps of an action.'''
 
     _im_server = None
@@ -52,9 +52,9 @@ class ArmControlMarker:
         Args:
             arm (Arm): Arm object for the right or left PR2 arm.
         '''
-        if ArmControlMarker._im_server is None:
+        if ArmInteractionMarker._im_server is None:
             im_server = InteractiveMarkerServer('interactive_arm_control')
-            ArmControlMarker._im_server = im_server
+            ArmInteractionMarker._im_server = im_server
 
         self._arm = arm
         self._is_control_visible = False
@@ -79,8 +79,8 @@ class ArmControlMarker:
         moved = True
         current_pose = self.get_pose()
         if not self._current_pose is None:
-            if ArmControlMarker.isTheSame(ArmControlMarker.pose2array(current_pose), 
-                ArmControlMarker.pose2array(self._current_pose)):
+            if ArmInteractionMarker.isTheSame(ArmInteractionMarker.pose2array(current_pose), 
+                ArmInteractionMarker.pose2array(self._current_pose)):
                 moved = False
         self._current_pose = current_pose
         return moved 
@@ -128,12 +128,12 @@ class ArmControlMarker:
         int_marker.scale = INT_MARKER_SCALE
         self._add_6dof_marker(int_marker, True)
         int_marker.controls.append(self._menu_control)
-        ArmControlMarker._im_server.insert(
+        ArmInteractionMarker._im_server.insert(
             int_marker, self.marker_feedback_cb)
 
-        self._menu_handler.apply(ArmControlMarker._im_server,
+        self._menu_handler.apply(ArmInteractionMarker._im_server,
             self._get_name())
-        ArmControlMarker._im_server.applyChanges()
+        ArmInteractionMarker._im_server.applyChanges()
 
     def reset(self):
         self.set_new_pose(self._arm.get_ee_state(), is_offset=True)  
@@ -186,12 +186,12 @@ class ArmControlMarker:
         Returns:
             Pose: The offset pose.
         '''
-        transform = ArmControlMarker.get_matrix_from_pose(pose)
+        transform = ArmInteractionMarker.get_matrix_from_pose(pose)
         offset_array = [constant * DEFAULT_OFFSET, 0, 0]
         offset_transform = tf.transformations.translation_matrix(offset_array)
         hand_transform = tf.transformations.concatenate_matrices(
             transform, offset_transform)
-        return ArmControlMarker.get_pose_from_transform(hand_transform)
+        return ArmInteractionMarker.get_pose_from_transform(hand_transform)
 
     def get_uid(self):
         '''Returns a unique id for this marker.
@@ -204,8 +204,8 @@ class ArmControlMarker:
 
     def destroy(self):
         '''Removes marker from the world.'''
-        ArmControlMarker._im_server.erase(self._get_name())
-        ArmControlMarker._im_server.applyChanges()
+        ArmInteractionMarker._im_server.erase(self._get_name())
+        ArmInteractionMarker._im_server.applyChanges()
 
     def set_new_pose(self, new_pose, is_offset=False):
         '''Changes the pose of the action step to new_pose.
@@ -217,7 +217,7 @@ class ArmControlMarker:
         if is_offset:
             self._pose = new_pose
         else:
-            self._pose = ArmControlMarker._offset_pose(new_pose, -1)
+            self._pose = ArmInteractionMarker._offset_pose(new_pose, -1)
         self._lock.release()
 
     @staticmethod
@@ -238,9 +238,9 @@ class ArmControlMarker:
             Pose
         '''
         self._lock.acquire()
-        pose = ArmControlMarker.copy_pose(self._pose)
+        pose = ArmInteractionMarker.copy_pose(self._pose)
         self._lock.release()
-        return ArmControlMarker._offset_pose(pose)
+        return ArmInteractionMarker._offset_pose(pose)
 
     def marker_feedback_cb(self, feedback):
         '''Callback for when an event occurs on the marker.
@@ -279,7 +279,7 @@ class ArmControlMarker:
         rospy.loginfo("Move to cb from marker")
 
         self._lock.acquire()
-        pose = ArmControlMarker.copy_pose(self._pose)
+        pose = ArmInteractionMarker.copy_pose(self._pose)
         self._lock.release()
 
         target_joints = self._arm.get_ik_for_ee(
@@ -322,7 +322,7 @@ class ArmControlMarker:
         rospy.loginfo("Is reachable??")
 
         self._lock.acquire()
-        pose = ArmControlMarker.copy_pose(self._pose)
+        pose = ArmInteractionMarker.copy_pose(self._pose)
         self._lock.release()
 
         target_joints = self._arm.get_ik_for_ee(

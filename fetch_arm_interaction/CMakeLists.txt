@@ -1,7 +1,7 @@
 # Catkin User Guide: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/user_guide.html
 # Catkin CMake Standard: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/standards.html
 cmake_minimum_required(VERSION 2.8.3)
-project(fetch_arm_control)
+project(fetch_arm_interaction)
 # Load catkin and all dependencies required for this package
 # TODO: remove all from COMPONENTS that are not catkin packages.
 find_package(catkin REQUIRED COMPONENTS
@@ -45,7 +45,7 @@ generate_messages(
 # catkin_package parameters: http://ros.org/doc/groovy/api/catkin/html/dev_guide/generated_cmake_api.html#catkin-package
 # TODO: fill in what other packages will need to use this package
 catkin_package(
-  INCLUDE_DIRS src/fetch_arm_control
+  INCLUDE_DIRS src/fetch_arm_interaction
   #LIBRARIES pr2_arm_control
   CATKIN_DEPENDS rospy
   #DEPENDS system_lib

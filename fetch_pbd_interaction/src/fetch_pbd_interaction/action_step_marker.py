@@ -28,7 +28,7 @@ from visualization_msgs.msg import (
 
 # Local
 from arm_control import ArmControl
-from fetch_arm_control.msg import GripperState
+from fetch_arm_interaction.msg import GripperState
 from fetch_pbd_interaction.msg import (
     ActionStep, ArmState, Landmark)
 from world import World

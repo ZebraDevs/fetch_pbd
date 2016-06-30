@@ -9,7 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   mongo_msg_db_msgs
-  fetch_arm_control
+  fetch_arm_interaction
   rospy
   rospy_message_converter
   std_msgs
@@ -56,7 +56,7 @@ generate_messages(
   std_msgs
   geometry_msgs
   tf
-  fetch_arm_control
+  fetch_arm_interaction
 )
 
 # catkin_package parameters: http://ros.org/doc/groovy/api/catkin/html/dev_guide/generated_cmake_api.html#catkin-package

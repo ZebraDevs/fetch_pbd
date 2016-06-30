@@ -25,7 +25,7 @@
 	    <arg name="tabletop_segmentation_points_in" value="$(arg camera_name)/depth_registered/points" />
 	</include>
 
-	<node name="fetch_arm_control" pkg="fetch_arm_control" type="arm_control_node.py" output="screen" />
+	<node name="fetch_pbd_arm_interaction" pkg="fetch_pbd_interaction" type="pbd_arm_interaction_node.py" output="screen" />
 
   	<!-- <include file="$(find fetch_pbd_interaction)/launch/fake_caster.launch" /> -->
 
