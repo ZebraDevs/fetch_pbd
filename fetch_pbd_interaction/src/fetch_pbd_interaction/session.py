@@ -87,7 +87,8 @@ class Session:
         # Create state publisher to broadcast state as well as service
         # to query it.
         self._state_publisher = rospy.Publisher('experiment_state',
-                                                ExperimentState)
+                                                ExperimentState,
+                                                queue_size=10)
         rospy.Service('get_experiment_state', GetExperimentState,
                       self._get_experiment_state_cb)
 

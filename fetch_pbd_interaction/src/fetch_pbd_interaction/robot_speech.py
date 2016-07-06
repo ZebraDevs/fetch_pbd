@@ -58,17 +58,7 @@ class RobotSpeech:
     ERROR_NEXT_SKILL = 'No actions after action'
     ERROR_PREV_SKILL = 'No actions before action'
     ERROR_NO_SKILLS = 'No actions created yet.'
-
-    # Relax / freeze arms
-    # RIGHT_ARM_RELEASED = 'Right arm relaxed'
-    # RIGHT_ARM_HOLDING = 'Right arm frozen'
-    # LEFT_ARM_RELEASED = 'Left arm relaxed'
-    # LEFT_ARM_HOLDING = 'Left arm frozen'
-    # RIGHT_ARM_ALREADY_HOLDING = 'Right arm is already frozen.'
-    # RIGHT_ARM_ALREADY_RELEASED = 'Right arm is already relaxed.'
-    # LEFT_ARM_ALREADY_HOLDING = 'Left arm is already frozen.'
-    # LEFT_ARM_ALREADY_RELEASED = 'Left arm is already relaxed.'
-
+    
     # Open/close hands
     HAND_OPENING = 'Opening hand'
     HAND_CLOSING = 'Closing hand'
@@ -101,8 +91,12 @@ class RobotSpeech:
     ALREADY_RECORDING_MOTION = 'Already recording motion.'
 
     def __init__(self):
-        self.speech_publisher = rospy.Publisher(TOPIC_SPEECH, SoundRequest)
-        self.marker_publisher = rospy.Publisher(TOPIC_MARKER, Marker)
+        self.speech_publisher = rospy.Publisher(TOPIC_SPEECH, 
+                                                SoundRequest,
+                                                queue_size=1)
+        self.marker_publisher = rospy.Publisher(TOPIC_MARKER, 
+                                                Marker,
+                                                queue_size=10)
 
     def say(self, text, is_using_sounds=False):
         '''Send a TTS (text to speech) command.

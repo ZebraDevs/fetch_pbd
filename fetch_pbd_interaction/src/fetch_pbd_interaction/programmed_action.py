@@ -62,8 +62,7 @@ class ProgrammedAction:
             action_index (int): The index of this action.
             step_click_cb (function(int)): The function to call when a
                 step is clicked on (normally in the GUI). The function
-                should take the UID of the step as calculated in
-                ActionStepMarker.calc_uid(...).
+                should take the step number of the step
         '''
         # Initialize a bunch of state.
         self.name = ''  # Human-friendly name for this action.
@@ -94,11 +93,15 @@ class ProgrammedAction:
 
         if ProgrammedAction._marker_publisher is None:
             ProgrammedAction._marker_publisher = rospy.Publisher(TOPIC_MARKERS,
-                                                                 MarkerArray)
+                                                                 MarkerArray,
+                                                                 queue_size=10)
 
     @staticmethod
     def from_msg(action_msg, action_index=0, callback=None):
         '''Creates a ProgrammedAction from an Action ROS msg.
+
+        Returns:
+            ProgrammedAction
         '''
         if callback is None:
             callback = lambda x: None
@@ -109,6 +112,9 @@ class ProgrammedAction:
 
     def to_msg(self):
         '''Creates an Action ROS msg from this ProgrammedAction.
+
+        Returns:
+            Action
         '''
         a = Action()
         a.name = self.name
@@ -154,8 +160,6 @@ class ProgrammedAction:
         # vice versa with a trajectory.
         if copy.type == ActionStep.ARM_TARGET:
             copy.armTarget = ArmTarget()
-            copy.armTarget.armVelocity = float(
-                action_step.armTarget.armVelocity)
             copy.armTarget.arm = ProgrammedAction._copy_arm_state(
                 action_step.armTarget.arm)
         elif copy.type == ActionStep.ARM_TRAJECTORY:
@@ -317,8 +321,7 @@ class ProgrammedAction:
         requested through the interactive marker menu.
 
         Args:
-            r_arm (ArmState)
-            l_arm (ArmState)
+            arm_state (ArmState)
         '''
         self.lock.acquire()
         ProgrammedAction._update_if_edited(self.markers, arm_state)
@@ -327,9 +330,6 @@ class ProgrammedAction:
     def get_requested_target(self):
         '''Gets an arm step that might have been requested from the
         interactive marker menus for the arm_index arm.
-
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
 
         Returns:
             ArmState|None: The first arm step that was requested, or
@@ -423,14 +423,13 @@ class ProgrammedAction:
         self.links = {}
         self.lock.release()
 
-    def marker_click_cb(self, uid, is_selected):
+    def marker_click_cb(self, step_number, is_selected):
         '''Callback for when one of the markers is clicked.
 
         Goes over all other markers and un-selects them.
 
         Args:
-            uid (int): The unique ID for the action step marker, as can
-                be calculated by ActionStepMarker.calc_uid(...).
+            step_number (int): The step number for the action step marker
             is_selected(bool): Whether the marker denoted by uid was
                 selected (True) or de-selected (False).
 
@@ -438,7 +437,7 @@ class ProgrammedAction:
         self.lock.acquire()
         for marker in self.markers:
             # If we match the one we've clicked on, select it.
-            if marker.get_uid() == uid:
+            if marker.get_step_number() == step_number:
                 marker.is_control_visible = is_selected
                 marker.update_viz()
             else:
@@ -449,18 +448,17 @@ class ProgrammedAction:
 
         # If we selected it, really click on it.
         if is_selected:
-            self.step_click_cb(uid)
+            self.step_click_cb(step_number)
         self.lock.release()
 
-    def select_step(self, step_id):
+    def select_step(self, step_number):
         '''Makes the interactive marker for the indicated action step
         selected by showing the 6D controls.
 
         Args:
-            step_id (int): The unique ID for the action step marker, as
-                can be calculated by ActionStepMarker.calc_uid(...).
+            step_number (int): The step_numbeer for the action step marker
         '''
-        self.marker_click_cb(step_id, True)
+        self.marker_click_cb(step_number, True)
 
     def initialize_viz(self, object_list):
         '''Initialize visualization.
@@ -544,9 +542,6 @@ class ProgrammedAction:
         '''Returns the gripper states for all action steps for arm
         arm_index.
 
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
-
         Returns:
             [int]: Each element is either GripperState.OPEN or
                 GripperState.CLOSED.
@@ -563,9 +558,6 @@ class ProgrammedAction:
     def get_ref_frame_names(self):
         '''Returns the names of the reference frame objects for all
         action steps for arm arm_index.
-
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
 
         Returns:
             [str]
@@ -642,7 +634,6 @@ class ProgrammedAction:
         action steps (both must already exist).
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
             to_index (int): The index of the 'end' marker (the latter of
                 the two).
 
@@ -653,7 +644,7 @@ class ProgrammedAction:
         start = markers[to_index - 1].get_absolute_position(is_start=True)
         end = markers[to_index].get_absolute_position(is_start=False)
         return Marker(type=Marker.ARROW,
-                      id=ActionStepMarker.calc_uid(to_index),
+                      id=to_index,
                       lifetime=LINK_MARKER_LIFETIME,
                       scale=LINK_SCALE,
                       header=Header(frame_id=BASE_LINK),

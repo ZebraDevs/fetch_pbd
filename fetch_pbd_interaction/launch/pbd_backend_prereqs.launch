@@ -33,4 +33,6 @@
 
 	<!-- Kinect launch -->
 	<!-- <include file="$(find fetch_pbd_interaction)/launch/kinect_tf.launch" /> -->
+
+	
 </launch>

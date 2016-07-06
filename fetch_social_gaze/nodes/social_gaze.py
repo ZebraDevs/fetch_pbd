@@ -41,7 +41,6 @@ class SocialGaze:
         GazeGoal.NOD_ONCE: 'NOD_ONCE ',
         GazeGoal.SHAKE_ONCE: 'SHAKE_ONCE',
     }
-    '''This maps gaze goal constants to human-readable forms.'''
 
     def __init__(self):
         self.defaultLookatPoint = Point(1, 0, 1.05)
@@ -87,8 +86,13 @@ class SocialGaze:
             'gaze_action', GazeAction, self.executeGazeAction, False)
         self.gazeActionServer.start()
 
-    ## Callback function to receive ee states and face location
     def getEEPos(self):
+        '''Get 3DOF pose of end effector
+
+        Returns:
+            Point: location of wrist of end effector 
+                    (could change to be finger tips)
+        '''
 
         fromFrame = '/base_link'
         toFrame = '/wrist_roll_link'
@@ -99,21 +103,19 @@ class SocialGaze:
                                                                    toFrame, t)
         except:
             rospy.logerr('Could not get the end-effector pose.')
-        #objPoseStamped = PoseStamped()
-        #objPoseStamped.header.stamp = t
-        #objPoseStamped.header.frame_id = '/base_link'
-        #objPoseStamped.pose = Pose()
-        #relEEPose = self.tfListener.transformPose(toFrame, objPoseStamped)
+
         return Point(position[0], position[1], position[2])
 
     def getFaceLocation(self):
+        '''Get 3DOF position of faces in robot's view'''
         connected = self.faceClient.wait_for_server(rospy.Duration(1.0))
         if connected:
             fgoal = FaceDetectorGoal()
             self.faceClient.send_goal(fgoal)
             self.faceClient.wait_for_result()
             f = self.faceClient.get_result()
-            ## If there is one face follow that one, if there are more than one, follow the closest one
+            # If there is one face follow that one, if there are more than 
+            # one, follow the closest one
             closest = -1
             if len(f.face_positions) == 1:
                 closest = 0
@@ -121,7 +123,9 @@ class SocialGaze:
                 closest_dist = 1000
 
             for i in range(len(f.face_positions)):
-                dist = f.face_positions[i].pos.x * f.face_positions[i].pos.x + f.face_positions[i].pos.y * f.face_positions[i].pos.y + f.face_positions[i].pos.z * f.face_positions[i].pos.z
+                dist = (f.face_positions[i].pos.x * f.face_positions[i].pos.x 
+                       + f.face_positions[i].pos.y * f.face_positions[i].pos.y 
+                       + f.face_positions[i].pos.z * f.face_positions[i].pos.z)
                 if dist < closest_dist:
                     closest = i
                     closest_dist = dist
@@ -140,6 +144,11 @@ class SocialGaze:
 
     ## Callback function for receiving gaze commands
     def executeGazeAction(self, goal):
+        '''Get 3DOF pose of end effector
+
+        Args:
+            goal (GazeGoal): what type of action to perform next
+        '''
         rospy.loginfo("Got a head goal: {}".format(goal.action))
         command = goal.action
         if (self.doNotInterrupt.count(self.currentGazeAction) == 0):
@@ -185,11 +194,30 @@ class SocialGaze:
             rospy.logwarn("Aborting head goal")
 
     def isTheSame(self, current, target):
+        '''Get 3DOF pose of end effector
+
+        Args:
+            current (array): (x, y, z) of point
+            target (array): (x, y, z) of point
+
+        Returns:
+            bool
+        '''
         diff = target - current
         dist = linalg.norm(diff)
         return (dist < 0.001)
 
     def filterLookatPosition(self, current, target):
+        '''If head goal is too far away, returns an intermediate position 
+           to limit speed
+
+        Args:
+            current (Point): current head goal
+            target (Point): new head goal
+
+        Returns:
+            Point
+        '''
         speed = 0.02
         diff = self.point2array(target) - self.point2array(current)
         dist = linalg.norm(diff)
@@ -200,30 +228,58 @@ class SocialGaze:
             return target
 
     def startNod(self):
+        '''Start nod action'''
         self.prevTargetLookatPoint = self.targetLookatPoint
         self.prevGazeAction = str(self.currentGazeAction)
         self.nodCounter = 0
         self.targetLookatPoint = self.nodPositions[0]
 
     def startGlance(self):
+        '''Start glance action'''
         self.prevTargetLookatPoint = self.targetLookatPoint
         self.prevGazeAction = str(self.currentGazeAction)
         self.glanceCounter = 0
         self.targetLookatPoint = self.getEEPos()
 
     def startShake(self):
+        '''Start shake action'''
         self.prevTargetLookatPoint = self.targetLookatPoint
         self.prevGazeAction = str(self.currentGazeAction)
         self.shakeCounter = 0
         self.targetLookatPoint = self.shakePositions[0]
 
     def point2array(self, p):
+        '''Make Point msg into array
+
+        Args:
+            p (Point)
+
+        Returns:
+            array
+        '''
         return array((p.x, p.y, p.z))
 
     def array2point(self, a):
+        '''Make array into Point msg 
+
+        Args:
+            a (array)
+
+        Returns:
+            Point
+        '''
         return Point(a[0], a[1], a[2])
 
     def getNextNodPoint(self, current, target):
+        '''Get next point to look at while nodding 
+
+        Args:
+            current (Point): current head goal
+            target (Point): new head goal
+
+        Returns:
+            Point
+        '''
         if (self.isTheSame(self.point2array(current),
                            self.point2array(target))):
             self.nodCounter += 1
@@ -236,6 +292,15 @@ class SocialGaze:
             return target
 
     def getNextGlancePoint(self, current, target):
+        '''Get next point to look at while glancing 
+
+        Args:
+            current (Point): current head goal
+            target (Point): new head goal
+
+        Returns:
+            Point
+        '''
         if (self.isTheSame(self.point2array(current),
                            self.point2array(target))):
             self.glanceCounter = 1
@@ -245,6 +310,15 @@ class SocialGaze:
             return target
 
     def getNextShakePoint(self, current, target):
+        '''Get next point to look at while shaking 
+
+        Args:
+            current (Point): current head goal
+            target (Point): new head goal
+
+        Returns:
+            Point
+        '''
         if (self.isTheSame(self.point2array(current),
                            self.point2array(target))):
             self.shakeCounter += 1
@@ -257,10 +331,9 @@ class SocialGaze:
             return target
 
     def update(self):
-
+        '''Update goal for head movement'''
         isActionPossiblyComplete = True
 
-        # rospy.loginfo("Current action: {}".format(self.currentGazeAction))
         if (self.currentGazeAction == GazeGoal.FOLLOW_EE):
             self.targetLookatPoint = self.getEEPos()
 
@@ -294,8 +367,6 @@ class SocialGaze:
             if (isActionPossiblyComplete):
                 if (self.headActionClient.get_state() == GoalStatus.SUCCEEDED):
                     self.isActionComplete = True
-                #self.currentGazeAction = None
-                # rospy.loginfo("Succeeded!!")
         else:
             self.headGoal.target.point.x = self.currentLookatPoint.x
             self.headGoal.target.point.y = self.currentLookatPoint.y

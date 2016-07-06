@@ -59,6 +59,7 @@ class Response:
     _robot_speech = None
 
     # Gaze goals.
+    _enable_social_gaze = None
     glance_action = GazeGoal.GLANCE_EE
     follow_action = GazeGoal.FOLLOW_EE
 
@@ -71,14 +72,6 @@ class Response:
     close_response = RobotSpeech.HAND_CLOSING
     already_closed_response = RobotSpeech.HAND_ALREADY_CLOSED
 
-    # # Release (relax).
-    # release_response = RobotSpeech.ARM_RELEASED
-    # already_released_response = RobotSpeech.RIGHT_ARM_ALREADY_RELEASED
-
-    # # Hold (freeze).
-    # hold_response = RobotSpeech.RIGHT_ARM_HOLDING
-    # already_holding_response = RobotSpeech.ARM_ALREADY_HOLDING
-
     # Sounds (robot sound).
     all_sounds =  [RobotSound.ALL_POSES_DELETED, RobotSound.ERROR,
                   RobotSound.MICROPHONE_WORKING, RobotSound.POSE_SAVED,
@@ -86,7 +79,7 @@ class Response:
                   RobotSound.EXECUTION_ENDED, RobotSound.OTHER,
                   RobotSound.STARTING_EXECUTION, RobotSound.SUCCESS]
 
-    def __init__(self, function_to_call, function_param):
+    def __init__(self, function_to_call, function_param=None):
         '''
         Args:
             function_to_call (function): Upon respond(...), the function
@@ -122,8 +115,9 @@ class Response:
             gaze_action (int): One of the constants defined in
                 Gaze.action.
         '''
-        enable_social_gaze = rospy.get_param('/enable_social_gaze', True)
-        if enable_social_gaze:
+        if Response._enable_social_gaze is None:
+            Response._enable_social_gaze = rospy.get_param('/enable_social_gaze', True)
+        if Response._enable_social_gaze:
             goal = GazeGoal()
             goal.action = gaze_action
             Response.gaze_client.send_goal(goal)
@@ -147,8 +141,9 @@ class Response:
         Args:
             point (Point)
         '''
-        enable_social_gaze = rospy.get_param('/enable_social_gaze', True)
-        if enable_social_gaze:
+        if Response._enable_social_gaze is None:
+            Response._enable_social_gaze = rospy.get_param('/enable_social_gaze', True)
+        if Response._enable_social_gaze:
             Response.gaze_client.send_goal(GazeGoal(GazeGoal.LOOK_AT_POINT, point))
 
     @staticmethod
@@ -197,8 +192,6 @@ class Response:
               speech_resp == RobotSpeech.EXECUTION_PREEMPTED or
               speech_resp == RobotSpeech.HAND_ALREADY_OPEN or
               speech_resp == RobotSpeech.HAND_ALREADY_CLOSED):
-              # speech_resp == RobotSpeech.ARM_ALREADY_HOLDING or
-              # speech_resp == RobotSpeech.ARM_ALREADY_RELEASED or
             Response.play_sound(RobotSound.ERROR)
         else:
             Response.play_sound(RobotSound.OTHER)

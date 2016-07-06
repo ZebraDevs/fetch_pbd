@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-'''This runs the PbD system (i.e. the backend).'''
-
-# Core ROS imports come first.
 import rospy
 import signal
 from fetch_arm_interaction.arm_interaction import ArmInteraction

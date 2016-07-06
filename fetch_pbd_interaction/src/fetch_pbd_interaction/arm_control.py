@@ -64,11 +64,11 @@ class ArmControl:
         # Initialize arm state.
         arm = Arm(tf_listener)
         ArmControl.arm = arm            
-        arm.check_gripper_state()
+        arm.update_gripper_state()
         arm.close_gripper()
 
         # Initialize Arms (joint) state.
-        self.attended_arm = -1
+        self.attended_arm = False
         self.action = None
         self.preempt = False
         self.z_offset = 0.0
@@ -79,31 +79,12 @@ class ArmControl:
     # Static methods: Public (API)
     # ##################################################################
 
-    # @staticmethod
-    # def set_arm_mode(arm_index, mode):
-    #     '''Set arm to stiff or relaxed.
-
-    #     Args:
-    #         arm_index (int): Side.RIGHT or Side.LEFT
-    #         mode (int): ArmMode.RELEASE or ArmMode.HOLD
-
-    #     Retruns:
-    #         bool: Whether the mode was changed.
-    #     '''
-    #     if mode == Arms.arms[arm_index].arm_mode:
-    #         # Already in that mode
-    #         return False
-    #     else:
-    #         Arms.arms[arm_index].set_mode(mode)
-    #         return True
-
     @staticmethod
     def set_gripper_state(gripper_state):
-        '''Set gripper of arm_index (right or left) to gripper_state
+        '''Set gripper to gripper_state
         (open or closed).
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
             gripper_state (int): GripperState.OPEN or
                 GripperState.CLOSED
 
@@ -128,7 +109,6 @@ class ArmControl:
         '''Finds an  IK solution for a particular arm pose.
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
             arm_state (ArmState): The arm's state,
             z_offset (float, optional): Offset to add to z-values of
                 pose positions. Defaults to 0.0.
@@ -153,7 +133,6 @@ class ArmControl:
         # object, but users can edit absolute poses in the GUI to make
         # them unreachable, so we try IK for absolute poses too.
 
-        rospy.loginfo("Solving ik for arm")
         if arm_state.refFrame == ArmState.OBJECT:
             # Arm is relative.
             solution = ArmState()
@@ -223,21 +202,15 @@ class ArmControl:
     def get_joint_state():
         '''Get joint positions.
 
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
-
         Returns:
             [float]: Array of seven floats, the positions of all arm
-                joints of the arm_index arm.
+                joints of the arm.
         '''
         return ArmControl.arm.get_joint_state()
 
     @staticmethod
     def get_gripper_state():
         ''' Get gripper status on the indicated side.
-
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
 
         Returns:
             int: GripperState.OPEN or GripperState.CLOSED
@@ -249,9 +222,6 @@ class ArmControl:
         ''' Get current pose of the arm's end-effector on the indicated
         side.
 
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
-
         Returns:
             Pose|None: Pose if success, None if there was a failure in
                 looking up the transform to ref_frame.
@@ -262,25 +232,19 @@ class ArmControl:
     # Static methods: Internal ("private")
     # ##################################################################
 
-    # @staticmethod
-    # def _get_most_moving_arm():
-    #     '''Determines which of the two arms has moved more in the recent
-    #     past.
+    @staticmethod
+    def _is_arm_moving():
+        '''Determines is the arm has moved recently
 
-    #     See Arm.get_movement() for definition of "recent"
+        See Arm.get_movement() for definition of "recent"
 
-    #     Returns:
-    #         int: Side.RIGHT or Side.LEFT, the most moving arm, or -1 if
-    #             neither arm has sufficiently moved.
-    #     '''
-    #     # TODO(mbforbes): Refactor with SIDES.
-    #     if (Arms.arms[Side.RIGHT].get_movement() < ARM_MOVEMENT_THRESHOLD and
-    #             Arms.arms[Side.LEFT].get_movement() < ARM_MOVEMENT_THRESHOLD):
-    #         return -1
-    #     elif Arms.arms[Side.RIGHT].get_movement() < ARM_MOVEMENT_THRESHOLD:
-    #         return Side.LEFT
-    #     else:
-    #         return Side.RIGHT
+        Returns:
+            bool
+        '''
+        if (ArmControl.arm.get_movement() < ARM_MOVEMENT_THRESHOLD):
+            return False
+        else:
+            return True
 
 
     # ##################################################################
@@ -374,7 +338,6 @@ class ArmControl:
         Args:
             arm_state (ArmState): Arm state that contains the pose to
                 move to.
-            arm_index (int): Side.RIGHT or Side.LEFT
         '''
         self.preempt = False
         thread = threading.Thread(
@@ -389,13 +352,12 @@ class ArmControl:
         rospy.loginfo('Started thread to move arm.')
 
     def move_to_pose(self, arm_state):
-        '''The thread function that makes the arm_index arm move to the
+        '''The thread function that makes the arm move to the
         target end-effector pose (within arm_state).
 
         Args:
             arm_state (ArmState): Arm state that contains the pose to
                 move to.
-            arm_index (int): Side.RIGHT or Side.LEFT
         '''
 
         rospy.loginfo("Move to pose")
@@ -410,19 +372,6 @@ class ArmControl:
             self.status = ExecutionStatus.NO_IK
             return False
         
-        # solution, has_solution = ArmControl.solve_ik_for_arm(arm_state)
-        # if has_solution:
-        #     # Do the raw movement (this only moves arm_index arm).
-        #     is_successful = self.move_to_joints(solution)
-
-        #     # Set status based on what happened.
-        #     if is_successful:
-        #         self.status = ExecutionStatus.SUCCEEDED
-        #     else:
-        #         self.status = ExecutionStatus.OBSTRUCTED
-        # else:
-        #     self.status = ExecutionStatus.NO_IK
-
 
     def execute_action(self):
         ''' Function to replay the demonstrated two-arm action of type
@@ -463,13 +412,15 @@ class ArmControl:
         Makes the arms move to the joint positions contained in the
         passed arm states.
 
-        This subsumes that the joint positions are valid (i.e. IK has
+        Note: This is not currently used, but kept around in case it
+        is needed for implementing continuous trajectories
+
+        This assumes that the joint positions are valid (i.e. IK has
         been called previously to set each ArmState's joints to good
         values).
 
         Args:
-            r_arm (ArmState)
-            l_arm (ArmState)
+            arm_state (ArmState)
 
         Returns:
             bool: Whether the arms successfully moved to the passed
@@ -507,36 +458,16 @@ class ArmControl:
         else:
             return True
 
-
-    @staticmethod
-    def _get_most_moving_arm():
-        '''Determines which of the two arms has moved more in the recent
-        past.
-
-        See Arm.get_movement() for definition of "recent"
-
-        Returns:
-            int: Side.RIGHT or Side.LEFT, the most moving arm, or -1 if
-                neither arm has sufficiently moved.
-        '''
-        # TODO(mbforbes): Refactor with SIDES.
-        if (ArmControl.arm.get_movement() < ARM_MOVEMENT_THRESHOLD):
-            return -1
-        else:
-            # rospy.loginfo("Arm is moving!!!")
-            return ArmControl.arm
-
     def update(self):
         '''Periodic update for the two arms.
 
         This is called regularly by the update loop in interaction.
         '''
-        ArmControl.arm.update(self.is_executing())
+        ArmControl.arm.update()
 
-        # This could be ArmControl.arm or something
-        moving_arm = ArmControl._get_most_moving_arm() 
+        moving_arm = ArmControl._is_arm_moving() 
         if moving_arm != self.attended_arm and not self.is_executing():
-            if moving_arm == -1:
+            if not moving_arm:
                 Response.perform_gaze_action(GazeGoal.LOOK_FORWARD)
             else:
                 # moving_arm == Side.LEFT
@@ -595,6 +526,9 @@ class ArmControl:
     def _execute_action_step(self, action_step):
         '''Executes the motion part of an action step.
 
+        Note: currently actions are always ARM_TARGET actions. 
+        ARM_TRAJECTORY functionality may be added later  
+
         Args:
             action_step (ActionStep): The next action step to execute
                 (represents either an arm target or trajectory).
@@ -618,6 +552,7 @@ class ArmControl:
                     self.status = ExecutionStatus.OBSTRUCTED
                 # Regardless, couldn't get to the joints; return False.
                 return False
+        # ARM_TRAJECTORY type actions currently not implemented fully
         # elif action_step.type == ActionStep.ARM_TRAJECTORY:
         #     # Arm trajectory.
         #     rospy.loginfo('\tWill perform arm trajectory action step.')
@@ -659,7 +594,6 @@ class ArmControl:
         #         # False.
         #         return False
 
-        # If hand action, do it for both sides.
         if (action_step.gripperAction.gripper.state !=
                 ArmControl.arm.get_gripper_state()):
             # TODO(mbforbes): Make this logging better (output 'close'
@@ -671,12 +605,12 @@ class ArmControl:
                 action_step.gripperAction.gripper.state)
             Response.perform_gaze_action(GazeGoal.FOLLOW_EE)
 
-        # Wait for grippers to be done
+        # Wait for gripper to be done
         while (ArmControl.arm.is_gripper_moving()):
             rospy.sleep(GRIPPER_FINISH_SLEEP_INTERVAL)
         rospy.loginfo('\tHands done moving.')
 
-        # Verify that both grippers succeeded
+        # Verify that gripper succeeded
         if (not ArmControl.arm.is_gripper_at_goal()):
             rospy.logwarn('\tHand(s) did not fully close or open!')
 

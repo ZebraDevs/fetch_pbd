@@ -196,15 +196,6 @@ class ArmInteractionMarker:
             transform, offset_transform)
         return ArmInteractionMarker.get_pose_from_transform(hand_transform)
 
-    def get_uid(self):
-        '''Returns a unique id for this marker.
-
-        Returns:
-            int: A number that is unique given the arm
-                index.
-        '''
-        return 0
-
     def destroy(self):
         '''Removes marker from the world.'''
         ArmInteractionMarker._im_server.erase(self._get_name())
@@ -267,17 +258,27 @@ class ArmInteractionMarker:
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
 
-    def open_gripper_cb(self, __):
+    def open_gripper_cb(self, feedback):
+        '''Callback for opening gripper.
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
         self._arm.open_gripper()
 
-    def close_gripper_cb(self, __):
+    def close_gripper_cb(self, feedback):
+        '''Callback for closing gripper.
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
         self._arm.close_gripper()
 
-    def move_to_cb(self, __):
+    def move_to_cb(self, feedback):
         '''Callback for when moving to a pose is requested.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
         '''
 
         if not ArmInteractionMarker.isTheSame(
@@ -309,12 +310,11 @@ class ArmInteractionMarker:
         else:
             rospy.loginfo("move too small?")
 
-    def move_pose_to_cb(self, __):
-        '''Callback for when a pose change to current is requested.
+    def move_pose_to_cb(self, feedback):
+        '''Callback for moving gripper marker to current pose.
 
         Args:
-            __ (???): Unused
-
+            feedback (InteractiveMarkerFeedback): Unused
         '''
         self.reset()
 
@@ -325,8 +325,6 @@ class ArmInteractionMarker:
         Returns:
             bool: Whether this action step is reachable.
         '''
-
-        rospy.loginfo("Is reachable??")
 
         self._lock.acquire()
         pose = ArmInteractionMarker.copy_pose(self._pose)
@@ -408,7 +406,7 @@ class ArmInteractionMarker:
         '''Creates and returns one component of the 6dof controller.
 
         Args:
-            name (str): Name for hte control
+            name (str): Name for the control
             orientation (Quaternion): How the control should be
                 oriented.
             is_move (bool): Looks like whether the marker moves the

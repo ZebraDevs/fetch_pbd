@@ -85,9 +85,6 @@ class ArmControlMarker:
         frame_id = REF_FRAME
         pose = self.get_pose()
 
-        # menu_control = self._make_gripper_marker(
-        #     menu_control, self._is_hand_open())
-
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
         int_marker.name = self._get_name()
@@ -161,15 +158,6 @@ class ArmControlMarker:
             transform, offset_transform)
         return ArmControlMarker.get_pose_from_transform(hand_transform)
 
-    def get_uid(self):
-        '''Returns a unique id for this marker.
-
-        Returns:
-            int: A number that is unique given the arm
-                index.
-        '''
-        return 0
-
     def destroy(self):
         '''Removes marker from the world.'''
         ArmControlMarker._im_server.erase(self._get_name())
@@ -232,49 +220,63 @@ class ArmControlMarker:
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
 
-    def open_gripper_cb(self, __):
+    def open_gripper_cb(self, feedback):
+        '''Callback for opening gripper.
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
         self._arm.open_gripper()
 
-    def close_gripper_cb(self, __):
+    def close_gripper_cb(self, feedback):
+        '''Callback for closing gripper.
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
         self._arm.close_gripper()
 
-    def move_to_cb(self, __):
+    def move_to_cb(self, feedback):
         '''Callback for when moving to a pose is requested.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
         '''
-        rospy.loginfo("Move to cb from marker")
 
-        self._lock.acquire()
-        pose = ArmControlMarker.copy_pose(self._pose)
-        self._lock.release()
+        if not ArmControlMarker.isTheSame(
+            ArmControlMarker.pose2array(self._pose), ArmControlMarker.pose2array(self._arm.get_ee_state()), 0.01):
+            rospy.loginfo("Move to cb from marker for real")
 
-        target_pose = pose
+            self._lock.acquire()
+            pose = ArmControlMarker.copy_pose(self._pose)
+            self._lock.release()
 
-        if target_pose is not None:
-            # time_to_pose = self._arm.get_time_to_pose(self.get_pose())
+            target_pose = pose
 
-            thread = threading.Thread(
-                group=None,
-                target=self._arm.move_to_pose,
-                args=(target_pose,),
-                name='move_to_arm_state_thread'
-            )
-            thread.start()
+            if target_pose is not None:
+                # time_to_pose = self._arm.get_time_to_pose(self.get_pose())
 
-            # Log
-            # side_str = self._arm.side()
-            rospy.loginfo('Started thread to move arm.')
+                thread = threading.Thread(
+                    group=None,
+                    target=self._arm.move_to_pose,
+                    args=(target_pose,),
+                    name='move_to_arm_state_thread'
+                )
+                thread.start()
+
+                # Log
+                # side_str = self._arm.side()
+                rospy.loginfo('Started thread to move arm.')
+            else:
+                rospy.loginfo('Will not move arm; unreachable.')
         else:
-            rospy.loginfo('Will not move arm; unreachable.')
+            rospy.loginfo("move too small?")
 
-    def move_pose_to_cb(self, __):
-        '''Callback for when a pose change to current is requested.
+    def move_pose_to_cb(self, feedback):
+        '''Callback for moving gripper marker to current pose.
 
         Args:
-            __ (???): Unused
-
+            feedback (InteractiveMarkerFeedback): Unused
         '''
         self.reset()
 
@@ -285,8 +287,6 @@ class ArmControlMarker:
         Returns:
             bool: Whether this action step is reachable.
         '''
-
-        rospy.loginfo("Is reachable??")
 
         self._lock.acquire()
         pose = ArmControlMarker.copy_pose(self._pose)
@@ -368,7 +368,7 @@ class ArmControlMarker:
         '''Creates and returns one component of the 6dof controller.
 
         Args:
-            name (str): Name for hte control
+            name (str): Name for the control
             orientation (Quaternion): How the control should be
                 oriented.
             is_move (bool): Looks like whether the marker moves the

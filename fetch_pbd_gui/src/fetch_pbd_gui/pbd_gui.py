@@ -70,8 +70,12 @@ class PbDGUI(Plugin):
         self.setObjectName('PbDGUI')
         self._widget = QWidget()
 
-        self.speech_cmd_publisher = rospy.Publisher('recognized_command', Command)
-        self.gui_cmd_publisher = rospy.Publisher('gui_command', GuiCommand)
+        self.speech_cmd_publisher = rospy.Publisher('recognized_command', 
+                                                    Command,
+                                                    queue_size=10)
+        self.gui_cmd_publisher = rospy.Publisher('gui_command', 
+                                                 GuiCommand,
+                                                 queue_size=10)
 
         rospy.Subscriber('experiment_state', ExperimentState, self.exp_state_cb)
         rospy.Subscriber('robotsound', SoundRequest, self.robotSoundReceived)
@@ -194,7 +198,6 @@ class PbDGUI(Plugin):
         context.add_widget(self._widget)
 
         rospy.loginfo('Will wait for the experiment state service...')
-        # rospy.sleep(3.0)
         rospy.wait_for_service('get_experiment_state')
         exp_state_srv = rospy.ServiceProxy('get_experiment_state',
                                                  GetExperimentState)

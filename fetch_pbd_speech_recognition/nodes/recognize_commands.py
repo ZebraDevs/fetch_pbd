@@ -9,7 +9,9 @@ from fetch_pbd_speech_recognition.msg import Command
 class CommandRecognizer:
     def __init__(self):
         rospy.Subscriber('recognizer/output', String, self.receiveSphinxData)
-        self.commandOutput = rospy.Publisher('recognized_command', Command)
+        self.commandOutput = rospy.Publisher('recognized_command', 
+                                             Command,
+                                             queue_size=10)
         self.allCommands = [
 	        Command.TEST_MICROPHONE,
 			Command.OPEN_HAND,

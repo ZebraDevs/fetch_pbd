@@ -38,11 +38,11 @@ class WorldLandmark:
         else:
             return self.assigned_name
 
-    def remove(self, __):
+    def remove(self, feedback):
         '''Function for removing object from the world.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
         '''
         rospy.loginfo('Will remove object: ' + self.get_name())
         self.is_removed = True

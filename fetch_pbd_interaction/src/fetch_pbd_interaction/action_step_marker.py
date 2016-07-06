@@ -38,8 +38,6 @@ from world import World
 # Module level constants
 # ######################################################################
 
-DEFAULT_OFFSET = 0.085
-
 # Marker options
 # --------------
 # Colors
@@ -56,12 +54,11 @@ SCALE_OBJ_REF_ARROW = Vector3(0.02, 0.03, 0.04)
 SCALE_STEP_TEXT = Vector3(0, 0, 0.03)
 
 # Gripper mesh related
-ANGLE_GRIPPER_OPEN = 28 * numpy.pi / 180.0
-ANGLE_GRIPPER_CLOSED = 0.0
 STR_MESH_GRIPPER_FOLDER = 'package://fetch_description/meshes/'
 STR_GRIPPER_PALM_FILE = STR_MESH_GRIPPER_FOLDER + 'gripper_link.STL'
 STR_L_GRIPPER_FINGER_FILE = STR_MESH_GRIPPER_FOLDER + 'l_gripper_finger_link.STL'
 STR_R_GRIPPER_FINGER_FILE = STR_MESH_GRIPPER_FOLDER + 'r_gripper_finger_link.STL'
+DEFAULT_OFFSET = 0.085
 
 
 # Right-click menu.
@@ -113,11 +110,9 @@ class ActionStepMarker:
         '''
         Args:
             step_number (int): The 1-based index of the step.
-            arm_index (int): Side.RIGHT or Side.LEFT
             action_step (ActionStep): The action step this marker marks.
             marker_click_cb (function(int,bool)): The function to call
-                when a marker is clicked. Pass the uid of the marker
-                (as calculated by get_uid(...) as well as whether it's
+                when a marker is clicked. Pass the step number of the marker as well as whether it's
                 selected.
         '''
         if ActionStepMarker._im_server is None:
@@ -137,24 +132,6 @@ class ActionStepMarker:
         self._prev_is_reachable = None
         ActionStepMarker._marker_click_cb = marker_click_cb
 
-    # ##################################################################
-    # Static methods: Public (API)
-    # ##################################################################
-
-    @staticmethod
-    def calc_uid(step_number):
-        '''Returns a unique id of the marker of the arm_index arm with
-        step_number step.
-
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
-            step_number (int): The number of the step.
-
-        Returns:
-            int: A number that is unique given the step number and arm
-                index.
-        '''
-        return step_number
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -207,15 +184,6 @@ class ActionStepMarker:
     # ##################################################################
     # Instance methods: Public (API)
     # ##################################################################
-
-    def get_uid(self):
-        '''Returns a unique id for this marker.
-
-        Returns:
-            int: A number that is unique given the step number and arm
-                index.
-        '''
-        return ActionStepMarker.calc_uid(self.step_number)
 
     def decrease_id(self):
         '''Reduces the step index of the marker.'''
@@ -412,40 +380,46 @@ class ActionStepMarker:
             rospy.logdebug('Changing visibility of the pose controls.')
             self.is_control_visible = not self.is_control_visible
             ActionStepMarker._marker_click_cb(
-                self.get_uid(), self.is_control_visible)
+                self.step_number, self.is_control_visible)
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
-    # TODO(mbforbes): Figure out types of objects sent to these
-    # callbacks.
 
-    def delete_step_cb(self, __):
+    def delete_step_cb(self, feedback):
         '''Callback for when delete is requested.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
         '''
         self.is_deleted = True
 
-    def move_to_cb(self, __):
+    def move_to_cb(self, feedback):
         '''Callback for when moving to a pose is requested.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
         '''
         self.is_requested = True
 
-    def move_pose_to_cb(self, __):
+    def move_pose_to_cb(self, feedback):
         '''Callback for when a pose change to current is requested.
 
         Args:
-            __ (???): Unused
+            feedback (InteractiveMarkerFeedback): Unused
 
         '''
         self.is_edited = True
+
+    def get_step_number(self):
+        '''Returns step number of action step marker
+
+        Returns:
+            int
+        '''
+        return self.step_number
 
     # ##################################################################
     # Instance methods: Internal ("private")
@@ -459,7 +433,6 @@ class ActionStepMarker:
             bool: Whether this action step is reachable.
         '''
 
-        rospy.loginfo("Arm control marker asking if reachable")
         dummy, is_reachable = ArmControl.solve_ik_for_arm(self.get_target())
         # A bit more complicated logging to avoid spamming the logs
         # while still giving useful info. It now logs when reachability
@@ -493,7 +466,7 @@ class ActionStepMarker:
         Returns:
             str: A human-readable unique name for the marker.
         '''
-        return 'step' + str(self.step_number) + 'arm'
+        return 'step_' + str(self.step_number)
 
     def _update_menu(self):
         '''Recreates the menu when something has changed.'''
@@ -672,7 +645,7 @@ class ActionStepMarker:
             menu_control.markers.append(
                 Marker(
                     type=Marker.SPHERE_LIST,
-                    id=self.get_uid(),
+                    id=self.step_number,
                     lifetime=TRAJ_MARKER_LIFETIME,
                     scale=SCALE_TRAJ_STEP_SPHERES,
                     header=Header(frame_id=frame_id),
@@ -684,7 +657,7 @@ class ActionStepMarker:
             # Add a marker for the first step in the trajectory.
             menu_control.markers.append(
                 ActionStepMarker._make_sphere_marker(
-                    self.get_uid() + ID_OFFSET_TRAJ_FIRST,
+                    self.step_number + ID_OFFSET_TRAJ_FIRST,
                     self._get_traj_pose(0),
                     frame_id,
                     TRAJ_ENDPOINT_SCALE
@@ -695,7 +668,7 @@ class ActionStepMarker:
             last_index = len(self.action_step.armTrajectory.timing) - 1
             menu_control.markers.append(
                 ActionStepMarker._make_sphere_marker(
-                    self.get_uid() + ID_OFFSET_TRAJ_LAST,
+                    self.step_number + ID_OFFSET_TRAJ_LAST,
                     self._get_traj_pose(last_index),
                     frame_id,
                     TRAJ_ENDPOINT_SCALE
@@ -712,7 +685,7 @@ class ActionStepMarker:
             menu_control.markers.append(
                 Marker(
                     type=Marker.ARROW,
-                    id=(ID_OFFSET_REF_ARROW + self.get_uid()),
+                    id=(ID_OFFSET_REF_ARROW + self.step_number),
                     lifetime=TRAJ_MARKER_LIFETIME,
                     scale=SCALE_OBJ_REF_ARROW,
                     header=Header(frame_id=frame_id),
@@ -729,7 +702,7 @@ class ActionStepMarker:
         menu_control.markers.append(
             Marker(
                 type=Marker.TEXT_VIEW_FACING,
-                id=self.get_uid(),
+                id=self.step_number,
                 scale=SCALE_STEP_TEXT,
                 text='Step ' + str(self.step_number),
                 color=COLOR_STEP_TEXT,

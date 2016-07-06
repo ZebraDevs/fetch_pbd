@@ -43,9 +43,6 @@ from std_msgs.msg import String
 
 EXECUTION_Z_OFFSET = -0.00
 BASE_LINK = 'base_link'
-# How fast to move between arm targets. NOTE(mbforbes): I'm unconvinced
-# this is actually used anywhere. See arm.py: MOVE_TO_JOINTS_VELOCITY.
-DEFAULT_VELOCITY = 0.2
 
 # ######################################################################
 # Classes
@@ -76,9 +73,11 @@ class Interaction:
 
         # ROS publishers and subscribers.
         self._viz_publisher = rospy.Publisher('visualization_marker_array',
-                                              MarkerArray)
+                                              MarkerArray,
+                                              queue_size=10)
         self._arm_reset_publisher = rospy.Publisher('arm_interaction_reset',
-                                                    String)
+                                                    String,
+                                                    queue_size=10)
         rospy.Subscriber('recognized_command', Command,
                          self._speech_command_cb)
         rospy.Subscriber('gui_command', GuiCommand, self._gui_command_cb)
@@ -98,23 +97,19 @@ class Interaction:
             Command.TEST_MICROPHONE: Response(self._empty_response,
                                               [RobotSpeech.TEST_RESPONSE,
                                                GazeGoal.NOD]),
-            # Command.RELAX_ARM: Response(self._relax_arm),
-            Command.OPEN_HAND: Response(self._open_hand, None),
-            Command.CLOSE_HAND: Response(self._close_hand, None),
-            Command.STOP_EXECUTION: Response(self._stop_execution, None),
-            Command.DELETE_ALL_STEPS: Response(self._delete_all_steps, None),
-            Command.DELETE_LAST_STEP: Response(self._delete_last_step, None),
-            # Command.FREEZE_ARM: Response(self._freeze_arm),
-            Command.CREATE_NEW_ACTION: Response(self._create_action, None),
-            Command.EXECUTE_ACTION: Response(self._execute_action, None),
-            Command.NEXT_ACTION: Response(self._next_action, None),
-            Command.PREV_ACTION: Response(self._previous_action, None),
-            Command.SAVE_POSE: Response(self._save_step, None),
-            Command.RECORD_OBJECT_POSE: Response(self._record_object_pose,
-                                                 None),
-            Command.START_RECORDING_MOTION: Response(self._start_recording,
-                                                     None),
-            Command.STOP_RECORDING_MOTION: Response(self._stop_recording, None)
+            Command.OPEN_HAND: Response(self._open_hand),
+            Command.CLOSE_HAND: Response(self._close_hand),
+            Command.STOP_EXECUTION: Response(self._stop_execution),
+            Command.DELETE_ALL_STEPS: Response(self._delete_all_steps),
+            Command.DELETE_LAST_STEP: Response(self._delete_last_step),
+            Command.CREATE_NEW_ACTION: Response(self._create_action),
+            Command.EXECUTE_ACTION: Response(self._execute_action),
+            Command.NEXT_ACTION: Response(self._next_action),
+            Command.PREV_ACTION: Response(self._previous_action),
+            Command.SAVE_POSE: Response(self._save_step),
+            Command.RECORD_OBJECT_POSE: Response(self._record_object_pose),
+            Command.START_RECORDING_MOTION: Response(self._start_recording),
+            Command.STOP_RECORDING_MOTION: Response(self._stop_recording)
         }
 
         # Span off a thread to run the update loops.
@@ -136,9 +131,6 @@ class Interaction:
                                        self._interaction_ping)
         self.arm_control.arm.relax_arm()
 
-        # CONTROLLER_ACTION_NAME = "/query_controller_states"
-        # self.controller_client = actionlib.SimpleActionClient(CONTROLLER_ACTION_NAME, QueryControllerStatesAction)
-        # self.controller_client.wait_for_server()
 
     # ##################################################################
     # Internal ("private" methods)
@@ -155,12 +147,12 @@ class Interaction:
         # would prevent cleanup from happening outside interaction
         # (e.g. in the node that's running it).
 
-    def _interaction_ping(self, __):
+    def _interaction_ping(self, response):
         '''This is the service that is provided so that external nodes
         know the interaction (i.e. PbD) is ready.
 
         Args:
-            __ (PingRequest): unused
+            response (PingRequest): unused
 
         Returns:
             PingResponse: empty
@@ -355,7 +347,7 @@ class Interaction:
         '''Opens gripper on the indicated side.
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
+            __ (NoneType): Unused
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -381,7 +373,7 @@ class Interaction:
         '''Closes gripper on the indicated side.
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
+            __ (NoneType): Unused
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -402,47 +394,11 @@ class Interaction:
             return [Response.already_closed_response,
                     Response.glance_action]
 
-    # def _relax_arm(self, arm_index):
-    #     '''Relaxes / releases arm on the indicated side.
-
-    #     Args:
-    #         arm_index (int): Side.RIGHT or Side.LEFT
-
-    #     Returns:
-    #         [str, int]: a speech response and a GazeGoal.* constant
-    #     '''
-    #     # Release the arm. Response depens on whether it was previously
-    #     # frozen or already released.
-    #     if self.arms.set_arm_mode(arm_index, ArmMode.RELEASE):
-    #         return [Response.release_responses[arm_index],
-    #                 Response.glance_actions[arm_index]]
-    #     else:
-    #         return [Response.already_released_responses[arm_index],
-    #                 Response.glance_actions[arm_index]]
-
-    # def _freeze_arm(self, arm_index):
-    #     '''Freezes / holds / stiffens arm on the indicated side.
-
-    #     Args:
-    #         arm_index (int): Side.RIGHT or Side.LEFT
-
-    #     Returns:
-    #         [str, int]: a speech response and a GazeGoal.* constant
-    #     '''
-    #     # Freeze the arm. Response depens on whether it was previously
-    #     # relaxed or already frozen.
-    #     if self.arms.set_arm_mode(arm_index, ArmMode.HOLD):
-    #         return [Response.hold_responses[arm_index],
-    #                 Response.glance_actions[arm_index]]
-    #     else:
-    #         return [Response.already_holding_responses[arm_index],
-    #                 Response.glance_actions[arm_index]]
-
     def _create_action(self, __=None):
         '''Creates a new empty action.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -456,7 +412,7 @@ class Interaction:
         '''Switches to next action.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -475,7 +431,7 @@ class Interaction:
         '''Switches to previous action.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -494,7 +450,7 @@ class Interaction:
         '''Deletes last step of the current action.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -512,7 +468,7 @@ class Interaction:
         '''Deletes all steps in the current action.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -530,7 +486,7 @@ class Interaction:
         '''Stops ongoing execution.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -545,7 +501,7 @@ class Interaction:
         '''Starts recording continuous motion.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -565,7 +521,7 @@ class Interaction:
         '''Stops recording continuous motion.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -604,7 +560,7 @@ class Interaction:
         '''Saves current arm state as an action step.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -613,10 +569,7 @@ class Interaction:
             state = self._get_arm_state()
             step = ActionStep()
             step.type = ActionStep.ARM_TARGET
-            step.armTarget = ArmTarget(
-                state,  # rArm (ArmState)
-                DEFAULT_VELOCITY,  # rArmVelocity (float64)
-            )
+            step.armTarget = ArmTarget(state)
             step.gripperAction = GripperAction(
                 GripperState(self.arm_control.get_gripper_state()))
             self.session.add_step_to_action(step, self.world.get_frame_list())
@@ -630,7 +583,7 @@ class Interaction:
         Only does anything when at least one action has been created.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -648,7 +601,7 @@ class Interaction:
         passed.
 
         Args:
-            [str, int]: a speech response and a GazeGoal.* constant
+            responses ([str, int]): a speech response and a GazeGoal.* constant
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -661,7 +614,7 @@ class Interaction:
         This saves the action before starting it.
 
         Args:
-            __ (Landmark): unused, default: None
+            __ (NoneType): unused, default: None
 
         Returns:
             [str, int]: a speech response and a GazeGoal.* constant
@@ -712,7 +665,6 @@ class Interaction:
         '''Saves an action step that involves a gripper state change.
 
         Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
             gripper_state (int): GripperState.OPEN or
                 GripperState.CLOSED
         '''
@@ -720,10 +672,7 @@ class Interaction:
             state = self._get_arm_state()
             step = ActionStep()
             step.type = ActionStep.ARM_TARGET
-            step.armTarget = ArmTarget(
-                state,  # rArm (ArmSTate)
-                DEFAULT_VELOCITY,  # rArmVelocity (float64)
-            )
+            step.armTarget = ArmTarget(state)
             new_gripper_state = self.arm_control.get_gripper_state()
             new_gripper_state = gripper_state
             step.gripperAction = GripperAction(
@@ -820,12 +769,7 @@ class Interaction:
 
         state = None
         rel_ee_pose = None
-
-        # rospy.loginfo("abs pose: {}".format(abs_ee_pose))
-        # rospy.loginfo("joint pose: {}".format(joint_pose))
-
-
-        
+    
         nearest_obj = self.world.get_nearest_object(
             abs_ee_pose)
         if not World.has_objects() or nearest_obj is None:
@@ -850,8 +794,7 @@ class Interaction:
                 joint_pose,  # joint_pose [float64]
                 nearest_obj  # refFrameLandmark (Landmark)
             )
-            # rospy.loginfo("rel pose: {}".format(rel_ee_pose))
-            # rospy.loginfo("state: {}".format(state))
+
         return state
 
     def _end_execution(self):
@@ -870,29 +813,7 @@ class Interaction:
             # Couldn't solve for joint positions (IK).
             Response.say(RobotSpeech.EXECUTION_ERROR_NOIK)
             Response.perform_gaze_action(GazeGoal.SHAKE)
-        # No matter what, we're not executing anymore.
-        # start = list()
-        # start.append("arm_controller/gravity_compensation")
 
-        # stop = list()
-        # stop.append("arm_controller/follow_joint_trajectory")
-        # stop.append("arm_with_torso_controller/follow_joint_trajectory")
-
-        # goal = QueryControllerStatesGoal()
-        
-        # for controller in start:
-        #     state = ControllerState()
-        #     state.name = controller
-        #     state.state = state.RUNNING
-        #     goal.updates.append(state)
-
-        # for controller in stop:
-        #     state = ControllerState()
-        #     state.name = controller
-        #     state.state = state.STOPPED
-        #     goal.updates.append(state)
-
-        # self.controller_client.send_goal(goal)
         self.arm_control.arm.relax_arm()
         self.arm_control.status = ExecutionStatus.NOT_EXECUTING
 
