@@ -188,8 +188,6 @@ class Interaction:
             action = self.session.get_current_action()
             action.update_viz()
 
-            # TODO(mbforbes): Do we ever have r/l target(s)? When does
-            # this happen?
             target = action.get_requested_target()
             if target is not None:
                 self.arm_control.start_move_to_pose(target)

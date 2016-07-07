@@ -69,7 +69,9 @@ class ProgrammedAction:
         self.seq = ActionStepSequence()
         self.action_index = action_index
         self.step_click_cb = step_click_cb
+        # Markers for each action step
         self.markers = []
+        # Markers to connect consecutive action steps together
         self.links = {}
 
         # NOTE(mbforbes): It appears that this is locking manipulation
@@ -79,7 +81,7 @@ class ProgrammedAction:
         # self.r_markers and self.l_markers.
         #
         # In general, be aware the other code calling these methods
-        # with with data about this class (like how many steps it holds)
+        # with data about this class (like how many steps it holds)
         # is bad because that means the outside code is assuming that it
         # knows about state internal to this class, and that information
         # may not be true by the time the code here gets executed. This
@@ -257,9 +259,8 @@ class ProgrammedAction:
 
             # If we have any steps in this action, we link the previous
             # one to this new one.
-            if self.n_frames() > 1:
-                self.links[self.n_frames() - 1] = self._get_link(
-                    self.n_frames() - 1)
+            self._update_links()
+
         self.lock.release()
 
     def update_objects(self, object_list):
@@ -489,8 +490,7 @@ class ProgrammedAction:
 
                 # If we're not adding the first step, we should link the
                 # last one to it.
-                if i > 0:
-                    self.links[i] = self._get_link(i)
+                self._update_links()
 
         self._update_markers()
         self.lock.release()
@@ -609,7 +609,7 @@ class ProgrammedAction:
     def update_viz(self):
         '''Updates the visualization of the action.'''
         self.lock.acquire()
-        self._update_links()
+        # self._update_links()
         m_array = MarkerArray()
         for i in self.links.keys():
             m_array.markers.append(self.links[i])
@@ -629,7 +629,7 @@ class ProgrammedAction:
     # Instance methods: Internal ("private")
     # ##################################################################
 
-    def _get_link(self, to_index):
+    def _get_link(self, marker0, marker1, id):
         '''Returns a marker representing a link b/w two consecutive
         action steps (both must already exist).
 
@@ -640,11 +640,11 @@ class ProgrammedAction:
         Returns:
             Marker
         '''
-        markers = self.markers
-        start = markers[to_index - 1].get_absolute_position(is_start=True)
-        end = markers[to_index].get_absolute_position(is_start=False)
+        # markers = self.markers
+        start = marker0.get_absolute_position(is_start=True)
+        end = marker1.get_absolute_position(is_start=False)
         return Marker(type=Marker.ARROW,
-                      id=to_index,
+                      id=id,
                       lifetime=LINK_MARKER_LIFETIME,
                       scale=LINK_SCALE,
                       header=Header(frame_id=BASE_LINK),
@@ -666,9 +666,15 @@ class ProgrammedAction:
             to_delete (int): The index of the step to delete.
         '''
         rospy.loginfo('Deleting step: ' + str(to_delete))
-        if len(self.links) > 0:
-            self.links[self.links.keys()[-1]].action = Marker.DELETE
-            self.links.pop(self.links.keys()[-1])
+
+        # TODO(sksellio): This link deletion thing is VERY VERY BAD.
+        #                 It just deletes the last link which is not what
+        #                 this function says it does. Also it relies on the 
+        #                 order of a dictionary. 
+        # if len(self.links) > 0:
+        #     rospy.loginfo("self.links.keys(): {}".format(self.links.keys()))
+        #     self.links[self.links.keys()[-1]].action = Marker.DELETE
+        #     self.links.pop(self.links.keys()[-1])
 
         self.markers[-1].destroy()
         for i in range(to_delete + 1, self.n_frames()):
@@ -676,10 +682,22 @@ class ProgrammedAction:
         self.markers.pop(to_delete)
         self.seq.seq.pop(to_delete)
 
+        self._update_links()
+
     def _update_links(self):
         '''Updates the visualized links b/w action steps.'''
-        for i in self.links.keys():
-            self.links[i] = self._get_link(i)
+        current_num_links = len(self.links) 
+        new_num_links = len(self.markers) - 1
+
+        for i in range(new_num_links):
+            self.links[i] = self._get_link(self.markers[i], 
+                                           self.markers[i + 1], 
+                                           i)
+        if (current_num_links - new_num_links) > 0:
+            rospy.loginfo("Current links: {}, New links: {}".format(current_num_links, new_num_links))
+            for i in range(new_num_links, current_num_links):
+                if i in self.links:
+                    self.links[i].action = Marker.DELETE
 
     def _get_filename(self, ext=DEFAULT_FILE_EXT):
         '''Returns the filename for the bag that holds this action.
