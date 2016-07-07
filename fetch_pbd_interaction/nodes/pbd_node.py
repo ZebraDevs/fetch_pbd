@@ -39,6 +39,7 @@ if __name__ == '__main__':
     arm_control = ArmControl(World.tf_listener)
     interaction = Interaction(arm_control, session, world)
     execute_server = ExecuteActionServer(interaction)
+    # This service does not get called in normal interaction
     rospy.Service('execute_action', ExecuteActionById, execute_server.serve)
 
     while (not rospy.is_shutdown()):

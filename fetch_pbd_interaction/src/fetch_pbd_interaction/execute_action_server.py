@@ -22,7 +22,7 @@ class ExecuteActionServer(object):
         rate = rospy.Rate(10)
         start = rospy.Time.now()
         timeout = rospy.Duration(60*5)
-        while self._interaction.arms.is_executing():
+        while self._interaction.arm_control.is_executing():
             elapsed_time = rospy.Time.now() - start
             if elapsed_time > timeout:
                 rospy.logwarn('PbD action did not finish after 5 minutes')
