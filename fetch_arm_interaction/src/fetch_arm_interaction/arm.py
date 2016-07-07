@@ -50,7 +50,7 @@ class Arm:
         self.movement_buffer_size = 40
         self.last_unstable_time = rospy.Time.now()
         self.arm_movement = []
-        self.is_executing = False
+        self._is_executing = False
 
         self.lock = threading.Lock()
         rospy.Subscriber('joint_states', JointState, self.joint_states_cb)
@@ -275,9 +275,9 @@ class Arm:
             return False
         else:
 
-            self.is_executing = True
+            self._is_executing = True
             go = self.move_group.go(wait=True)
-            self.is_executing = False
+            self._is_executing = False
             rospy.loginfo("Go: {}".format(go))
             return True
 
@@ -383,26 +383,33 @@ class Arm:
 
         Args:
             joints ([float])
-            time_to_joint ([float])
+            time_to_joint ([float]): Unused
         '''
 
-        self.move_group.moveToJointPosition(self.joint_names, joints, wait=False)
+        joint_dict = {}
+        for i in range(len(joints)):
+            joint_dict[self.joint_names[i]] = joints[i]
 
-        # Since we passed in wait=False above we need to wait here
-        self.move_group.get_move_action().wait_for_result()
-        result = self.move_group.get_move_action().get_result()
+        try:
+            self.move_group.set_joint_value_target(joint_dict)
+        except Exception as e:
+            rospy.logerr("Moveit Error: {}".format(e))
+            return False 
 
-        if result:
-            # Checking the MoveItErrorCode
-            if result.error_code.val == MoveItErrorCodes.SUCCESS:
-                rospy.loginfo("Disco!")
-            else:
-                # If you get to this point please search for:
-                # moveit_msgs/MoveItErrorCodes.msg
-                rospy.logerr("Arm goal in state: %s",
-                             self.move_group.get_move_action().get_state())
+        self.move_group.set_planning_time(1.0)
+
+        plan = self.move_group.plan()
+
+        if not plan.joint_trajectory.points:
+            return False
         else:
-            rospy.logerr("MoveIt! failure no result returned.")
+
+            self._is_executing = True
+            go = self.move_group.go(wait=True)
+            self._is_executing = False
+            rospy.loginfo("Go: {}".format(go))
+            return True
+
 
 
     def get_time_to_pose(self, target_pose):
@@ -458,7 +465,7 @@ class Arm:
         Returns:
             bool
         '''
-        return self.is_executing
+        return self._is_executing
 
     def get_ik_for_ee(self, ee_pose, seed):
         ''' Finds the IK solution for given end effector pose

@@ -193,7 +193,7 @@ class Interaction:
                 self.arm_control.start_move_to_pose(target)
                 action.reset_targets()
 
-            # Update any changes to steps that need to happen.
+            # Update any changes to steps that were request from marke menu.
             action.delete_requested_steps()
             arm_state = self._get_arm_state()
             action.change_requested_steps(arm_state)
@@ -754,11 +754,10 @@ class Interaction:
                 rospy.Time.now() - self._trajectory_start_time)
 
     def _get_arm_state(self):
-        '''Returns the current arms states as a list of two ArmStates.
+        '''Returns the current arm state.
 
         Returns:
-            [ArmState]: A list (of length two, one for each arm) of
-                ArmState objects. Right first, then left.
+            ArmState
         '''
         # TODO(mbforbes): Perhaps this entire method should go in
         # the Arms class?

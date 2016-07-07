@@ -277,11 +277,7 @@ class ProgrammedAction:
         self.lock.release()
 
     def reset_targets(self):
-        '''Resets requests after reaching a previous target.
-
-        Args:
-            arm_index (int): Side.RIGHT or Side.LEFT
-        '''
+        '''Resets requests after reaching a previous target.'''
         self.lock.acquire()
         markers = self.markers
         for marker in markers:
@@ -685,7 +681,6 @@ class ProgrammedAction:
                                            self.markers[i + 1], 
                                            i)
         if (current_num_links - new_num_links) > 0:
-            rospy.loginfo("Current links: {}, New links: {}".format(current_num_links, new_num_links))
             for i in range(new_num_links, current_num_links):
                 if i in self.links:
                     self.links[i].action = Marker.DELETE
