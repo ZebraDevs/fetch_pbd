@@ -330,7 +330,7 @@ class ProgrammedAction:
 
     def get_requested_target(self):
         '''Gets an arm step that might have been requested from the
-        interactive marker menus for the arm_index arm.
+        interactive marker menus for the arm.
 
         Returns:
             ArmState|None: The first arm step that was requested, or
@@ -609,7 +609,7 @@ class ProgrammedAction:
     def update_viz(self):
         '''Updates the visualization of the action.'''
         self.lock.acquire()
-        # self._update_links()
+        self._update_links()
         m_array = MarkerArray()
         for i in self.links.keys():
             m_array.markers.append(self.links[i])
@@ -666,15 +666,6 @@ class ProgrammedAction:
             to_delete (int): The index of the step to delete.
         '''
         rospy.loginfo('Deleting step: ' + str(to_delete))
-
-        # TODO(sksellio): This link deletion thing is VERY VERY BAD.
-        #                 It just deletes the last link which is not what
-        #                 this function says it does. Also it relies on the 
-        #                 order of a dictionary. 
-        # if len(self.links) > 0:
-        #     rospy.loginfo("self.links.keys(): {}".format(self.links.keys()))
-        #     self.links[self.links.keys()[-1]].action = Marker.DELETE
-        #     self.links.pop(self.links.keys()[-1])
 
         self.markers[-1].destroy()
         for i in range(to_delete + 1, self.n_frames()):

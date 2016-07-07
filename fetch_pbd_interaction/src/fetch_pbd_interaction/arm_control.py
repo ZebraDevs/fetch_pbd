@@ -343,7 +343,7 @@ class ArmControl:
         thread = threading.Thread(
             group=None,
             target=self.move_to_pose,
-            args=(arm_state),
+            args=(arm_state,),
             name='move_to_arm_state_thread'
         )
         thread.start()
