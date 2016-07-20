@@ -1,18 +1,16 @@
 # Catkin User Guide: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/user_guide.html
 # Catkin CMake Standard: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/standards.html
 cmake_minimum_required(VERSION 2.8.3)
-project(fetch_pbd_interaction)
+project(fetch_arm_control)
 # Load catkin and all dependencies required for this package
 # TODO: remove all from COMPONENTS that are not catkin packages.
 find_package(catkin REQUIRED COMPONENTS
-  actionlib
-  geometry_msgs
-  message_generation
-  fetch_arm_control
   rospy
-  rospy_message_converter
+  actionlib
   std_msgs
+  geometry_msgs
   tf
+  message_generation
 )
 
 # include_directories(include ${Boost_INCLUDE_DIR} ${catkin_INCLUDE_DIRS})
@@ -27,34 +25,14 @@ catkin_python_setup()
 # Generate messages and services
 add_message_files(
   FILES
-  ArmState.msg
-  Condition.msg
-  GripperAction.msg
-  Landmark.msg
-  ExecutionStatus.msg
-  RobotSound.msg
-  ExperimentState.msg
-  GuiCommand.msg
-  WorldState.msg
+  GripperState.msg
 )
 
-add_service_files(
-  FILES
-  ExecuteActionById.srv
-  GetExperimentState.srv
-  Ping.srv
-  MoveArm.srv
-  SetGripperState.srv
-  GetGripperState.srv
-  GetEEPose.srv
-  GetJointStates.srv
-  GetArmMovement.srv
-  GetGazeGoal.srv
-  GetMostSimilarObject.srv
-  GetObjectList.srv
-  GetNearestObject.srv
-  GetObjectFromName.srv
-)
+#add_service_files(
+#  FILES
+#  GetExperimentState.srv
+#  Ping.srv
+#)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -62,16 +40,15 @@ generate_messages(
   std_msgs
   geometry_msgs
   tf
-  fetch_arm_control
 )
 
 # catkin_package parameters: http://ros.org/doc/groovy/api/catkin/html/dev_guide/generated_cmake_api.html#catkin-package
 # TODO: fill in what other packages will need to use this package
 catkin_package(
-  INCLUDE_DIRS src/fetch_pbd_interaction
-  LIBRARIES fetch_pbd_interaction
+  INCLUDE_DIRS src/fetch_arm_control
+  #LIBRARIES pr2_arm_control
   CATKIN_DEPENDS rospy
-  DEPENDS system_lib
+  #DEPENDS system_lib
 )
 
 ###########
@@ -117,7 +94,7 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS pr2_pbd_interaction pr2_pbd_node
+# install(TARGETS pr2_arm_control pr2_pbd_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

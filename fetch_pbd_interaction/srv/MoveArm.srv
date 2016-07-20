@@ -1,0 +1,3 @@
+fetch_pbd_interaction/ArmState arm_state
+---
+bool success

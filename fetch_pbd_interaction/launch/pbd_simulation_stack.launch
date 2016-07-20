@@ -1,9 +1,0 @@
-<launch>
-	<!-- This file runs the entire PbD system in simulation: simulated
-	robot, backend, and frontend. -->
-	<include file="$(find pr2_pbd_interaction)/launch/simulated_robot.launch" />
-	<include file="$(find pr2_pbd_interaction)/launch/pbd_backend.launch">
-		<arg name="sim" value="true" />
-	</include>
-	<include file="$(find pr2_pbd_interaction)/launch/pbd_frontend.launch" />
-</launch>

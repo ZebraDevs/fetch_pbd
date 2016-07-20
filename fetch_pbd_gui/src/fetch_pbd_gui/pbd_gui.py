@@ -97,8 +97,8 @@ class PbDGUI(Plugin):
         self.commands[Command.DELETE_LAST_STEP] = 'Delete last'
         self.commands[Command.RECORD_OBJECT_POSE] = 'Record object poses'
 
-        self.currentAction = -1
-        self.currentStep = -1
+        self.currentAction = 0
+        self.currentStep = 0
         self.current_ref_frames = []
 
         allWidgetsBox = QtGui.QVBoxLayout()
@@ -258,9 +258,9 @@ class PbDGUI(Plugin):
             for i in range(n_actions, state.n_actions):
                 self.new_action()
 
-        if (self.currentAction != (state.i_current_action - 1)):
+        if (self.currentAction != (state.i_current_action)):
             self.delete_all_steps()
-            self.action_pressed(state.i_current_action - 1, False)
+            self.action_pressed(state.i_current_action, False)
 
         n_steps = self.n_steps()
         if (n_steps < state.n_steps):
@@ -271,9 +271,8 @@ class PbDGUI(Plugin):
             self.model.invisibleRootItem().removeRows(state.n_steps,
                                                       n_to_remove)
 
-        ## TODO: DEAL with the following arrays!!!
-        state.gripper_states
-        state.ref_frames
+        ## TODO(sksellio): These are unused right now
+        # state.gripper_states
         state.objects
 
         if (self.currentStep != state.i_current_step):
@@ -345,7 +344,7 @@ class PbDGUI(Plugin):
         self.currentAction = actionIndex
         self.stepsBox.setTitle('Steps for Action ' + str(self.currentAction+1))
         if isPublish:
-            gui_cmd = GuiCommand(GuiCommand.SWITCH_TO_ACTION, str(actionIndex+1))
+            gui_cmd = GuiCommand(GuiCommand.SWITCH_TO_ACTION, str(actionIndex))
             self.gui_cmd_publisher.publish(gui_cmd)
 
     def command_cb(self):

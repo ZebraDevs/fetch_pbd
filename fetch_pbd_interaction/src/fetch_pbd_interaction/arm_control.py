@@ -1,33 +1,32 @@
-'''Control of the two arms for action execution.'''
+'''Control of the arm for action execution.'''
 
 # ######################################################################
 # Imports
 # ######################################################################
 
 # Core ROS imports come first.
-import roslib
-roslib.load_manifest('fetch_pbd_interaction')
 import rospy
 
 # System builtins
 import threading
-import time
 
 # ROS builtins
-from geometry_msgs.msg import Pose, Point
+from std_srvs.srv import Empty, EmptyResponse
+from std_msgs.msg import String
+from tf import TransformListener
 
 # Local
-import actionlib
-from fetch_arm_interaction.arm import Arm
-from fetch_arm_interaction.msg import GripperState
-from fetch_pbd_interaction.msg import ArmState, ActionStep, ExecutionStatus
-from fetch_social_gaze.msg import GazeGoal
-from response import Response
-from world import World
-from robot_controllers_msgs.msg import QueryControllerStatesAction, \
-                                       QueryControllerStatesGoal, \
-                                       ControllerState
-
+from fetch_arm_control import Arm
+from fetch_arm_control.msg import GripperState
+from fetch_pbd_interaction.msg import ArmState, ExecutionStatus
+from fetch_pbd_interaction.srv import MoveArm, MoveArmResponse, \
+                                      GetEEPose, GetEEPoseResponse, \
+                                      GetGripperState, \
+                                      GetGripperStateResponse, \
+                                      SetGripperState, \
+                                      SetGripperStateResponse, \
+                                      GetJointStates, GetJointStatesResponse, \
+                                      GetArmMovement, GetArmMovementResponse
 
 # ######################################################################
 # Module level constants
@@ -55,57 +54,102 @@ GRIPPER_FINISH_SLEEP_INTERVAL = 0.01  # seconds
 # ######################################################################
 
 class ArmControl:
-    '''Class for things related to moving arms.'''
+    ''''Control of the arm for action execution.'''
 
-    arm = None
+    def __init__(self):
 
-    def __init__(self, tf_listener):
-        
         # Initialize arm state.
-        arm = Arm(tf_listener)
-        ArmControl.arm = arm            
-        arm.update_gripper_state()
-        arm.close_gripper()
+        self._tf_listener = TransformListener()
+        self._arm = Arm(self._tf_listener)
+        self._arm.update_gripper_state()
+        self._arm.close_gripper()
+        self._status = ExecutionStatus.NOT_EXECUTING
 
-        # Initialize Arms (joint) state.
-        self.attended_arm = False
-        self.action = None
-        self.preempt = False
-        self.z_offset = 0.0
-        self.status = ExecutionStatus.NOT_EXECUTING
+        rospy.Service('move_arm_to_joints', MoveArm, self._move_to_joints)
+        rospy.Service('move_arm_to_pose', MoveArm, self._move_to_pose)
+        rospy.Service('start_move_arm_to_pose', MoveArm,
+                      self._start_move_to_pose)
+
+        rospy.Service('is_reachable', MoveArm, self._is_reachable)
+        rospy.Service('is_arm_moving', GetArmMovement, self._is_arm_moving)
+
+
+        rospy.Service('relax_arm', Empty, self._relax_arm)
+
+        rospy.Service('reset_arm_movement_history', Empty,
+                      self._reset_movement_history)
+
+        rospy.Service('get_gripper_state', GetGripperState,
+                      self._get_gripper_state)
+        rospy.Service('get_ee_pose', GetEEPose, self._get_ee_pose)
+        rospy.Service('get_joint_states', GetJointStates,
+                      self._get_joint_states)
+
+        rospy.Service('set_gripper_state', SetGripperState,
+                      self._set_gripper_state)
+
         rospy.loginfo('Arm initialized.')
 
     # ##################################################################
-    # Static methods: Public (API)
+    # Instance methods: Public (API)
     # ##################################################################
 
-    @staticmethod
-    def set_gripper_state(gripper_state):
+    def update(self):
+        '''Periodic update for the arm.'''
+        self._arm.update()
+
+    # ##################################################################
+    # Instance methods: Internal ("private")
+    # ##################################################################
+
+    def _reset_movement_history(self, req):
+        '''
+        Args:
+            req (EmptyRequest)
+        Returns:
+            EmptyResponse
+        '''
+
+        self._arm.reset_movement_history()
+        return EmptyResponse()
+
+    def _set_gripper_state(self, req):
         '''Set gripper to gripper_state
         (open or closed).
 
         Args:
-            gripper_state (int): GripperState.OPEN or
-                GripperState.CLOSED
+            req (SetGripperStateRequest)
 
         Returns:
-            bool: Whether the gripper state was changed. For example,
-                asking a closed gripper to close will return False, but
-                asking a closed gripper to open will return True.
+            SetGripperStateResponse
         '''
-        if gripper_state == ArmControl.get_gripper_state():
+        gripper_state = req.gripper_state
+        if gripper_state == self._arm.get_gripper_state():
             # Already in that mode; do nothing and return False.
-            return False
+            return SetGripperStateResponse()
         else:
             # Change gripper mode.
             if gripper_state == GripperState.OPEN:
-                ArmControl.arm.open_gripper()
+                self._arm.open_gripper()
             else:
-                ArmControl.arm.close_gripper()
-            return True
+                self._arm.close_gripper()
+            return SetGripperStateResponse()
 
-    @staticmethod
-    def solve_ik_for_arm(arm_state, z_offset=0.0):
+    def _is_reachable(self, req):
+        '''.
+
+        Args:
+            req (MoveArmRequest): The arm's state
+
+        Returns:
+            MoveArmResponse
+        '''
+        arm_state = req.arm_state
+        solution, reachable = self._solve_ik_for_arm(arm_state)
+
+        return MoveArmResponse(reachable)
+
+    def _solve_ik_for_arm(self, arm_state, z_offset=0.0):
         '''Finds an  IK solution for a particular arm pose.
 
         Args:
@@ -133,40 +177,40 @@ class ArmControl:
         # object, but users can edit absolute poses in the GUI to make
         # them unreachable, so we try IK for absolute poses too.
 
-        if arm_state.refFrame == ArmState.OBJECT:
+        if arm_state.ref_type == ArmState.OBJECT:
             # Arm is relative.
             solution = ArmState()
-            target_pose = World.transform(
-                arm_state.ee_pose, arm_state.refFrameLandmark.name, 'base_link')
-            target_pose.position.z = target_pose.position.z + z_offset
+
+            target_pose = self._tf_listener.transformPose(
+                'base_link', arm_state.ee_pose)
+            target_pose.pose.position.z = target_pose.pose.position.z + \
+                                            z_offset
 
             # Try solving IK.
-            target_joints = ArmControl.arm.get_ik_for_ee(
+            target_joints = self._arm.get_ik_for_ee(
                 target_pose, arm_state.joint_pose)
 
             # Check whether solution found.
             if target_joints is None:
                 # No solution: RETURN EMPTY ArmState.
-                rospy.logdebug('No IK for relative end-effector pose.')
+                rospy.loginfo('No IK for relative end-effector pose.')
                 return solution, False
             else:
                 # Found a solution; update the solution arm_state and
                 # return.
-                solution.refFrame = ArmState.ROBOT_BASE
-                solution.ee_pose = Pose(
-                    target_pose.position, target_pose.orientation)
+                solution.ref_type = ArmState.ROBOT_BASE
+                solution.ee_pose = target_pose
                 solution.joint_pose = target_joints
                 return solution, True
-        elif arm_state.refFrame == ArmState.ROBOT_BASE:
+        elif arm_state.ref_type == ArmState.ROBOT_BASE:
             # Arm is absolute.
-            pos = arm_state.ee_pose.position
-            target_position = Point(pos.x, pos.y, pos.z + z_offset)
-            target_pose = Pose(target_position, arm_state.ee_pose.orientation)
+
+            target_pose = arm_state.ee_pose
+            target_pose.pose.position.z = target_pose.pose.position.z + \
+                                            z_offset
 
             # Try solving IK.
-
-            # rospy.loginfo("target_pose: {}, joint_pose: {}".format(target_pose, arm_state.joint_pose))
-            target_joints = ArmControl.arm.get_ik_for_ee(
+            target_joints = self._arm.get_ik_for_ee(
                 target_pose, arm_state.joint_pose)
             if target_joints is None:
                 # No IK found; return the original.
@@ -175,175 +219,74 @@ class ArmControl:
             else:
                 # IK found; fill in solution ArmState and return.
                 solution = ArmState()
-                solution.refFrame = ArmState.ROBOT_BASE
-                solution.ee_pose = Pose(
-                    arm_state.ee_pose.position, arm_state.ee_pose.orientation)
+                solution.ref_type = ArmState.ROBOT_BASE
+                solution.ee_pose = target_pose
                 solution.joint_pose = target_joints
                 return solution, True
         else:
             return arm_state, True
 
-    @staticmethod
-    def is_condition_met(condition):
-        '''Returns whether the given pre-condition or post-condition is
-        currently met.
-
-        Args:
-            condition (Condition): The pre or post condition contained
-                in the ActionStep.
-
-        Returns:
-            bool: Whether the given pre/post-condition is met.
-        '''
-        # TODO(mcakmak): Implement.
-        return True
-
-    @staticmethod
-    def get_joint_state():
+    def _get_joint_states(self, req):
         '''Get joint positions.
 
-        Returns:
-            [float]: Array of seven floats, the positions of all arm
-                joints of the arm.
-        '''
-        return ArmControl.arm.get_joint_state()
+        Args:
+            req (GetJointStatesRequest)
 
-    @staticmethod
-    def get_gripper_state():
+        Returns:
+            GetJointStatesResponse
+        '''
+
+        return GetJointStatesResponse(self._arm.get_joint_state())
+
+    def _get_gripper_state(self, req):
         ''' Get gripper status on the indicated side.
 
-        Returns:
-            int: GripperState.OPEN or GripperState.CLOSED
-        '''
-        return ArmControl.arm.get_gripper_state()
+        Args:
+            req (GetGripperStateRequest)
 
-    @staticmethod
-    def get_ee_state():
+        Returns:
+            GetGripperStateResponse
+        '''
+        return GetGripperStateResponse(self._arm.get_gripper_state())
+
+
+    def _get_ee_pose(self, req):
         ''' Get current pose of the arm's end-effector on the indicated
         side.
 
-        Returns:
-            Pose|None: Pose if success, None if there was a failure in
-                looking up the transform to ref_frame.
-        '''
-        return ArmControl.arm.get_ee_state()
-
-    # ##################################################################
-    # Static methods: Internal ("private")
-    # ##################################################################
-
-    @staticmethod
-    def _is_arm_moving():
-        '''Determines is the arm has moved recently
-
-        See Arm.get_movement() for definition of "recent"
+        Args:
+            req (GetEEPoseRequest)
 
         Returns:
-            bool
+            GetEEPoseResponse
         '''
-        if (ArmControl.arm.get_movement() < ARM_MOVEMENT_THRESHOLD):
-            return False
-        else:
-            return True
+        return GetEEPoseResponse(self._arm.get_ee_state())
 
-
-    # ##################################################################
-    # Instance methods: Public (API)
-    # ##################################################################
-
-    def is_executing(self):
-        '''Return whether there is an ongoing action execution.
-
-        Returns:
-            bool
-        '''
-        return (self.status == ExecutionStatus.EXECUTING)
-
-    def start_execution(self, action, z_offset=0.0):
-        ''' Starts execution of action.
-
-        This method spawns a new thread.
+    def _relax_arm(self, req):
+        ''' Turns on gravity comp controller and turns off other controllers
 
         Args:
-            action (ProgrammedAction): The action to execute.
-            z_offset (float): Amount to add to z-values of pose
-                positions.
-        '''
-        # This will take long; create a thread.
-        self.action = action.copy()
-        self.preempt = False
-        self.z_offset = z_offset
-        thread = threading.Thread(
-            group=None,
-            target=self.execute_action,
-            name='action_execution_thread'
-        )
-        thread.start()
-
-    def stop_execution(self):
-        '''Preempts an ongoing execution.'''
-        self.preempt = True
-
-    def solve_ik_for_action(self):
-        '''Computes joint positions for all end-effector poses in the
-        currently stored action.
+            req (EmptyRequest): Unused
 
         Returns:
-            bool: Whether IK could be successfully solved for the
-                action.
+            EmptyResponse
         '''
-        # Go over steps of the action, checking the type for each and
-        # solving IK.
 
-        rospy.loginfo("Solving ik for action")
-        for i in range(self.action.n_frames()):
-            # See whether this step is an arm target step.
-            if self.action.seq.seq[i].type == ActionStep.ARM_TARGET:
-                # Solve IK for both arms.
-                arm, has_solution = ArmControl.solve_ik_for_arm(
-                    self.action.seq.seq[i].armTarget.arm,
-                    self.z_offset
-                )
+        self._arm.relax_arm()
 
-                self.action.seq.seq[i].armTarget.arm = arm
+        return EmptyResponse()
 
-                # If doesn't have a solution, we return false.
-                if not has_solution:
-                    return False
-
-            # See whether this step is an arm trajectory step.
-            if self.action.seq.seq[i].type == ActionStep.ARM_TRAJECTORY:
-                # If it's an arm trajectory, we have to check all arm
-                # targets within the trajectory.
-                n_frames = len(self.action.seq.seq[i].armTrajectory.timing)
-                for j in range(n_frames):
-                    # Solve IK for both arms.
-                    arm, has_solution = ArmControl.solve_ik_for_arm(
-                        self.action.seq.seq[i].armTrajectory.arm[j],
-                        self.z_offset
-                    )
-
-                    self.action.seq.seq[i].armTrajectory.arm[j] = arm
-
-                    # If doesn't have a solution, we return false
-                    if not has_solution:
-                        return False
-        # Because no steps returned False, at the point everything is
-        # good and we can signal a complete IK solution.
-        return True
-
-    def start_move_to_pose(self, arm_state):
+    def _start_move_to_pose(self, req):
         '''Creates a thread for moving to a target pose.
 
         Args:
-            arm_state (ArmState): Arm state that contains the pose to
+            req (MoveArmRequest): Arm state that contains the pose to
                 move to.
         '''
-        self.preempt = False
         thread = threading.Thread(
             group=None,
-            target=self.move_to_pose,
-            args=(arm_state,),
+            target=self._move_to_pose,
+            args=(req,),
             name='move_to_arm_state_thread'
         )
         thread.start()
@@ -351,63 +294,32 @@ class ArmControl:
         # Log
         rospy.loginfo('Started thread to move arm.')
 
-    def move_to_pose(self, arm_state):
+        return MoveArmResponse(True)
+
+    def _move_to_pose(self, req):
         '''The thread function that makes the arm move to the
         target end-effector pose (within arm_state).
 
         Args:
-            arm_state (ArmState): Arm state that contains the pose to
+            req (MoveArmRequest): Arm state that contains the pose to
                 move to.
         '''
-
+        arm_state = req.arm_state
         rospy.loginfo("Move to pose")
-        self.status = ExecutionStatus.EXECUTING
-        target_pose = World.transform(
-            arm_state.ee_pose, arm_state.refFrameLandmark.name, 'base_link')
+        self._status = ExecutionStatus.EXECUTING
 
-        if self.arm.move_to_pose(target_pose):
-            self.status = ExecutionStatus.SUCCEEDED
-            return True
+        # Should we transform pose to base_link?
+        if self._arm.move_to_pose(arm_state.ee_pose):
+            self._status = ExecutionStatus.SUCCEEDED
+            success = True
         else:
-            self.status = ExecutionStatus.NO_IK
-            return False
-        
+            self._status = ExecutionStatus.NO_IK
+            success = False
 
-    def execute_action(self):
-        ''' Function to replay the demonstrated two-arm action of type
-        ProgrammedAction (must already be saved in this object).'''
-        self.status = ExecutionStatus.EXECUTING
-        action_step = self.action.get_step(0)
+        self._arm.relax_arm()
+        return MoveArmResponse(success)
 
-        rospy.loginfo("Starting to execute action!!!")
-
-        # Make sure the step exists.
-        if action_step is None:
-            rospy.logwarn("First step does not exist.")
-            self.status = ExecutionStatus.CONDITION_ERROR
-        # Check if the very first precondition is met.
-        elif not ArmControl.is_condition_met(action_step.preCond):
-            rospy.logwarn(
-                'First precond is not met, first make sure the robot is' +
-                'ready to execute action (hand object or free hands).')
-            self.status = ExecutionStatus.CONDITION_ERROR
-        else:
-            # Check that all parts of the action are reachable
-            if not self.solve_ik_for_action():
-                rospy.logwarn('Problem finding IK solutions.')
-                self.status = ExecutionStatus.NO_IK
-            else:
-                # Freeze both arms, then execute all steps in turn.
-                self._loop_through_action_steps()
-
-            ArmControl.arm.reset_movement_history()
-
-            # If we haven't been preempted, we now report success.
-            if self.status == ExecutionStatus.EXECUTING:
-                self.status = ExecutionStatus.SUCCEEDED
-                rospy.loginfo('Action execution has succeeded.')
-
-    def move_to_joints(self, arm_state):
+    def _move_to_joints(self, req):
         '''
         Makes the arms move to the joint positions contained in the
         passed arm states.
@@ -420,33 +332,33 @@ class ArmControl:
         values).
 
         Args:
-            arm_state (ArmState)
+            req (MoveArmRequest)
 
         Returns:
-            bool: Whether the arms successfully moved to the passed
+            MoveArmResponse: Whether the arms successfully moved to the passed
                 joint positions.
         '''
         # Estimate times to get to both poses.
+        arm_state = req.arm_state
+
         time_to_pose = None
 
         if arm_state is not None:
-            time_to_pose = self.arm.get_time_to_pose(arm_state.ee_pose)
+            time_to_pose = self._arm.get_time_to_pose(arm_state.ee_pose)
 
         # If both arms are moving, adjust velocities and find most
         # moving arm. Look at it.
         is_moving = time_to_pose is not None
 
-        Response.look_at_point(arm_state.ee_pose.position)
-
         # Move arms to target.
         suc = False
         if is_moving:
-            self.status = ExecutionStatus.EXECUTING
-            suc = ArmControl.arm.move_to_joints(
+            self._status = ExecutionStatus.EXECUTING
+            suc = self._arm.move_to_joints(
                 arm_state.joint_pose, time_to_pose)
 
         # Wait until both arms complete the trajectory.
-        while(ArmControl.arm.is_executing() and not self.preempt):
+        while self._arm.is_executing():
             rospy.sleep(MOVE_TO_JOINTS_SLEEP_INTERVAL)
 
         rospy.loginfo('\tArms reached target.')
@@ -454,143 +366,29 @@ class ArmControl:
         # Verify that both arms succeeded
         # DEBUG: remove
 
-        if (is_moving and not suc):
-            self.status = ExecutionStatus.NO_IK
-            return False
+        if is_moving and not suc:
+            self._status = ExecutionStatus.NO_IK
+            success = False
         else:
-            self.status = ExecutionStatus.SUCCEEDED
-            return True
+            self._status = ExecutionStatus.SUCCEEDED
+            success = True
 
-    def update(self):
-        '''Periodic update for the two arms.
+        self._arm.relax_arm()
+        return MoveArmResponse(success)
 
-        This is called regularly by the update loop in interaction.
+
+    def _is_arm_moving(self, req):
         '''
-        ArmControl.arm.update()
-
-        moving_arm = ArmControl._is_arm_moving() 
-        if moving_arm != self.attended_arm and not self.is_executing():
-            if not moving_arm:
-                Response.perform_gaze_action(GazeGoal.LOOK_FORWARD)
-            else:
-                # moving_arm == Side.LEFT
-                Response.perform_gaze_action(GazeGoal.FOLLOW_EE)
-            self.attended_arm = moving_arm
-
-    # ##################################################################
-    # Instance methods: Internal ("private")
-    # ##################################################################
-
-    def _loop_through_action_steps(self):
-        '''Goes through the steps of the current action and moves to
-        each.'''
-        # Go over steps of the action
-        for i in range(self.action.n_frames()):
-            rospy.loginfo('Executing step ' + str(i))
-            action_step = self.action.get_step(i)
-
-            # Make sure step exists.
-            if action_step is None:
-                rospy.logwarn("Step " + str(i) + " does not exist.")
-                self.status = ExecutionStatus.CONDITION_ERROR
-                break
-            # Check that preconditions are met
-            elif not ArmControl.is_condition_met(action_step.preCond):
-                rospy.logwarn(
-                    '\tPreconditions of action step ' + str(i) + ' are not ' +
-                    'satisfied. Aborting.')
-                self.status = ExecutionStatus.CONDITION_ERROR
-                break
-            else:
-                # Try executing.
-                if not self._execute_action_step(action_step):
-                    break
-
-                # Finished executing; check that postconditions are met
-                if ArmControl.is_condition_met(action_step.postCond):
-                    rospy.loginfo('\tPost-conditions of the action are met.')
-                else:
-                    rospy.logwarn(
-                        '\tPost-conditions of action step ' + str(i) +
-                        ' are not satisfied. Aborting.')
-                    self.status = ExecutionStatus.CONDITION_ERROR
-                    break
-
-            # Perhaps the execution was pre-empted by the user. Check
-            # this before continuing onto the next step.
-            if self.preempt:
-                rospy.logwarn('\tExecution preempted by user.')
-                self.status = ExecutionStatus.PREEMPTED
-                break
-
-            # Step completed successfully.
-            rospy.loginfo('\tStep ' + str(i) + ' of action is complete.')
-
-    def _execute_action_step(self, action_step):
-        '''Executes the motion part of an action step.
-
-        Note: currently actions are always ARM_TARGET actions. 
-        ARM_TRAJECTORY functionality may be added later  
+        Returns true is arm is moving
 
         Args:
-            action_step (ActionStep): The next action step to execute
-                (represents either an arm target or trajectory).
+            req (IsArmMovingRequest)
 
         Returns:
-            bool: Whether the step was successfully executed.
+            IsArmMovingResponse: Whether the arm is currently moving
         '''
-        # For each step, check step type.
-        if action_step.type == ActionStep.ARM_TARGET:
-            # Arm target.
-            rospy.loginfo('\tWill perform arm target action step.')
-            # Try moving to the joints.
-            if not self.move_to_pose(action_step.armTarget.arm):
-                rospy.loginfo('\t Returned False.')
 
-                # We may have been pre-empted.
-                if self.preempt:
-                    self.status = ExecutionStatus.PREEMPTED
-                # Otherwise, we were obstructed.
-                else:
-                    self.status = ExecutionStatus.OBSTRUCTED
-                # Regardless, couldn't get to the joints; return False.
-                return False
-        # ARM_TRAJECTORY type actions currently not implemented fully
-        elif action_step.type == ActionStep.ARM_TRAJECTORY:
-            # Arm trajectory.
-            rospy.loginfo('\tWill perform arm trajectory action step.')
-
-            for step in action_step.armTrajectory.arm:
-                if not self.move_to_joints(step):
-                    # We may have been pre-empted.
-                    if self.preempt:
-                        self.status = ExecutionStatus.PREEMPTED
-                    # Otherwise, we were obstructed.
-                    else:
-                        self.status = ExecutionStatus.OBSTRUCTED
-                    # Regardless, couldn't move to the start frame; return
-                    # False.
-                    return False
-
-        if (action_step.gripperAction.gripper.state !=
-                ArmControl.arm.get_gripper_state()):
-            # TODO(mbforbes): Make this logging better (output 'close'
-            # or 'open' instead of numbers).
-            rospy.loginfo(
-                '\tWill perform right gripper action ' +
-                str(action_step.gripperAction.gripper.state))
-            ArmControl.arm.set_gripper(
-                action_step.gripperAction.gripper.state)
-            Response.perform_gaze_action(GazeGoal.FOLLOW_EE)
-
-        # Wait for gripper to be done
-        while (ArmControl.arm.is_gripper_moving()):
-            rospy.sleep(GRIPPER_FINISH_SLEEP_INTERVAL)
-        rospy.loginfo('\tHands done moving.')
-
-        # Verify that gripper succeeded
-        if (not ArmControl.arm.is_gripper_at_goal()):
-            rospy.logwarn('\tHand(s) did not fully close or open!')
-
-        # Everything completed successfully!
-        return True
+        if self._arm.get_movement() < ARM_MOVEMENT_THRESHOLD:
+            return GetArmMovementResponse(False)
+        else:
+            return GetArmMovementResponse(True)
