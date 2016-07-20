@@ -1,0 +1,4 @@
+geometry_msgs/PoseStamped pose
+---
+bool has_nearest
+fetch_pbd_interaction/Landmark nearest_object

@@ -1,1 +1,1 @@
-fetch_arm_interaction/GripperState gripper
+fetch_arm_control/GripperState gripper

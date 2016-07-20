@@ -1,0 +1,4 @@
+fetch_pbd_interaction/Landmark original_object
+---
+bool has_similar
+fetch_pbd_interaction/Landmark similar_object

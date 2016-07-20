@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>fetch_pbd_interaction</name>
+  <name>fetch_arm_control</name>
   <version>0.0.0</version>
-  <description>The fetch_pbd_interaction package</description>
+  <description>The fetch_arm_control package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->
@@ -40,46 +40,16 @@
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>actionlib</build_depend>
-  <build_depend>message_generation</build_depend>
-  <build_depend>fetch_arm_control</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>rospy</build_depend>
-  <build_depend>rospy_message_converter</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>actionlib</build_depend>
+  <run_depend>std_msgs</run_depend>
   <run_depend>geometry_msgs</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>tf</run_depend>
   <run_depend>message_runtime</run_depend>
-  <run_depend>fetch_arm_control</run_depend>
-  <run_depend>rospy</run_depend>
-  <run_depend>rospy_message_converter</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>tf</run_depend>
-  <!--
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>interactive_markers</run_depend>
-  <run_depend>kinematics_msgs</run_depend>
-  <run_depend>object_manipulation_msgs</run_depend>
-  <run_depend>pr2_arm_kinematics</run_depend>
-  <run_depend>pr2_controllers_msgs</run_depend>
-  <run_depend>pr2_gazebo</run_depend>
-  <run_depend>pr2_gripper_sensor_msgs</run_depend>
-  <run_depend>pr2_interactive_manipulation</run_depend>
-  <run_depend>pr2_interactive_manipulation_frontend</run_depend>
-  <run_depend>rviz</run_depend>
-  <run_depend>pr2_interactive_object_detection</run_depend>
-  <run_depend>pr2_mechanism_controllers</run_depend>
-  <run_depend>pr2_mechanism_msgs</run_depend>
-  <run_depend>pr2_pbd_speech_recognition</run_depend>
-  <run_depend>pr2_social_gaze</run_depend>
-  <run_depend>rospy</run_depend>
-  <run_depend>rostest</run_depend>
-  <run_depend>rqt_gui</run_depend>
-  <run_depend>sound_play</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>tabletop_collision_map_processing</run_depend>
-  <run_depend>tf</run_depend>
-  <run_depend>tf_throttle</run_depend>
-  <run_depend>trajectory_filter_server</run_depend>
-  <run_depend>visualization_msgs</run_depend>-->
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

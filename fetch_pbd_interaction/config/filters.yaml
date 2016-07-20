@@ -1,8 +1,0 @@
-service_type: FilterJointTrajectory
-filter_chain:
-  - 
-    name: numerical_differentiation
-    type: spline_smoother/NumericalDifferentiationSplineSmootherFilterJointTrajectory
-  -
-    name: linear_spline_velocity_scaler
-    type: spline_smoother/LinearSplineVelocityScalerFilterJointTrajectory

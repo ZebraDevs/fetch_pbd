@@ -6,36 +6,24 @@ sends events out to the system.'''
 # ######################################################################
 
 # Core ROS imports come first.
-import roslib
-roslib.load_manifest('fetch_pbd_interaction')
 import rospy
-import actionlib
-
-# System builtins
-from collections import Counter
-import signal
-import threading
 
 # ROS builtins
 from visualization_msgs.msg import MarkerArray
-from robot_controllers_msgs.msg import QueryControllerStatesAction, \
-                                       QueryControllerStatesGoal, \
-                                       ControllerState
+from interactive_markers.interactive_marker_server import \
+     InteractiveMarkerServer
+from tf import TransformListener
 
 # Local
-from fetch_arm_interaction.msg import GripperState
-from fetch_pbd_interaction.arm_control import ArmControl
-from session import Session
-from fetch_pbd_interaction.msg import (ArmState, ActionStep, ArmTarget, Landmark,
-                                     GripperAction, ArmTrajectory,
-                                     ExecutionStatus, GuiCommand)
-from fetch_pbd_interaction.srv import Ping, PingResponse
+from fetch_arm_control.msg import GripperState
+from fetch_pbd_interaction.session import Session
+from fetch_pbd_interaction.msg import ExecutionStatus, GuiCommand
+from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList
 from fetch_pbd_speech_recognition.msg import Command
-from fetch_social_gaze.msg import GazeGoal
-from response import Response
-from robot_speech import RobotSpeech
-from world import World
+from fetch_pbd_interaction.msg import RobotSound, WorldState
+from fetch_pbd_interaction.robot import Robot
 from std_msgs.msg import String
+from std_srvs.srv import Empty
 
 # ######################################################################
 # Module level constants
@@ -43,6 +31,8 @@ from std_msgs.msg import String
 
 EXECUTION_Z_OFFSET = -0.00
 BASE_LINK = 'base_link'
+TOPIC_IM_SERVER = 'programmed_actions'
+
 
 # ######################################################################
 # Classes
@@ -57,112 +47,79 @@ class Interaction:
     GUI commands (gui_command) and sends these off into the system to be
     processed. Interaction holds a small amount of state to support
     recording trajectories.
-
-    This is the core class of the PbD "backend"; it can run on the robot
-    or on the desktop.
     '''
 
-    # TODO(mbforbes): Refactor trajectory busiens into new class.
-    # TODO(mbforbes): Document class attributes in docstring.
+    def __init__(self):
 
-    def __init__(self, arm_control, session, world):
         # Create main components.
-        self.world = world
-        self.arm_control = arm_control
-        self.session = session
+        self._tf_listener = TransformListener()
+        self._robot = Robot(self._tf_listener)
+        self._im_server = InteractiveMarkerServer(TOPIC_IM_SERVER)
+        self._session = Session(self._robot, self._tf_listener,
+                                self._im_server)
 
-        # ROS publishers and subscribers.
+        # ROS publishers, subscribers, services
         self._viz_publisher = rospy.Publisher('visualization_marker_array',
                                               MarkerArray,
                                               queue_size=10)
-        self._arm_reset_publisher = rospy.Publisher('arm_interaction_reset',
-                                                    String,
-                                                    queue_size=10)
+
         rospy.Subscriber('recognized_command', Command,
                          self._speech_command_cb)
         rospy.Subscriber('gui_command', GuiCommand, self._gui_command_cb)
 
+        rospy.Subscriber('world_update', WorldState, self._world_update_cb)
+
+        self._clear_world_objects_srv = \
+                        rospy.ServiceProxy('clear_world_objects', Empty)
+        self._update_world_srv = rospy.ServiceProxy('update_world',
+                                                    GetObjectList)
+        rospy.wait_for_service('clear_world_objects')
+        rospy.wait_for_service('update_world')
+
         # Initialize trajectory recording state.
         self._is_recording_motion = False
-        self._arm_trajectory = None
-        self._trajectory_start_time = None
 
-        # This is the main mechanism by which code is executed. A
-        # Response as a combination of a function to call and a
-        # parameter. Responses are created here to be triggered by
-        # commands. Once a Response is respond(...)ed, a robot speech
-        # utterance and a gaze action are created and then executed.
-        # (This happens internally in Response.respond(...)).
-        self.responses = {
-            Command.TEST_MICROPHONE: Response(self._empty_response,
-                                              [RobotSpeech.TEST_RESPONSE,
-                                               GazeGoal.NOD]),
-            Command.OPEN_HAND: Response(self._open_hand),
-            Command.CLOSE_HAND: Response(self._close_hand),
-            Command.STOP_EXECUTION: Response(self._stop_execution),
-            Command.DELETE_ALL_STEPS: Response(self._delete_all_steps),
-            Command.DELETE_LAST_STEP: Response(self._delete_last_step),
-            Command.CREATE_NEW_ACTION: Response(self._create_action),
-            Command.EXECUTE_ACTION: Response(self._execute_action),
-            Command.NEXT_ACTION: Response(self._next_action),
-            Command.PREV_ACTION: Response(self._previous_action),
-            Command.SAVE_POSE: Response(self._save_step),
-            Command.RECORD_OBJECT_POSE: Response(self._record_object_pose),
-            Command.START_RECORDING_MOTION: Response(self._start_recording),
-            Command.STOP_RECORDING_MOTION: Response(self._stop_recording)
+        # Keep track of head state
+        # TODO(sarah): Is this necessary or does the fact that the
+        # "LOOK_DOWN" action is not interruptable cover this?
+        self._looking_down = False
+
+        # Command/callback pairs for input
+        self._responses = {
+            Command.TEST_MICROPHONE: self._test_microphone,
+            Command.OPEN_HAND: self._open_hand,
+            Command.CLOSE_HAND: self._close_hand,
+            Command.STOP_EXECUTION: self._stop_execution,
+            Command.DELETE_ALL_STEPS: self._delete_all_primitives,
+            Command.DELETE_LAST_STEP: self._delete_last_primitive,
+            Command.CREATE_NEW_ACTION: self._create_action,
+            Command.EXECUTE_ACTION: self._execute_action,
+            Command.NEXT_ACTION: self._next_action,
+            Command.PREV_ACTION: self._previous_action,
+            Command.SAVE_POSE: self._save_primitive,
+            Command.RECORD_OBJECT_POSE: self._record_object_pose,
+            Command.START_RECORDING_MOTION: self._start_recording,
+            Command.STOP_RECORDING_MOTION: self._stop_recording
         }
 
         # Span off a thread to run the update loops.
-        threading.Thread(group=None,
-                         target=self.update,
-                         name='interaction_update_thread').start()
+        # threading.Thread(group=None,
+        #                  target=self.update,
+        #                  name='interaction_update_thread').start()
 
-        # Register signal handlers for program termination.
-        # TODO(mbforbes): Test that these are really catching the
-        # signals. I think we might have to pass disable_signals=True to
-        # rospy.init_node(...), though I'm not sure.
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGQUIT, self._signal_handler)
-        rospy.on_shutdown(self._on_shutdown)
 
         # The PbD backend is ready.
+        # This basically exists for tests that aren't actually written yet
         rospy.loginfo('Interaction initialized.')
         self._ping_srv = rospy.Service('interaction_ping', Ping,
                                        self._interaction_ping)
-        self.arm_control.arm.relax_arm()
 
+        # Make sure gravity compensation controllers are on before we start
+        self._robot.relax_arm()
 
     # ##################################################################
-    # Internal ("private" methods)
+    # Instance methods: Public (API)
     # ##################################################################
-
-    # The following methods are 'core' to the running of the program.
-
-    def _signal_handler(self, signal, frame):
-        '''Intercept quit signals (like ^C) in order to clean up (save
-        experiment state) before exiting.'''
-        rospy.loginfo('Interaction signal handler intercepted signal; saving.')
-        self.session.save_current_action()
-        # NOTE(mbforbes): We don't call sys.exit(0) here because that
-        # would prevent cleanup from happening outside interaction
-        # (e.g. in the node that's running it).
-
-    def _interaction_ping(self, response):
-        '''This is the service that is provided so that external nodes
-        know the interaction (i.e. PbD) is ready.
-
-        Args:
-            response (PingRequest): unused
-
-        Returns:
-            PingResponse: empty
-        '''
-        return PingResponse()
-
-    def _on_shutdown(self):
-        '''This is mostly for debugging: log that the interaction node
-        itself is being shutdown.'''
-        rospy.loginfo('Interaction node shutting down.')
 
     def update(self):
         '''General update for the main loop.
@@ -172,38 +129,95 @@ class Interaction:
         run before returning.
         '''
 
-        # Update arms.
-        self.arm_control.update()
-        if self.arm_control.status != ExecutionStatus.NOT_EXECUTING:
-            self._arm_reset_publisher.publish(String(''))
-            if self.arm_control.status != ExecutionStatus.EXECUTING:
-                self._end_execution()
+        arm_moving = self._robot.is_arm_moving()
 
-        # Record trajectory step.
-        if self._is_recording_motion:
-            self._save_arm_to_trajectory()
+        if not arm_moving and not self._looking_down:
+            rospy.loginfo("Arm moving")
+            self._robot.look_forward()
+        else:
+            if self._session.n_actions() > 0:
+                current_action = self._session.get_current_action()
+
+                action_status = current_action.get_status()
+
+                if (action_status != ExecutionStatus.EXECUTING and
+                        not self._looking_down):
+                    self._robot.look_at_ee()
+            elif not self._looking_down:
+                self._robot.look_at_ee()
 
         # Update the current action if there is one.
-        if self.session.n_actions() > 0:
-            action = self.session.get_current_action()
-            action.update_viz()
+        if self._session.n_actions() > 0:
 
-            target = action.get_requested_target()
-            if target is not None:
-                self.arm_control.start_move_to_pose(target)
-                action.reset_targets()
-
-            # Update any changes to steps that were request from marke menu.
-            action.delete_requested_steps()
-            arm_state = self._get_arm_state()
-            action.change_requested_steps(arm_state)
+            # Record trajectory primitive.
+            if self._is_recording_motion:
+                self._session.update_arm_trajectory()
 
             # If the objects in the world have changed, update the
             # action with them.
-            if self.world.update():
-                rospy.loginfo('The world has changed.')
-                self.session.get_current_action().update_objects(
-                    self.world.get_frame_list())
+            current_action = self._session.get_current_action()
+
+            action_status = current_action.get_status()
+
+            # if action_status != ExecutionStatus.NOT_EXECUTING:
+            #     self._arm_reset_publisher.publish(String(''))
+            #     if action_status != ExecutionStatus.EXECUTING:
+            #         self._end_execution()
+
+
+    # ##################################################################
+    # Internal ("private" methods)
+    # ##################################################################
+
+
+    def _world_update_cb(self, msg):
+        ''' Respond to changes in world
+        Right now these changes are mostly initiated by
+        this class anyway but in case something else changes
+        we want to keep track
+
+        Args:
+            msg (WorldState)
+        '''
+        current_action = self._session.get_current_action()
+        if not current_action is None:
+            current_action.update_objects()
+
+    def _end_execution(self):
+        '''Says a response and performs a gaze action for when an action
+        execution ends.'''
+        status = self._session.get_current_action().get_status()
+        rospy.loginfo("Execution ended. Status: " + str(status))
+        if status == ExecutionStatus.SUCCEEDED:
+            # Execution completed successfully.
+            self._robot.play_sound(RobotSound.EXECUTION_ENDED)
+            self._robot.nod_head()
+        elif status == ExecutionStatus.PREEMPTED:
+            # Execution stopped early (preempted).
+            # self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+        else:
+            # Couldn't solve for joint positions (IK).
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+        # self._robot.relax_arm()
+        self._session.get_current_action().end_execution()
+
+
+    def _interaction_ping(self, req):
+        '''This is the service that is provided so that external nodes
+        know the interaction (i.e. PbD) is ready. This basically exists
+        for tests that haven't been written yet for Fetch.
+
+        Args:
+            req (PingRequest): unused
+
+        Returns:
+            PingResponse: empty
+        '''
+        return PingResponse()
+
 
     # The following methods receive commands from speech / GUI and
     # process them. These are the multiplexers.
@@ -222,20 +236,22 @@ class Interaction:
                 GUI.
         '''
         # We extract the command string as we use it a lot.
-        strCmd = command.command
-        if strCmd in self.responses.keys():
-            rospy.loginfo('\033[32m' + 'Calling response for command ' + strCmd
+        cmd = command.command
+        if cmd in self._responses.keys():
+            rospy.loginfo('\033[32m' + 'Calling response for command ' + cmd
                           + '\033[0m')
-            response = self.responses[strCmd]
+            response = self._responses[cmd]
 
-            if ((not self.arm_control.is_executing()) or
-                strCmd == Command.STOP_EXECUTION):
-                response.respond()
+            if not self._session.n_actions() > 0:
+                response()
+            elif ((self._session.get_current_action().get_status() !=
+                    ExecutionStatus.EXECUTING) or cmd == Command.STOP_EXECUTION):
+                response()
             else:
                 rospy.logwarn(
-                    'Ignoring speech command during execution: ' + strCmd)
+                    'Ignoring speech command during execution: ' + cmd)
         else:
-            rospy.logwarn('This command (' + strCmd + ') is unknown.')
+            rospy.logwarn('This command (' + cmd + ') is unknown.')
 
     def _gui_command_cb(self, command):
         '''Callback for when a GUICommand is received.
@@ -250,33 +266,35 @@ class Interaction:
             command (GUICommand): The command received from the GUI.
         '''
         # We extract the command string as we use it a lot.
-        strCmd = command.command
+        cmd = command.command
 
-        # Because the GUI commands involve selecting actions or steps
+        # Because the GUI commands involve selecting actions or primitives
         # within actions, we have two prerequisites: first, we cannot be
         # currently executing an action, and second, we must have at
         # least one action.
-        if not self.arm_control.is_executing():
-            if strCmd == GuiCommand.SWITCH_TO_ACTION:
-                index = int(command.param) - 1
-                response = self.switch_to_action_by_index(index)
-                response.respond()
-            elif strCmd == GuiCommand.SWITCH_TO_ACTION_BY_ID:
-                action_id = command.param
-                response = self.switch_to_action_by_id(action_id)
-                response.respond()
-            elif strCmd == GuiCommand.SELECT_ACTION_STEP:
-                # Command: select a step in the current action.
-                step_number = int(command.param)
-                self.select_action_step(step_number)
+        is_executing = False
+        if self._session.n_actions() > 0:
+            if (self._session.get_current_action().get_status() ==
+                ExecutionStatus.EXECUTING):
+                is_executing = True
+
+        if not is_executing:
+            if cmd == GuiCommand.SWITCH_TO_ACTION:
+                index = int(command.param)
+                self._switch_to_action(index)
+
+            elif cmd == GuiCommand.SELECT_ACTION_STEP:
+                # Command: select a primitive in the current action.
+                primitive_number = int(command.param)
+                self._select_action_primitive(primitive_number)
             else:
                 # Command: unknown. (Currently impossible.)
-                rospy.logwarn('This command (' + strCmd + ') is unknown.')
+                rospy.logwarn('This command (' + cmd + ') is unknown.')
         else:
             # Currently executing; ignore command.
-            rospy.logwarn('Ignoring GUI command during execution: ' + strCmd)
+            rospy.logwarn('Ignoring GUI command during execution: ' + cmd)
 
-    def switch_to_action_by_index(self, index):
+    def _switch_to_action(self, index):
         '''Switches to an action that is already loaded in the session.
 
         The action is accessed by the index in the session's action list.
@@ -284,533 +302,247 @@ class Interaction:
 
         Args:
             index: int, the index into the session's action list to switch to.
-
-        Returns:
-            A Response, specifying how the robot should respond to this action.
         '''
         # Command: switch to a specified action.
-        success = self.session.switch_to_action_by_index(
-            index, self.world.get_frame_list())
+        success = self._session.switch_to_action(
+            index)
         if not success:
-            response = Response(self._empty_response,
-                                [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE])
-            return response
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
         else:
-            response = Response(self._empty_response,
-                                [RobotSpeech.SWITCH_SKILL + str(index),
-                                 GazeGoal.NOD])
-            return response
+            self._robot.play_sound(RobotSound.SUCCESS)
+            self._robot.nod_head()
 
-    def switch_to_action_by_id(self, action_id):
-        '''Switches to an action saved in the database.
-
-        The action may or may not already be loaded in the current session.
-        If the action is not in the session, then it is added to the end of the
-        session's action list.
+    def _select_action_primitive(self, primitive_number):
+        '''Selects a primitive in the current action.
 
         Args:
-            action_id: string, the ID in the database of the action to load.
-
-        Returns:
-            A Response, specifying how the robot should respond to this action.
-        '''
-        success = self.session.switch_to_action(action_id,
-                                                self.world.get_frame_list())
-        if not success:
-            response = Response(self._empty_response,
-                                [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE])
-            return response
-        else:
-            response = Response(self._empty_response,
-                                [RobotSpeech.SWITCH_SKILL + action_id,
-                                 GazeGoal.NOD])
-            return response
-
-    def select_action_step(self, step_number):
-        '''Selects a step in the current action.
-
-        Args:
-            step_number: int, the index in the list of steps for the current
+            primitive_number: int, the index in the list of primitives for the current
             action.
         '''
-        self.session.select_action_step(step_number)
-        rospy.loginfo('Selected action step ' + str(step_number))
+        self._session.select_action_primitive(primitive_number)
+        rospy.loginfo('Selected action primitive ' + str(primitive_number))
 
     # The following methods are selected from commands (either GUI or
     # speech) and then called from within a Response objects's
     # respond(...) function. They follow the same pattern of their
     # accepted and returned values.
 
-    def _open_hand(self, __=None):
-        '''Opens gripper on the indicated side.
-
-        Args:
-            __ (NoneType): Unused
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-
-        '''
+    def _open_hand(self):
+        '''Opens gripper'''
         # First, open the hand if it's closed.
-        if self.arm_control.set_gripper_state(GripperState.OPEN):
+        if self._robot.get_gripper_state() != GripperState.OPEN:
             # Hand was closed, now open.
-            speech_response = Response.open_response
-            if self.session.n_actions() > 0:
-                # If we're currently programming, save that as a step.
-                self._save_gripper_step(GripperState.OPEN)
-                speech_response = (
-                    speech_response + ' ' + RobotSpeech.STEP_RECORDED
-                )
-            return [speech_response, Response.glance_action]
+            self._robot.set_gripper_state(GripperState.OPEN)
+            if self._session.n_actions() > 0:
+                # If we're currently programming, save that as a primitive
+                self._session.add_arm_target_to_action()
+                self._robot.play_sound(RobotSound.POSE_SAVED)
+
+            self._robot.play_sound(RobotSound.OTHER)
+            self._robot.look_at_ee(follow=False)
+
         else:
             # Hand was already open; complain.
-            return [Response.already_open_response,
-                    Response.glance_action]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.look_at_ee(follow=False)
 
-    def _close_hand(self, __=None):
-        '''Closes gripper on the indicated side.
 
-        Args:
-            __ (NoneType): Unused
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
+    def _close_hand(self):
+        '''Closes gripper'''
         # First, close the hand if it's open.
-        if ArmControl.set_gripper_state(GripperState.CLOSED):
+        if self._robot.get_gripper_state() != GripperState.CLOSED:
+            self._robot.set_gripper_state(GripperState.CLOSED)
             # Hand was open, now closed.
-            speech_response = Response.close_response
-            if self.session.n_actions() > 0:
-                # If we're currently programming, save that as a step.
-                self._save_gripper_step(GripperState.CLOSED)
-                speech_response = (
-                    ' '.join([speech_response, RobotSpeech.STEP_RECORDED])
-                )
-            return [speech_response, Response.glance_action]
+            if self._session.n_actions() > 0:
+                # If we're currently programming, save that as a primitive.
+                self._session.add_arm_target_to_action()
+                self._robot.play_sound(RobotSound.POSE_SAVED)
+
+            self._robot.play_sound(RobotSound.OTHER)
+            self._robot.look_at_ee(follow=False)
         else:
             # Hand was already closed; complain.
-            return [Response.already_closed_response,
-                    Response.glance_action]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.look_at_ee(follow=False)
 
-    def _create_action(self, __=None):
-        '''Creates a new empty action.
+    def _create_action(self):
+        '''Creates a new empty action.'''
+        self._session.new_action()
+        self._clear_world_objects_srv()
+        self._robot.play_sound(RobotSound.CREATED_ACTION)
+        self._robot.nod_head()
 
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        self.world.clear_all_objects()
-        self.session.new_action()
-        return [RobotSpeech.SKILL_CREATED + ' ' +
-                str(self.session.current_action_id), GazeGoal.NOD]
-
-    def _next_action(self, __=None):
-        '''Switches to next action.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
-            if self.session.next_action(self.world.get_frame_list()):
-                return [RobotSpeech.SWITCH_SKILL + ' ' +
-                        str(self.session.current_action_id), GazeGoal.NOD]
+    def _next_action(self):
+        '''Switches to next action.'''
+        if self._session.n_actions() > 0:
+            if self._session.next_action():
+                self._robot.play_sound(RobotSound.SUCCESS)
+                self._robot.nod_head()
             else:
-                return [RobotSpeech.ERROR_NEXT_SKILL + ' ' +
-                        str(self.session.current_action_id), GazeGoal.SHAKE]
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _previous_action(self, __=None):
-        '''Switches to previous action.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
-            if self.session.previous_action(self.world.get_frame_list()):
-                return [RobotSpeech.SWITCH_SKILL + ' ' +
-                        str(self.session.current_action_id), GazeGoal.NOD]
+    def _previous_action(self):
+        '''Switches to previous action.'''
+        if self._session.n_actions() > 0:
+            if self._session.previous_action():
+                self._robot.play_sound(RobotSound.SUCCESS)
+                self._robot.nod_head()
             else:
-                return [RobotSpeech.ERROR_PREV_SKILL + ' ' +
-                        str(self.session.current_action_id), GazeGoal.SHAKE]
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _delete_last_step(self, __=None):
-        '''Deletes last step of the current action.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
-            if self.session.n_frames() > 0:
-                self.session.delete_last_step()
-                return [RobotSpeech.LAST_POSE_DELETED, GazeGoal.NOD]
+    def _delete_last_primitive(self):
+        '''Deletes last primitive of the current action.'''
+        if self._session.n_actions() > 0:
+            if self._session.n_primitives() > 0:
+                self._session.delete_last_primitive()
+                self._robot.play_sound(RobotSound.OTHER)
+                self._robot.nod_head()
             else:
-                return [RobotSpeech.SKILL_EMPTY, GazeGoal.SHAKE]
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _delete_all_steps(self, __=None):
-        '''Deletes all steps in the current action.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
-            if self.session.n_frames() > 0:
-                self.session.clear_current_action()
-                return [RobotSpeech.SKILL_CLEARED, GazeGoal.NOD]
+    def _delete_all_primitives(self):
+        '''Deletes all primitives in the current action.'''
+        if self._session.n_actions() > 0:
+            if self._session.n_primitives() > 0:
+                self._session.clear_current_action()
+                self._robot.play_sound(RobotSound.ALL_POSES_DELETED)
+                self._robot.nod_head()
             else:
-                return [RobotSpeech.SKILL_EMPTY, None]
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _stop_execution(self, __=None):
-        '''Stops ongoing execution.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.arm_control.is_executing():
-            self.arm_control.stop_execution()
-            return [RobotSpeech.STOPPING_EXECUTION, GazeGoal.NOD]
+    def _stop_execution(self):
+        '''Stops ongoing execution after current primitive is finished'''
+        status = self._session.get_current_action().get_status()
+        if status == ExecutionStatus.EXECUTING:
+            self._session.get_current_action().stop_execution()
+            self._robot.play_sound(RobotSound.OTHER)
+            # self._robot.nod_head()
         else:
-            return [RobotSpeech.ERROR_NO_EXECUTION, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _start_recording(self, __=None):
-        '''Starts recording continuous motion.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
+    def _start_recording(self):
+        '''Starts recording continuous motion.'''
+        if self._session.n_actions() > 0:
             if not self._is_recording_motion:
                 self._is_recording_motion = True
-                self._arm_trajectory = ArmTrajectory()
-                self._trajectory_start_time = rospy.Time.now()
-                return [RobotSpeech.STARTED_RECORDING_MOTION, GazeGoal.NOD]
+                self._session.start_recording_arm_trajectory()
+                self._robot.play_sound(RobotSound.START_TRAJECTORY)
+                self._robot.nod_head()
             else:
-                return [RobotSpeech.ALREADY_RECORDING_MOTION, GazeGoal.SHAKE]
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _stop_recording(self, __=None):
-        '''Stops recording continuous motion.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
+    def _stop_recording(self):
+        '''Stops recording continuous motion.'''
         if self._is_recording_motion:
             self._is_recording_motion = False
-            traj_step = ActionStep()
-            traj_step.type = ActionStep.ARM_TRAJECTORY
 
-            waited_time = self._arm_trajectory.timing[0]
-            for i in range(len(self._arm_trajectory.timing)):
-                self._arm_trajectory.timing[i] -= waited_time
-                self._arm_trajectory.timing[i] += rospy.Duration(0.1)
+            self._session.stop_recording_arm_trajectory()
+            self._robot.play_sound(RobotSound.POSE_SAVED)
+            self._robot.nod_head()
 
-            self._fix_trajectory_ref()
-            # Note that [:] is a shallow copy, copying references to
-            # each element into a new list.
-            traj_step.armTrajectory = ArmTrajectory(
-                self._arm_trajectory.arm[:],  # (ArmState[])
-                self._arm_trajectory.timing[:],  # (duration[])
-                self._arm_trajectory.refFrame,  # (uint8)
-                self._arm_trajectory.refFrameLandmark  # (Landmark)
-            )
-            traj_step.gripperAction = GripperAction(
-                GripperState(self.arm_control.get_gripper_state()))
-            self.session.add_step_to_action(traj_step,
-                                            self.world.get_frame_list())
-            self._arm_trajectory = None
-            self._trajectory_start_time = None
-            return [RobotSpeech.STOPPED_RECORDING_MOTION + ' ' +
-                    RobotSpeech.STEP_RECORDED, GazeGoal.NOD]
         else:
-            return [RobotSpeech.MOTION_NOT_RECORDING, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _save_step(self, __=None):
-        '''Saves current arm state as an action step.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.session.n_actions() > 0:
-            state = self._get_arm_state()
-            step = ActionStep()
-            step.type = ActionStep.ARM_TARGET
-            step.armTarget = ArmTarget(state)
-            step.gripperAction = GripperAction(
-                GripperState(self.arm_control.get_gripper_state()))
-            self.session.add_step_to_action(step, self.world.get_frame_list())
-            return [RobotSpeech.STEP_RECORDED, GazeGoal.NOD]
+    def _save_primitive(self):
+        '''Saves current arm state as an action primitive.'''
+        if self._session.n_actions() > 0:
+            self._session.add_arm_target_to_action()
+            self._robot.play_sound(RobotSound.POSE_SAVED)
+            self._robot.nod_head()
         else:
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _record_object_pose(self, __=None):
-        '''Makes the robot look for a table and objects.
-
-        Only does anything when at least one action has been created.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        if self.world.update_object_pose():
-            if self.session.n_actions() > 0:
-                self.session.get_current_action().update_objects(
-                    self.world.get_frame_list())
-            return [RobotSpeech.START_STATE_RECORDED, GazeGoal.NOD]
+    def _record_object_pose(self):
+        '''Makes the robot look for a table and objects.'''
+        self._looking_down = True
+        self._robot.look_down()
+        resp = self._update_world_srv()
+        if resp.object_list:
+            if self._session.n_actions() > 0:
+                self._session.get_current_action().update_objects()
+            self._robot.play_sound(RobotSound.SUCCESS)
+            self._robot.nod_head()
         else:
-            return [RobotSpeech.OBJECT_NOT_DETECTED, GazeGoal.SHAKE]
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _empty_response(self, responses):
-        '''Default response to speech commands; returns what it is
-        passed.
+        self._looking_down = False
 
-        Args:
-            responses ([str, int]): a speech response and a GazeGoal.* constant
+    def _test_microphone(self):
+        '''Makes sound to confirm that microphone is working.'''
 
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
-        '''
-        return responses
+        self._robot.play_sound(RobotSound.MICROPHONE_WORKING)
 
-    def _execute_action(self, __=None):
+    def _execute_action(self):
         '''Starts the execution of the current action.
-
-        This saves the action before starting it.
-
-        Args:
-            __ (NoneType): unused, default: None
-
-        Returns:
-            [str, int]: a speech response and a GazeGoal.* constant
+        TODO(sarah): Currently requires > 1 primitive in order to execute.
+                     Should be an easy fix, but not sure if there are
+                     repercussions elsewhere.
         '''
-        # We must *have* a current action.
-        if self.session.n_actions() > 0:
-            # We must have also recorded steps (/poses/frames) in it.
-            if self.session.n_frames() > 1:
+        # We must have a current action.
+        if self._session.n_actions() > 0:
+            # We must have also recorded primitives (/poses/frames) in it.
+            if self._session.n_primitives() > 1:
                 # Save curent action and retrieve it.
-                self.session.save_current_action()
+                # self._session.save_current_action()
 
                 # Now, see if we can execute.
-                if self.session.get_current_action().is_object_required():
+                if self._session.get_current_action().is_object_required():
                     # We need an object; check if we have one.
-                    if self.world.update_object_pose():
-                        self.world.update()
+                    self._robot.look_down()
+                    resp = self._update_world_srv()
+                    # objects = resp.objects
+                    if resp.object_list:
                         # An object is required, and we got one. Execute.
-                        self.session.get_current_action().update_objects(
-                            self.world.get_frame_list())
-                        self.arm_control.start_execution(
-                            self.session.get_current_action(),
+                        self._session.get_current_action().update_objects()
+                        self._session.get_current_action().start_execution(
                             EXECUTION_Z_OFFSET)
                     else:
                         # An object is required, but we didn't get it.
-                        return [RobotSpeech.OBJECT_NOT_DETECTED,
-                                GazeGoal.SHAKE]
+                        self._robot.play_sound(RobotSound.ERROR)
+                        self._robot.shake_head()
                 else:
                     # No object is required: start execution now.
-                    self.arm_control.start_execution(
-                        self.session.get_current_action(), EXECUTION_Z_OFFSET)
+                    self._session.get_current_action().start_execution(
+                            EXECUTION_Z_OFFSET)
 
                 # Reply: starting execution.
-                return [RobotSpeech.START_EXECUTION + ' ' +
-                        str(self.session.current_action_id), None]
+                self._robot.play_sound(RobotSound.STARTING_EXECUTION)
             else:
-                # No steps / poses / frames recorded.
-                return [RobotSpeech.EXECUTION_ERROR_NOPOSES + ' ' +
-                        str(self.session.current_action_id), GazeGoal.SHAKE]
+                # No primitives / poses / frames recorded.
+                rospy.loginfo("No primitives recorded")
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
         else:
             # No actions.
-            return [RobotSpeech.ERROR_NO_SKILLS, GazeGoal.SHAKE]
+            rospy.loginfo("No actions recorded")
 
-    # The following are "normal" private helper functions; they aren't
-    # called from within a Response, and serve to help the above
-    # functions.
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _save_gripper_step(self, gripper_state):
-        '''Saves an action step that involves a gripper state change.
 
-        Args:
-            gripper_state (int): GripperState.OPEN or
-                GripperState.CLOSED
-        '''
-        if self.session.n_actions() > 0:
-            state = self._get_arm_state()
-            step = ActionStep()
-            step.type = ActionStep.ARM_TARGET
-            step.armTarget = ArmTarget(state)
-            new_gripper_state = self.arm_control.get_gripper_state()
-            new_gripper_state = gripper_state
-            step.gripperAction = GripperAction(
-                GripperState(new_gripper_state))
-            self.session.add_step_to_action(step, self.world.get_frame_list())
-
-    def _fix_trajectory_ref(self):
-        '''Makes the reference frame of continuous trajectories
-        uniform.
-
-        This means finding the dominant reference frame of the
-        trajectory (for right and left arms separately), and then
-        altering all steps in the trajctory to be relative to the same
-        reference frame (again, separate for right and left arms).
-        '''
-        # First, get objects from the world.
-        frame_list = self.world.get_frame_list()
-
-        # Next, find the dominant reference frame (e.g. robot base,
-        # an object).
-        t = self._arm_trajectory
-        ref_n, ref_obj = self._find_dominant_ref(t.arm, frame_list)
-
-        # Next, alter all trajectory steps (ArmState's) so that they use
-        # the dominant reference frame as their reference frame.
-        for i in range(len(self._arm_trajectory.timing)):
-            t.arm[i] = World.convert_ref_frame(
-                self._arm_trajectory.arm[i],  # arm_frame (ArmState)
-                ref_n,  # ref_frame (int)
-                ref_obj  # ref_frame_obj (Objet)
-            )
-
-        # Save the dominant ref. frame no./name in the trajectory for
-        # reference.
-        t.refFrame = ref_n
-        t.refFrameLandmark = ref_obj
-
-    def _find_dominant_ref(self, arm_traj, frame_list):
-        '''Finds the most dominant reference frame in a continuous
-        trajectory.
-
-        Args:
-            arm_traj (ArmState[]): List of arm states that form the arm
-                trajectory.
-            frame_list ([Landmark]): List of Landmark (as defined by
-                Landmark.msg), the current reference frames.
-
-        Returns:
-            (int, Landmark): Tuple of the dominant reference frame's
-                number (as one of the constants available in ArmState to
-                be set as ArmState.refFrame) and Landmark (as in
-                Landmark.msg).
-        '''
-        # Cycle through all arm states and check their reference frames.
-        # Whichever one is most frequent becomes the dominant one.
-        robot_base = Landmark(name=BASE_LINK)
-        ref_counts = Counter()
-        for arm_state in arm_traj:
-            # We only track objects that
-            if arm_state.refFrame == ArmState.ROBOT_BASE:
-                ref_counts[robot_base] += 1
-            elif arm_state.refFrameLandmark in frame_list:
-                ref_counts[arm_state.refFrameLandmark] += 1
-            else:
-                rospy.logwarn('Ignoring object with reference frame name ' +
-                              arm_state.refFrameLandmark.name +
-                              ' because the world does not have this object.')
-
-        # Get most common obj.
-        dominant_ref_obj = ref_counts.most_common(1)[0][0]
-
-        # Find the frame number (int) and return with the object.
-        return World.get_ref_from_name(dominant_ref_obj.name), dominant_ref_obj
-
-    def _save_arm_to_trajectory(self):
-        '''Saves current arm state into continuous trajectory.'''
-        if self._arm_trajectory is not None:
-            state = self._get_arm_state()
-            self._arm_trajectory.arm.append(state)
-            self._arm_trajectory.timing.append(
-                rospy.Time.now() - self._trajectory_start_time)
-
-    def _get_arm_state(self):
-        '''Returns the current arm state.
-
-        Returns:
-            ArmState
-        '''
-        # TODO(mbforbes): Perhaps this entire method should go in
-        # the Arms class?
-        abs_ee_pose = ArmControl.get_ee_state()  # (Pose)
-        joint_pose = ArmControl.get_joint_state()  # ([float64])
-
-        state = None
-        rel_ee_pose = None
-    
-        nearest_obj = self.world.get_nearest_object(
-            abs_ee_pose)
-        if not World.has_objects() or nearest_obj is None:
-            # Arm state is absolute (relative to robot's base_link).
-            state = ArmState(
-                ArmState.ROBOT_BASE,  # refFrame (uint8)
-                abs_ee_pose,  # ee_pose (Pose)
-                joint_pose,  # joint_pose ([float64])
-                Landmark()  # refFrameLandmark (Landmark)
-            )
-        else:
-            # Arm state is relative (to some object in the world).
-            # rospy.loginfo("Relative to: {}".format(nearest_obj.name))
-            rel_ee_pose = World.transform(
-                abs_ee_pose,  # pose (Pose)
-                BASE_LINK,  # from_frame (str)
-                nearest_obj.name  # to_frame (str)
-            )
-            state = ArmState(
-                ArmState.OBJECT,  # refFrame (uint8)
-                rel_ee_pose,  # ee_pose (Pose)
-                joint_pose,  # joint_pose [float64]
-                nearest_obj  # refFrameLandmark (Landmark)
-            )
-
-        return state
-
-    def _end_execution(self):
-        '''Says a response and performs a gaze action for when an action
-        execution ends.'''
-        rospy.loginfo("Execution ended. Status: " + str(self.arm_control.status))
-        if self.arm_control.status == ExecutionStatus.SUCCEEDED:
-            # Execution completed successfully.
-            Response.say(RobotSpeech.EXECUTION_ENDED)
-            Response.perform_gaze_action(GazeGoal.NOD)
-        elif self.arm_control.status == ExecutionStatus.PREEMPTED:
-            # Execution stopped early (preempted).
-            Response.say(RobotSpeech.EXECUTION_PREEMPTED)
-            Response.perform_gaze_action(GazeGoal.SHAKE)
-        else:
-            # Couldn't solve for joint positions (IK).
-            Response.say(RobotSpeech.EXECUTION_ERROR_NOIK)
-            Response.perform_gaze_action(GazeGoal.SHAKE)
-
-        self.arm_control.arm.relax_arm()
-        self.arm_control.status = ExecutionStatus.NOT_EXECUTING
 

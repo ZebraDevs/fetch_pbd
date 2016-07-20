@@ -1,3 +1,3 @@
 <launch>
-  <node name="fetch_social_gaze" pkg="fetch_social_gaze" type="social_gaze.py" output="screen"></node>
+  <node name="fetch_social_gaze" pkg="fetch_social_gaze" type="social_gaze_server.py" output="screen"></node>
 </launch>
