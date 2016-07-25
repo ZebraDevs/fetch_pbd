@@ -1,0 +1,10 @@
+<launch>
+
+	<!-- Are we running in simulation or on the real robot? -->
+	<arg name="sim" default="false" />
+
+  	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
+
+	<node name="fetch_arm_control" pkg="fetch_arm_control" type="interactive_arm_control.py" output="screen" />
+
+</launch>

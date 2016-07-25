@@ -61,7 +61,6 @@ class ArmControl:
         # Initialize arm state.
         self._tf_listener = TransformListener()
         self._arm = Arm(self._tf_listener)
-        self._arm.update_gripper_state()
         self._arm.close_gripper()
         self._status = ExecutionStatus.NOT_EXECUTING
 
