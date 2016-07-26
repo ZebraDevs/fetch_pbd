@@ -48,15 +48,15 @@ class Arm:
         Args:
             tf_listener (TransformListener)
         '''
-        self.tf_listener = tf_listener
+        self._tf_listener = tf_listener
 
-        self.gripper_state = None
+        self._gripper_state = None
 
-        self.l_gripper_joint_name = 'l_gripper_finger_joint'
-        self.r_gripper_joint_name = 'r_gripper_finger_joint'
+        self._l_gripper_joint_name = 'l_gripper_finger_joint'
+        self._r_gripper_joint_name = 'r_gripper_finger_joint'
 
-        self.ee_name = 'wrist_roll_link'
-        self.joint_names = ['shoulder_pan_joint',
+        self._ee_name = 'wrist_roll_link'
+        self._joint_names = ['shoulder_pan_joint',
                             'shoulder_lift_joint',
                             'upperarm_roll_joint',
                             'elbow_flex_joint',
@@ -64,36 +64,40 @@ class Arm:
                             'wrist_flex_joint',
                             'wrist_roll_joint']
 
-        self.all_joint_names = [] # what are these for?
-        self.all_joint_poses = [] # what are these for?
+        self._all_joint_names = [] # what are these for?
+        self._all_joint_poses = [] # what are these for?
 
-        self.last_ee_pose = None
-        self.movement_buffer_size = 40
-        self.last_unstable_time = rospy.Time.now()
-        self.arm_movement = []
+        self._last_ee_pose = None
+        self._movement_buffer_size = 40
+        self._last_unstable_time = rospy.Time.now()
+        self._arm_movement = []
         self._is_executing = False
 
-        self.lock = threading.Lock()
+        self._lock = threading.Lock()
         rospy.Subscriber('joint_states', JointState, self._joint_states_cb)
 
         controller_states = "/query_controller_states"
 
-        self.controller_client = actionlib.SimpleActionClient(
+        self._controller_client = actionlib.SimpleActionClient(
                                         controller_states,
                                         QueryControllerStatesAction)
-        self.controller_client.wait_for_server()
+        self._controller_client.wait_for_server()
 
-        self.gravity_comp_controllers = ["arm_controller/gravity_compensation"]
+        self._gravity_comp_controllers = ["arm_controller/gravity_compensation"]
 
-        self.non_gravity_comp_controllers = list()
-        self.non_gravity_comp_controllers.append(
+        self._non_gravity_comp_controllers = list()
+        self._non_gravity_comp_controllers.append(
                     "arm_controller/follow_joint_trajectory")
-        self.non_gravity_comp_controllers.append(
+        self._non_gravity_comp_controllers.append(
                     "arm_with_torso_controller/follow_joint_trajectory")
 
-        self.move_group = moveit_commander.MoveGroupCommander("arm")
-        self.move_group.set_planning_time(2.0)
-        self.move_group.set_planner_id('RRTConnectkConfigDefault')
+        # Initialise all the Moveit stuff
+
+        # Wait for move_group to be ready
+        rospy.wait_for_service('compute_ik')
+        self._move_group = moveit_commander.MoveGroupCommander("arm")
+        self._move_group.set_planning_time(2.0)
+        self._move_group.set_planner_id('RRTConnectkConfigDefault')
 
         # Define ground plane
         # This creates objects in the planning scene that mimic the ground
@@ -101,8 +105,8 @@ class Arm:
         # For some reason that defies logic, it's best to add and remove
         # planning scene objects in a loop.
         # It sometimes doesn't work the first time.
-        self.planning_scene = moveit_commander.PlanningSceneInterface()
-        self.planning_scene.remove_world_object("ground_plane")
+        self._planning_scene = moveit_commander.PlanningSceneInterface()
+        self._planning_scene.remove_world_object("ground_plane")
 
         ground_pose = PoseStamped()
         ground_pose.header.frame_id = "base_link"
@@ -112,23 +116,15 @@ class Arm:
         ground_pose.pose.orientation.w = 1.0
 
         for i in range(5):
-            self.planning_scene.add_box("ground_plane", ground_pose,
+            self._planning_scene.add_box("ground_plane", ground_pose,
                                         (1.5, 1.5, 0.02))
             rospy.sleep(0.2)
 
-
-        # Set up Inverse Kinematics
-        self.ik_srv = None
-        self.ik_request = None
-        self.ik_joints = None
-        self.ik_limits = None
-        self._setup_ik()
-
         gripper_controller_name = "gripper_controller/gripper_action"
-        self.gripper_client = SimpleActionClient(gripper_controller_name,
+        self._gripper_client = SimpleActionClient(gripper_controller_name,
                                                     GripperCommandAction)
-        self.gripper_client.wait_for_server()
-        self.update_gripper_state()
+        self._gripper_client.wait_for_server()
+        self._update_gripper_state()
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -137,10 +133,10 @@ class Arm:
     def update(self):
         ''' Periodical update for one arm'''
         ee_pose = self.get_ee_state()
-        if ee_pose != None and self.last_ee_pose != None:
+        if ee_pose != None and self._last_ee_pose != None:
             self._record_arm_movement(Arm.get_distance_bw_poses(ee_pose,
-                                                        self.last_ee_pose))
-        self.last_ee_pose = ee_pose
+                                                        self._last_ee_pose))
+        self._last_ee_pose = ee_pose
 
     def relax_arm(self):
         '''Turns on gravity compensation controller and turns
@@ -149,19 +145,19 @@ class Arm:
 
         goal = QueryControllerStatesGoal()
 
-        for controller in self.gravity_comp_controllers:
+        for controller in self._gravity_comp_controllers:
             state = ControllerState()
             state.name = controller
             state.state = state.RUNNING
             goal.updates.append(state)
 
-        for controller in self.non_gravity_comp_controllers:
+        for controller in self._non_gravity_comp_controllers:
             state = ControllerState()
             state.name = controller
             state.state = state.STOPPED
             goal.updates.append(state)
 
-        self.controller_client.send_goal(goal)
+        self._controller_client.send_goal(goal)
 
     def get_ee_state(self, ref_frame='base_link'):
         ''' Returns end effector pose for the arm
@@ -174,10 +170,10 @@ class Arm:
             PoseStamped | None
         '''
         try:
-            time = self.tf_listener.getLatestCommonTime(ref_frame,
-                                                         self.ee_name)
-            (position, orientation) = self.tf_listener.lookupTransform(
-                                                ref_frame, self.ee_name, time)
+            time = self._tf_listener.getLatestCommonTime(ref_frame,
+                                                         self._ee_name)
+            (position, orientation) = self._tf_listener.lookupTransform(
+                                                ref_frame, self._ee_name, time)
             tf_pose = PoseStamped()
             tf_pose.header.frame_id = ref_frame
             tf_pose.pose.position = Point(position[0], position[1],
@@ -201,22 +197,22 @@ class Arm:
             [float]
         '''
         if joint_names is None:
-            joint_names = self.joint_names
+            joint_names = self._joint_names
 
-        if self.all_joint_names == []:
+        if self._all_joint_names == []:
             rospy.logerr("No robot_state messages received!\n")
             return []
 
         positions = []
-        self.lock.acquire()
+        self._lock.acquire()
         for joint_name in joint_names:
-            if joint_name in self.all_joint_names:
-                index = self.all_joint_names.index(joint_name)
-                position = self.all_joint_poses[index]
+            if joint_name in self._all_joint_names:
+                index = self._all_joint_names.index(joint_name)
+                position = self._all_joint_poses[index]
                 positions.append(position)
             else:
                 rospy.logerr("Joint %s not found!", joint_name)
-        self.lock.release()
+        self._lock.release()
         return positions
 
     def get_ik_for_ee(self, ee_pose, seed):
@@ -261,18 +257,18 @@ class Arm:
             rospy.loginfo("Not a pose or pose stamped")
             return False
 
-        self.move_group.set_pose_target(ee_pose_stamped)
+        self._move_group.set_pose_target(ee_pose_stamped)
 
-        self.move_group.set_planning_time(1.0)
+        self._move_group.set_planning_time(1.0)
 
-        plan = self.move_group.plan()
+        plan = self._move_group.plan()
 
         if not plan.joint_trajectory.points:
             return False
         else:
 
             self._is_executing = True
-            go = self.move_group.go(wait=True)
+            go = self._move_group.go(wait=True)
             self._is_executing = False
             rospy.loginfo("Go: {}".format(go))
             return True
@@ -283,7 +279,7 @@ class Arm:
         Returns:
             GripperState.OPEN/CLOSED
         '''
-        return self.gripper_state
+        return self._gripper_state
 
     def open_gripper(self, pos=0.115, eff=100.0, wait=True):
         '''Opens gripper
@@ -294,7 +290,7 @@ class Arm:
             wait (bool)
         '''
         self._send_gripper_command(pos, eff, wait)
-        self.gripper_state = GripperState.OPEN
+        self._gripper_state = GripperState.OPEN
 
     def close_gripper(self, pos=0.0, eff=100.0, wait=True):
         '''Closes gripper
@@ -305,7 +301,7 @@ class Arm:
             wait (bool)
         '''
         self._send_gripper_command(pos, eff, wait)
-        self.gripper_state = GripperState.CLOSED
+        self._gripper_state = GripperState.CLOSED
 
     def move_to_joints(self, joints, time_to_joint):
         '''Moves the arm to the desired joint angles.
@@ -322,24 +318,24 @@ class Arm:
 
         joint_dict = {}
         for i in range(len(joints)):
-            joint_dict[self.joint_names[i]] = joints[i]
+            joint_dict[self._joint_names[i]] = joints[i]
 
         try:
-            self.move_group.set_joint_value_target(joint_dict)
+            self._move_group.set_joint_value_target(joint_dict)
         except Exception as e:
             rospy.logerr("Moveit Error: {}".format(e))
             return False
 
-        self.move_group.set_planning_time(1.0)
+        self._move_group.set_planning_time(1.0)
 
-        plan = self.move_group.plan()
+        plan = self._move_group.plan()
 
         if not plan.joint_trajectory.points:
             return False
         else:
 
             self._is_executing = True
-            go = self.move_group.go(wait=True)
+            go = self._move_group.go(wait=True)
             self._is_executing = False
             rospy.loginfo("Go: {}".format(go))
             return True
@@ -380,8 +376,8 @@ class Arm:
 
     def reset_movement_history(self):
         ''' Clears the saved history of arm movements'''
-        self.last_unstable_time = rospy.Time.now()
-        self.arm_movement = []
+        self._last_unstable_time = rospy.Time.now()
+        self._arm_movement = []
 
     def get_movement(self):
         '''Returns cumulative movement in recent history
@@ -389,7 +385,7 @@ class Arm:
         Returns:
             [float]
         '''
-        return sum(self.arm_movement)
+        return sum(self._arm_movement)
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -449,29 +445,6 @@ class Arm:
     # Instance methods: Internal ("private")
     # ##################################################################
 
-    def _setup_ik(self):
-        '''Sets up services for inverse kinematics'''
-        ik_srv_name = '/compute_ik'
-        rospy.wait_for_service(ik_srv_name)
-        self.ik_srv = rospy.ServiceProxy(ik_srv_name,
-                                         GetPositionIK, persistent=True)
-        rospy.loginfo('IK service has responded for arm.')
-
-        robot = moveit_commander.RobotCommander()
-
-        # Set up common parts of an IK request
-        self.ik_request = GetPositionIKRequest()
-        request = self.ik_request.ik_request
-        request.timeout = rospy.Duration(2.0)
-        group_name = 'arm'
-        request.group_name = group_name
-        self.ik_joints = self.joint_names
-        self.ik_limits = [robot.get_joint(x).bounds() for x in self.ik_joints]
-        request.ik_link_name = self.ee_name
-        request.pose_stamped.header.frame_id = 'base_link'
-        request.robot_state.joint_state.name = self.ik_joints
-        request.robot_state.joint_state.position = [0] * len(self.joint_names)
-
     def _joint_states_cb(self, msg):
         '''Callback function that saves the joint positions when a
         joint_states message is received
@@ -479,17 +452,17 @@ class Arm:
         Args:
             msg (JointState): current joint positions for arm
         '''
-        self.lock.acquire()
+        self._lock.acquire()
 
         for i, joint_name in enumerate(msg.name):
-            if joint_name in self.all_joint_names:
-                idx = self.all_joint_names.index(joint_name)
-                self.all_joint_poses[idx] = msg.position[i]
+            if joint_name in self._all_joint_names:
+                idx = self._all_joint_names.index(joint_name)
+                self._all_joint_poses[idx] = msg.position[i]
             else:
-                self.all_joint_names.append(joint_name)
-                self.all_joint_poses.append(msg.position[i])
+                self._all_joint_names.append(joint_name)
+                self._all_joint_poses.append(msg.position[i])
 
-        self.lock.release()
+        self._lock.release()
 
     def _solve_ik(self, ee_pose):
         '''Gets the IK solution for end effector pose
@@ -501,11 +474,11 @@ class Arm:
             Pose
         '''
 
-        self.move_group.set_pose_target(ee_pose)
+        self._move_group.set_pose_target(ee_pose)
 
-        self.move_group.set_planning_time(1.0)
+        self._move_group.set_planning_time(1.0)
 
-        plan = self.move_group.plan()
+        plan = self._move_group.plan()
 
         if not plan.joint_trajectory.points:
             return None
@@ -514,7 +487,7 @@ class Arm:
             # rospy.loginfo("Plan: {}".format(plan))
             positions = plan.joint_trajectory.points[-1].positions
             return [positions[i] for i, x in enumerate(joint_names) \
-                                            if x in self.joint_names]
+                                            if x in self._joint_names]
 
     def _send_gripper_command(self, pos=0.115, eff=30.0, wait=True):
         '''Sets the position of the gripper
@@ -527,23 +500,23 @@ class Arm:
         command = GripperCommandGoal()
         command.command.position = pos
         command.command.max_effort = eff
-        self.gripper_client.send_goal(command)
+        self._gripper_client.send_goal(command)
         if wait:
-            self.gripper_client.wait_for_result(rospy.Duration(5.0))
+            self._gripper_client.wait_for_result(rospy.Duration(5.0))
 
-    def update_gripper_state(self):
+    def _update_gripper_state(self):
         '''Updates gripper state based on joint positions'''
 
-        gripper_pos = self.get_joint_state([self.l_gripper_joint_name,
-                                           self.r_gripper_joint_name])
+        gripper_pos = self.get_joint_state([self._l_gripper_joint_name,
+                                           self._r_gripper_joint_name])
 
         # Check if both fingers are further than 0.04m away from center.
         # This could be changed to a different threshold/check
         if gripper_pos != []:
             if gripper_pos[0] > 0.04 and gripper_pos[1] > 0.04:
-                self.gripper_state = GripperState.OPEN
+                self._gripper_state = GripperState.OPEN
             else:
-                self.gripper_state = GripperState.CLOSED
+                self._gripper_state = GripperState.CLOSED
         else:
             rospy.logwarn('Could not update the gripper state.')
 
@@ -554,8 +527,8 @@ class Arm:
             movement (float): dissimilarity between current pose and
                                 previous pose
         '''
-        self.arm_movement = [movement] + self.arm_movement
-        if len(self.arm_movement) > self.movement_buffer_size:
-            self.arm_movement = self.arm_movement[0:self.movement_buffer_size]
+        self._arm_movement = [movement] + self._arm_movement
+        if len(self._arm_movement) > self._movement_buffer_size:
+            self._arm_movement = self._arm_movement[0:self._movement_buffer_size]
 
 

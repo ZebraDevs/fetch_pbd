@@ -283,6 +283,7 @@ class ArmTarget(Primitive):
             resp = self._get_object_from_name_srv(landmark_name)
             if not resp.has_object:
                 draw_markers = False
+
         if draw_markers:
             self._update_viz_core()
             self._menu_handler.reApply(self._im_server)
@@ -959,10 +960,7 @@ class ArmTarget(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.POSE_UPDATE:
-            self._set_new_pose(feedback.pose)
-            self.update_viz()
-        elif feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
@@ -971,6 +969,9 @@ class ArmTarget(Primitive):
             self._is_control_visible = not self._is_control_visible
             self._marker_click_cb(
                 self._number, self._is_control_visible)
+        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
+            self._set_new_pose(feedback.pose)
+            self.update_viz()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
