@@ -1,0 +1,9 @@
+<launch>
+
+    <node name="$(anon rviz-1)" pkg="rviz" type="rviz" respawn="false"
+        args="-d $(find fetch_arm_control)/config/fetch_arm_control.rviz"
+        output="screen">
+        <rosparam command="load" file="$(find fetch_moveit_config)/config/kinematics.yaml"/>
+    </node>
+
+</launch>

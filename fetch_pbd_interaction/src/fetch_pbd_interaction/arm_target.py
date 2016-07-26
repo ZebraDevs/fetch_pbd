@@ -114,7 +114,6 @@ class ArmTarget(Primitive):
         self._number = number
         self._is_control_visible = False
         self._tf_listener = tf_listener
-        self._mouse_down = False
 
         # self._ref_names = []
         # self._im_server = InteractiveMarkerServer("programmed_actions")
@@ -961,12 +960,7 @@ class ArmTarget(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.POSE_UPDATE \
-            and not self._mouse_down:
-            # self._set_new_pose(feedback.pose)
-            # self.update_viz()
-            pass
-        elif feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
@@ -975,10 +969,7 @@ class ArmTarget(Primitive):
             self._is_control_visible = not self._is_control_visible
             self._marker_click_cb(
                 self._number, self._is_control_visible)
-        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_DOWN:
-            self._mouse_down = True
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._mouse_down = False
             self._set_new_pose(feedback.pose)
             self.update_viz()
         else:
