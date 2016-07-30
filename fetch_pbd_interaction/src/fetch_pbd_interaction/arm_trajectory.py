@@ -38,14 +38,12 @@ from fetch_pbd_interaction.srv import GetObjectList, \
 COLOR_TRAJ_ENDPOINT_SPHERES = ColorRGBA(1.0, 0.5, 0.0, 0.8)
 COLOR_TRAJ_STEP_SPHERES = ColorRGBA(0.8, 0.4, 0.0, 0.8)
 COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
-COLOR_STEP_TEXT = ColorRGBA(0.0, 0.0, 0.0, 0.5)
 COLOR_MESH_REACHABLE = ColorRGBA(1.0, 0.5, 0.0, 0.6)
 COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
 
 # Scales
 SCALE_TRAJ_STEP_SPHERES = Vector3(0.02, 0.02, 0.02)
 SCALE_OBJ_REF_ARROW = Vector3(0.02, 0.03, 0.04)
-SCALE_STEP_TEXT = Vector3(0, 0, 0.03)
 
 # Gripper mesh related
 STR_MESH_GRIPPER_FOLDER = 'package://fetch_description/meshes/'
@@ -65,7 +63,7 @@ MENU_OPTIONS = {
 }
 
 # Offets to maintain globally-unique IDs but with new sets of objects.
-# Each action step marker has a unique ID, and this allows each to
+# Each primitive marker has a unique ID, and this allows each to
 # have a matching unique id for trajectories, text, etc. Assumes we'll
 # have < 1k steps.
 ID_OFFSET_REF_ARROW = 1000
@@ -128,6 +126,7 @@ class ArmTrajectory(Primitive):
         self._sub_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
+        self._pose_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -206,11 +205,13 @@ class ArmTrajectory(Primitive):
         '''
         return None
 
-    def make_marker(self, click_cb, delete_cb):
+    def make_marker(self, click_cb, delete_cb, pose_change_cb):
         '''Adds marker to world'''
 
+        rospy.loginfo("Making marker")
         self._marker_click_cb = click_cb
         self._marker_delete_cb = delete_cb
+        self._pose_change_cb = pose_change_cb
         self.update_ref_frames()
 
     def delete_marker(self):
@@ -242,14 +243,15 @@ class ArmTrajectory(Primitive):
             str|None: Under all normal circumstances, returns the str
                 reference frame name. Returns None in error.
         '''
-        ref_name = None
-
         # "Trajectory" step.
         ref_name = self._ref_landmark.name
 
         # Update ref frame name if it's absolute.
         if self._ref_type == ArmState.ROBOT_BASE:
             ref_name = BASE_LINK
+        elif ref_name == '':
+            ref_name = BASE_LINK
+            rospy.loginfo("Empty frame")
 
         return ref_name
 
@@ -286,6 +288,14 @@ class ArmTrajectory(Primitive):
     def get_primitive_number(self):
         '''Returns what number this primitive is in the sequence'''
         return self._number
+
+    def set_primitive_number(self, num):
+        '''Sets what number this primitive is in the sequence
+
+        Args:
+            num (int)
+        '''
+        self._number = num
 
     def is_object_required(self):
         '''Check if this primitive requires an object to be present
@@ -391,6 +401,14 @@ class ArmTrajectory(Primitive):
         # reference.
         self._ref_type = ref_type
         self._ref_landmark = ref_obj
+
+    def _get_name(self):
+        '''Generates the display name for the primitive.
+
+        Returns:
+            str: A human-readable unique name for the primitive.
+        '''
+        return 'trajectory_' + str(self._number)
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -678,7 +696,7 @@ class ArmTrajectory(Primitive):
 
         # Inset main menu entries.
         self._menu_handler.insert(
-            MENU_OPTIONS['del'], callback=self._delete_step_cb)
+            MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
 
         # Make all unchecked to start.
         for subent in self._sub_entries:
@@ -764,53 +782,17 @@ class ArmTrajectory(Primitive):
                 ArmState
         '''
 
-        ref_type = new_landmark.name
-        if ref_type == ArmState.ROBOT_BASE:
-            if arm_state.ref_type == ArmState.ROBOT_BASE:
-                # Transform from robot base to itself (nothing to do).
-                rospy.logdebug(
-                    'No reference frame transformations needed (both ' +
-                    'absolute).')
-            elif arm_state.ref_type == ArmState.OBJECT:
-                # Transform from object to robot base.
-                abs_ee_pose = self._tf_listener.transformPose(
-                    arm_state.ee_pose,
-                    'base_link'
-                )
-                arm_state.ee_pose = abs_ee_pose
-                arm_state.ref_type = ArmState.ROBOT_BASE
-                arm_state.ref_landmark = Landmark()
-            else:
-                rospy.logerr(
-                    'Unhandled reference frame conversion: ' +
-                    str(arm_state.ref_type) + ' to ' + str(ref_type))
-        elif ref_type == ArmState.OBJECT:
-            if arm_state.ref_type == ArmState.ROBOT_BASE:
-                # Transform from robot base to object.
-                rel_ee_pose = self._tf_listener.transformPose(
-                    arm_state.ee_pose, new_landmark.name)
-                arm_state.ee_pose = rel_ee_pose
-                arm_state.ref_type = ArmState.OBJECT
-                arm_state.ref_landmark = new_landmark
-            elif arm_state.ref_type == ArmState.OBJECT:
-                # Transform between the same object (nothign to do).
-                if arm_state.ref_landmark.name == new_landmark.name:
-                    rospy.logdebug(
-                        'No reference frame transformations needed (same ' +
-                        'object).')
-                else:
-                    # Transform between two different objects.
-                    rel_ee_pose = self._tf_listener.transformPose(
-                        arm_state.ee_pose,
-                        new_landmark.name
-                    )
-                    arm_state.ee_pose = rel_ee_pose
-                    arm_state.ref_type = ArmState.OBJECT
-                    arm_state.ref_landmark = new_landmark
-            else:
-                rospy.logerr(
-                    'Unhandled reference frame conversion: ' +
-                    str(arm_state.ref_type) + ' to ' + str(ref_type))
+        if arm_state.ref_landmark.name != new_landmark.name:
+            ee_pose = self._tf_listener.transformPose(
+                                new_landmark.name,
+                                arm_state.ee_pose
+                            )
+        arm_state.ref_landmark = new_landmark
+        arm_state.ee_pose = ee_pose
+        if new_landmark.name == 'base_link':
+            arm_state.ref_type = ArmState.ROBOT_BASE
+        else:
+            arm_state.ref_type = ArmState.OBJECT
         return arm_state
 
     def _get_marker_pose(self):
@@ -885,23 +867,6 @@ class ArmTrajectory(Primitive):
                     points=[pose.pose.position, Point(0, 0, 0)]
                 )
             )
-
-        # Make and add the text for this step ('Step X').
-        text_pos = Point()
-        text_pos.x = pose.pose.position.x
-        text_pos.y = pose.pose.position.y
-        text_pos.z = pose.pose.position.z + TEXT_Z_OFFSET
-        menu_control.markers.append(
-            Marker(
-                type=Marker.TEXT_VIEW_FACING,
-                id=self._number,
-                scale=SCALE_STEP_TEXT,
-                text='Step ' + str(self._number),
-                color=COLOR_STEP_TEXT,
-                header=Header(frame_id=frame_id),
-                pose=Pose(text_pos, Quaternion(0, 0, 0, 1))
-            )
-        )
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
@@ -980,13 +945,13 @@ class ArmTrajectory(Primitive):
         new_ref = self._get_menu_name(feedback.menu_entry_id)
         self._set_ref(new_ref)
         rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for action step ' +
+            'Switching reference frame to ' + new_ref + ' for primitive ' +
             self._get_name())
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
         self.update_viz()
 
-    def _delete_step_cb(self, feedback):
+    def _delete_primitive_cb(self, feedback):
         '''Callback for when delete is requested.
 
         Args:

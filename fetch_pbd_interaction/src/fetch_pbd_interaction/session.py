@@ -13,6 +13,7 @@ import rospy
 import datetime
 import threading
 import couchdb
+import threading
 
 # Local
 from fetch_pbd_interaction.action import Action
@@ -40,6 +41,8 @@ class Session:
             tf_listener (TransformListener)
             im_server (InteractiveMarkerSerever)
         '''
+        self._lock = threading.Lock()
+
         self._robot = robot
         self._tf_listener = _tf_listener
         self._im_server = im_server
@@ -89,7 +92,7 @@ class Session:
         self._selected_primitive = primitive_id
 
 
-    def new_action(self):
+    def new_action(self, name=None):
         '''Creates new action.'''
         if self.n_actions() > 0:
             self.get_current_action().reset_viz()
@@ -98,7 +101,6 @@ class Session:
             self._current_action_id = 0
 
         time_str = datetime.datetime.now().strftime('%c')
-        name = 'Untitled action {}'.format(time_str)
         # action_id = self._db.insert_new(name)
         action = Action(self._robot,
                         self._tf_listener,
@@ -106,7 +108,11 @@ class Session:
                         self._selected_primitive_cb,
                         self._delete_primitive_cb,
                         self._current_action_id)
-        action.name = name
+        if not name is None:
+            action.set_name(name)
+        else:
+            action.set_name('Untitled action {}'.format(time_str))
+
         self._actions.update({
             self._current_action_id: action
         })
@@ -127,9 +133,13 @@ class Session:
         Returns:
             Action
         '''
+        self._lock.acquire()
         if self.n_actions() > 0:
-            return self._actions[self._current_action_id]
+            action = self._actions[self._current_action_id]
+            self._lock.release()
+            return action
         else:
+            self._lock.release()
             return None
 
     def clear_current_action(self):
@@ -270,23 +280,197 @@ class Session:
                 "Can't get number of primitives: No actions created yet.")
             return 0
 
+    def update_action_name(self, name):
+        '''Update name of current action
+
+        Args:
+            name (string)
+        '''
+        self.get_current_action().set_name(name)
+        self._update_experiment_state()
+
+    def copy_action(self, action_id):
+        '''Make a copy of action
+
+        Args:
+            action_id (int)
+        '''
+        new_id = self.n_actions()
+
+        map_fun = '''function(doc) {
+                     emit(doc.id, doc);
+                  }'''
+
+        results = self._db.query(map_fun)
+
+        # Load data from db into Action objects.
+        for result in results:
+            if int(result.value['id']) == action_id:
+                action = Action(self._robot, self._tf_listener, self._im_server,
+                           self._selected_primitive_cb, self._delete_primitive_cb)
+                result.value['id'] = new_id
+                action.build_from_json(result.value)
+                name = action.get_name()
+                action.set_name("Copy of " + name)
+                self._actions[new_id] = action
+                self._action_ids.append(new_id)
+
+        self._current_action_id = new_id
+        self._update_experiment_state()
+
+
+    def copy_primitive(self, primitive_number):
+        '''Make a copy of a primitive
+
+        Args:
+            primitive (int)
+        '''
+        # new_id = self.n_actions()
+
+        map_fun = '''function(doc) {
+                     emit(doc.id, doc);
+                  }'''
+
+        results = self._db.query(map_fun)
+
+        # Load data from db into Action objects.
+        new_num = self.n_primitives()
+        for result in results:
+            if int(result.value['id']) == self._current_action_id:
+                for idx, primitive in enumerate(result.value['seq']):
+                    if idx == primitive_number:
+                        if primitive.has_key('arm_target'):
+                            target = primitive['arm_target']
+                            primitive_copy = ArmTarget(self._robot,
+                                                       self._tf_listener,
+                                                       self._im_server)
+                            primitive_copy.build_from_json(target)
+                            primitive_copy.set_primitive_number(new_num)
+                            break
+
+                        elif primitive.has_key('arm_trajectory'):
+                            target = primitive['arm_trajectory']
+                            primitive_copy = ArmTrajectory(self._robot,
+                                                           self._tf_listener,
+                                                           self._im_server)
+                            primitive_copy.build_from_json(target)
+                            primitive_copy.set_primitive_number(new_num)
+                            break
+
+        self._actions[self._current_action_id].add_primitive(primitive_copy)
+
+        self._actions[self._current_action_id].update_viz()
+
+        self._update_experiment_state()
+
+    def delete_action_current_action(self):
+        '''Delete current action'''
+        self.delete_action(self._current_action_id)
+
+    def delete_action(self, action_id):
+        '''Deletes action by id
+
+        Args:
+            action_id (string|int)
+        '''
+        self._lock.acquire()
+        rospy.loginfo("actions: {}".format(self._actions))
+
+        if int(action_id) == self._current_action_id:
+            if len(self._action_ids) == 1:
+                self._current_action_id = None
+                self._actions = {}
+                self._action_ids = []
+                action_id_str = str(action_id)
+                if action_id_str in self._db:
+                    self._db.delete(self._db[action_id_str])
+                self._lock.release()
+                return
+
+        action_id_str = str(action_id)
+        rospy.loginfo("actions: {}".format(self._actions))
+        del self._actions[int(action_id)]
+        if action_id_str in self._db:
+            self._db.delete(self._db[action_id_str])
+
+        # new_actions = {}
+        for a_id in range(int(action_id) + 1, len(self._action_ids)):
+            action = self._actions[a_id]
+            action.decrease_id()
+            del self._actions[a_id]
+            rospy.loginfo("id: {}".format(action.get_action_id()))
+            self._actions[action.get_action_id()] = action
+
+            if str(a_id) in self._db:
+                self._db.delete(self._db[str(a_id)])
+
+            self._update_db_with_action(action)
+
+        self._action_ids.pop()
+        if int(action_id) == self._current_action_id:
+            self._current_action_id = self._action_ids[-1]
+        elif int(action_id) < self._current_action_id:
+            self._current_action_id = self._current_action_id - 1
+        self._lock.release()
+
+        rospy.loginfo("actions: {}".format(self._actions))
+        self._update_experiment_state()
+
+    def switch_primitive_order(self, old_index, new_index):
+        '''Change the order of primitives in action
+
+        Args:
+            old_index (int)
+            new_index (int)
+        '''
+        self._lock.acquire()
+        action = self._actions[self._current_action_id]
+        action.switch_primitive_order(old_index, new_index)
+        self._lock.release()
+
+    def delete_primitive(self, primitive_number):
+        '''Delete specified primitive
+
+        Args:
+            primitive_number (int) : Number of primitive to be deleted
+        '''
+        self._actions[self._current_action_id].delete_primitive(primitive_number)
+
+    def execute_primitive(self, primitive_number):
+        '''Execute specified primitive
+
+        Args:
+            primitive_number (int) : Number of primitive to execute
+        '''
+        self._actions[self._current_action_id].execute_primitive(primitive_number)
+
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
+
+    def _update_db_with_action(self, action):
+        '''Adds action to db if it does not already exist.
+        Or if it exists, delete the existing entry and replace with
+        update version
+
+        Args:
+            action (Action)
+        '''
+        json = action.get_json()
+        rospy.loginfo("json: {}".format(json))
+        action_id_str = str(action.get_action_id())
+        if action_id_str in self._db:
+            self._db.delete(self._db[action_id_str])
+            self._db[action_id_str] = json
+        else:
+            self._db[action_id_str] = json
 
     def _update_db_with_current_action(self):
         '''Adds current action to db if it does not already exist.
         Or if it exists, delete the existing entry and replace with
         update version
         '''
-        json = self.get_current_action().get_json()
-        rospy.loginfo("json: {}".format(json))
-        action_id_str = str(self.get_current_action().get_action_id())
-        if action_id_str in self._db:
-            self._db.delete(self._db[action_id_str])
-            self._db[action_id_str] = json
-        else:
-            self._db[action_id_str] = json
+        self._update_db_with_action(self.get_current_action())
 
 
     def _selected_primitive_cb(self, selected_primitive):
@@ -342,7 +526,23 @@ class Session:
         return ExperimentState(
             self.n_actions(), index, self.n_primitives(),
             self._selected_primitive,
-            self._get_ref_frame_names(), object_list)
+            self._get_action_names(),
+            self._get_ref_frame_names(),
+            self._get_primitive_names(),
+            [],
+            object_list)
+
+    def _get_action_names(self):
+        '''Return the names of all of the actions in the session
+
+        Returns:
+            [string]
+        '''
+        name_list = []
+        for action_id in self._action_ids:
+            name_list.append(self._actions[action_id].get_name())
+
+        return name_list
 
     def _get_ref_frame_names(self):
         '''Returns a list of the names of the reference frames for the
@@ -357,6 +557,20 @@ class Session:
         # Once we've got an action, we can query / return things.
         action = self._actions[self._current_action_id]
         return action.get_ref_frame_names()
+
+    def _get_primitive_names(self):
+        '''Returns a list of the names of the
+        primitives of the current action.
+
+        Returns:
+            [str]
+        '''
+        # This can be called before anything's set up.
+        if self.n_actions() < 1:
+            return []
+        # Once we've got an action, we can query / return things.
+        action = self._actions[self._current_action_id]
+        return action.get_primitive_names()
 
     def _load_session_state(self):
         '''Loads the experiment state from couchdb database.'''

@@ -148,7 +148,7 @@ class World:
         return norm(array([d1.x, d1.y, d1.z]) - array([d2.x, d2.y, d2.z]))
 
     @staticmethod
-    def pose_distance(pose1, pose2, is_on_table=True):
+    def _pose_distance(pose1, pose2, is_on_table=True):
         '''Returns distance between two world poses.
 
         Args:
@@ -474,7 +474,7 @@ class World:
         arm_pose = self._tf_listener.transformPose('base_link', req.pose)
         distances = []
         for wobj in self._objects:
-            dist = self.pose_distance(wobj.object.pose, arm_pose.pose)
+            dist = self._pose_distance(wobj.object.pose, arm_pose.pose)
             distances.append(dist)
 
         # Then, see if the closest is actually below our threshhold for
@@ -543,7 +543,7 @@ class World:
             return False
             # # Check if there is already an object
             # for i in range(len(self._objects)):
-            #     distance = World.pose_distance(
+            #     distance = World._pose_distance(
             #         self._objects[i].object.pose, pose)
             #     if distance < OBJ_ADD_DIST_THRESHHOLD:
             #         if self._objects[i].is_recognized:
@@ -571,7 +571,7 @@ class World:
             # Whether whether we already have an object at ~ the same
             # location (and if so, don't add).
             for wobj in self._objects:
-                if (World.pose_distance(wobj.object.pose, pose)
+                if (World._pose_distance(wobj.object.pose, pose)
                         < OBJ_ADD_DIST_THRESHHOLD):
                     rospy.loginfo(
                         'Previously detected object at the same location, ' +

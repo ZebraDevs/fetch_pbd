@@ -1,0 +1,474 @@
+<link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/iron-collapse/iron-collapse.html">
+<link rel="import" href="../bower_components/iron-flex-layout/iron-flex-layout-classes.html">
+<link href="../bower_components/iron-icons/iron-icons.html" rel="import">
+<link href="../bower_components/iron-icons/av-icons.html" rel="import">
+<link href="../bower_components/iron-icons/image-icons.html" rel="import">
+<link rel="import" href="../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../bower_components/paper-drawer-panel/paper-drawer-panel.html">
+<link rel="import" href="../bower_components/paper-fab/paper-fab.html">
+<link rel="import" href="../bower_components/paper-header-panel/paper-header-panel.html">
+<link rel="import" href="../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../bower_components/paper-menu-button/paper-menu-button.html">
+<link rel="import" href="../bower_components/paper-menu/paper-menu.html">
+<link rel="import" href="../bower_components/paper-styles/color.html">
+<link rel="import" href="../bower_components/paper-styles/typography.html">
+<link rel="import" href="../bower_components/paper-toolbar/paper-toolbar.html">
+<link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
+<link rel="import" href="../bower_components/paper-input/paper-input.html">
+<link rel="import" href="imports.html">
+<link rel="import" href="sortable-list.html">
+
+<dom-module id="current-action">
+  <template>
+    <style include="iron-flex iron-flex-alignment">
+    <style is="custom-style">
+      .flex-vertical {
+        @apply(--layout-vertical);
+        height: 400px;
+      }
+      .flexchild-vertical {
+        @apply(--layout-flex);
+      }
+      #primitive_list_container {
+        width: 400px;
+        float: right;
+        display:block;
+      }
+      section {
+        width: 100%;
+        height: 600px;
+        @apply(--layout-vertical);
+      }
+      section paper-dialog-scrollable {
+        @apply(--layout-flex);
+      }
+      .flex-horizontal {
+        @apply(--layout-horizontal);
+        width: 100%;
+      }
+      .flexchild-horizontal {
+        @apply(--layout-flex);
+      }
+      #wrapper {
+        margin-left: 200px;
+      }
+      #viewer {
+        padding-left: 32px;
+      }
+      #actionName {
+        padding-left: 32px;
+      }
+      #buttons {
+        padding-left: 32px;
+      }
+      .left-content {
+        display: flex;
+        line-height: 3;
+        align-items: center;
+      }
+      .left-content > .left-content-item-name {
+        flex: auto;
+      }
+      paper-button {
+        @apply(--paper-font-button);
+        border-radius: 2px;
+        padding: 6px 16px;
+        height: 36px;
+        vertical-align: middle;
+        display: inline-block;
+      }
+      paper-button:hover {
+        background-color: #e0e0e0;
+      }
+      paper-button.delete:hover {
+        background-color: #FFCDD2;
+      }
+      paper-icon-button {
+        vertical-align: middle;
+        display: inline-block;
+      }
+      paper-icon-button:hover {
+        background-color: #e0e0e0;
+      }
+      paper-icon-button.delete:hover {
+        background-color: #FFCDD2;
+      }
+      .listBack {
+        background-color: #fff;
+      }
+      sortable-list {
+        margin: 15px;
+      }
+      sortable-list > div {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        padding: 6px 12px;
+        margin-bottom: 3px;
+      }
+      .title {
+        @apply(--paper-font-headline);
+        margin-bottom: 5px;
+        text-align: center;
+      }
+      .delete {
+        color: #D32F2F;
+      }
+    </style>
+
+    <div id="container" class="container flex-vertical">
+      <paper-input id="actionName" label="Action name" class="programName flex" value="{{action_name}}" on-change="onNameChange"></paper-input>
+      <div id="container" class="flex-horizontal">
+        <div id="viewer" class="flex"></div>
+        <div id="primitive_list_container" >
+          <div class="title">Primitive List</div>
+          <div style="overflow:auto; height:550px;">
+            <sortable-list id="primitive_list">
+              <template is="dom-repeat" items="{{primitives}}">
+                  <div class="left-content">
+                    <div class="left-content-item-name">{{item.name}}</div>
+                    <paper-icon-button
+                      noink
+                      data-primitive$="{{item.number}}"
+                      on-tap="onRun"
+                      icon="av:play-circle-filled"> </paper-icon-button>
+                    <paper-icon-button
+                      noink
+                      data-primitive$="{{item.number}}"
+                      on-tap="onEdit"
+                      icon="image:edit"> </paper-icon-button>
+                    <paper-icon-button
+                      noink
+                      data-primitive$="{{item.number}}"
+                      on-tap="onCopy"
+                      icon="content-copy"> </paper-icon-button>
+                    <paper-icon-button
+                      class="delete"
+                      noink
+                      data-primitive$="{{item.number}}"
+                      on-tap="onDelete"
+                      icon="delete"> </paper-icon-button>
+                  </div>
+              </template>
+            </sortable-list>
+          </div>
+        </div>
+      </div>
+      <div id="buttons" class="flexchild-vertical">
+        <paper-button raised id="execute_button" on-tap="execute">
+          <iron-icon icon="av:play-circle-filled"></iron-icon>
+          Run
+        </paper-button>
+        <paper-button raised id="save_pose_button" on-tap="savePose">Save Pose</paper-button>
+        <paper-button raised id="record_objects_button" on-tap="recordObjects">Record Objects</paper-button>
+        <!-- <paper-button raised id="start_recording_button" on-tap="startRecording">Start Recording Trajectory</paper-button> -->
+        <!-- <paper-button raised id="stop_recording_button" on-tap="stopRecording">Start Recording Trajectory</paper-button> -->
+        <paper-button raised id="open_hand_button" on-tap="openHand">Open Hand</paper-button>
+        <paper-button raised id="close_hand_button" on-tap="closeHand">Close Hand</paper-button>
+        <paper-button raised id="delete_all_button" on-tap="deleteAll">Delete All Primitives</paper-button>
+        <paper-button raised id="delete_last_button" on-tap="deleteLast">Delete Last Primitive</paper-button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    Polymer({
+      is: 'current-action',
+
+      properties: {
+        primitives: {
+          type: Array,
+          value: [],
+        },
+        globalOptions: {
+          type: Object,
+          value: function() {
+            return {};
+          },
+          notify: true,
+        },
+
+        config: {
+          computed: '_computeConfig(globalOptions, displays, sidebarOpened)',
+          notify: true,
+          type: Object,
+        },
+
+        displays: {
+          type: Array,
+          value: function() {
+            return [];
+          },
+        },
+        ros: {
+          type: Object,
+          observer: '_rosChanged',
+        },
+        sidebarOpened: {
+          type: Boolean,
+          value: true,
+        },
+        tfClient: Object, // The ROSLIB.TFClient
+        websocketUrl: {
+          type: String,
+          notify: true,
+          computed: '_computeWebsocketUrl(globalOptions.url)',
+        },
+        _viewer: Object, // The ROS3D viewer
+        _urdf: Object, // The ROS3D viewer
+        _grid: Object, // The ROS3D viewer
+        _im: Object, // The ROS3D viewer
+        expSrv: Object,
+        spinputPub: Object,
+        inputPub: Object,
+        action_name : '',
+        expListener : Object,
+      },
+
+      behaviors: [Polymer.IronResizableBehavior],
+
+      observers: [
+        '_fixedFrameChanged(globalOptions.fixedFrame)',
+      ],
+
+      _fixedFrameChanged: function(fixedFrame) {
+        if (this.tfClient) {
+          this.tfClient.fixedFrame = fixedFrame;
+          this.tfClient.updateGoal();
+        }
+      },
+
+      attached: function() {
+
+        var that = this;
+
+        this.ros = new ROSLIB.Ros({
+          url : 'ws://localhost:9090'
+        });
+
+        var width = this.$.viewer.offsetWidth;
+        var height = 600;
+        this._viewer = new ROS3D.Viewer({
+          divID: 'viewer',
+          width: width,
+          height: height,
+          antialias: true,
+          background: '#78909C'
+        });
+
+        this._viewer.addObject(new ROS3D.Grid());
+
+        // Setup a client to listen to TFs.
+        this.tfClient = new ROSLIB.TFClient({
+          ros : this.ros,
+          angularThres : 0.01,
+          transThres : 0.01,
+          rate : 10.0,
+          fixedFrame : 'base_link'
+        });
+
+        this.markerClient = new ROS3D.MarkerArrayClient({
+          ros : this.ros,
+          tfClient : this.tfClient,
+          topic : '/visualization_marker_array',
+          rootObject : this._viewer.scene
+        });
+
+        // Setup the URDF client.
+        this.urdf = new ROS3D.UrdfClient({
+          ros : this.ros,
+          tfClient : this.tfClient,
+          path : 'http://resources.robotwebtools.org/',
+          rootObject : this._viewer.scene,
+          loader : ROS3D.COLLADA_LOADER_2
+        });
+
+        //IM client
+        this._im = new ROS3D.InteractiveMarkerClient({
+          ros : this.ros,
+          tfClient : this.tfClient,
+          path : 'http://resources.robotwebtools.org/',
+          topic : 'programmed_actions',
+          camera : this._viewer.camera,
+          rootObject : this._viewer.selectableObjects
+        });
+
+        this._im_2 = new ROS3D.InteractiveMarkerClient({
+          ros : this.ros,
+          tfClient : this.tfClient,
+          path : 'http://resources.robotwebtools.org/',
+          topic : 'world_objects',
+          camera : this._viewer.camera,
+          rootObject : this._viewer.selectableObjects
+        });
+
+        // window.setTimeout(function() {
+        //   that.resize()
+        // }, 100);
+
+        this.addEventListener('iron-resize', function() {
+          that.resize();
+        });
+
+        this.inputPub = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/gui_input',
+          messageType : 'fetch_pbd_interaction/GuiInput'
+        });
+
+        this.$.primitive_list.addEventListener('sort-update', function(ev) {
+          var message = new ROSLIB.Message({
+            command : "switch-primitive-order",
+            list_params : [ev.detail.oldIndex, ev.detail.newIndex]
+          });
+          that.inputPub.publish(message);
+
+        });
+
+        this.expSrv = new ROSLIB.Service({
+          ros : this.ros,
+          name : '/get_experiment_state',
+          serviceType : 'fetch_pbd_interaction/GetExperimentState'
+        });
+
+        var request = new ROSLIB.ServiceRequest({});
+
+        this.expSrv.callService(request, function(result) {
+            that.expCallback(that, result.state);
+        });
+
+        this.expListener = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/experiment_state',
+          messageType : 'fetch_pbd_interaction/ExperimentState'
+        });
+
+        this.expListener.subscribe(function(message) {
+          that.expCallback(that, message);
+        });
+      },
+
+      expCallback : function(that, message) {
+        that.action_name = message.action_names[message.current_action];
+        that.primitives = []
+        for (i = 0; i < message.n_primitives; i++) {
+          primitive = { name : message.primitive_names[i], number: i + '' };
+          console.log(primitive)
+          that.push('primitives', primitive);
+        }
+      },
+
+      resize: function() {
+        if (this._viewer) {
+          var width = this.$.viewer.offsetWidth;
+          var height = 600;
+          this._viewer.resize(width, height);
+        }
+      },
+
+      onNameChange : function() {
+        var that = this;
+
+        var message = new ROSLIB.Message({
+          command : "update-action-name",
+          param : that.action_name
+        });
+        that.inputPub.publish(message);
+      },
+
+      execute : function() {
+        var message = new ROSLIB.Message({
+          command : "execute-action"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      savePose : function() {
+        console.log("Save target");
+        var message = new ROSLIB.Message({
+          command : "save-target"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      openHand : function() {
+        var message = new ROSLIB.Message({
+          command : "open-hand"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      closeHand : function() {
+        var message = new ROSLIB.Message({
+          command : "close-hand"
+        });
+
+        this.spinputPub.publish(message);
+      },
+
+      deleteLast : function() {
+        var message = new ROSLIB.Message({
+          command : "delete-last-primitive"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      deleteAll : function() {
+        var message = new ROSLIB.Message({
+          command : "delete-all-primitives"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      recordObjects : function() {
+        var message = new ROSLIB.Message({
+          command : "record-objects"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      onEdit : function(evt) {
+        var actionId = evt.model.item.primitive;//.action;
+        console.log(actionId);
+      },
+
+      onCopy : function(evt) {
+        var actionId = evt.model.item.number;//.action;
+        console.log(actionId);
+        var message = new ROSLIB.Message({
+          command : "copy-primitive",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+      },
+
+      onRun : function(evt) {
+        var actionId = evt.model.item.number;
+        console.log(actionId);
+        var message = new ROSLIB.Message({
+          command : "execute-primitive",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+      },
+
+      onDelete : function(evt) {
+        var actionId = evt.model.item.number;
+        console.log(evt.model.item.number);
+        var message = new ROSLIB.Message({
+          command : "delete-primitive",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+      },
+    });
+  </script>
+</dom-module>

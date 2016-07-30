@@ -17,9 +17,8 @@ from tf import TransformListener
 # Local
 from fetch_arm_control.msg import GripperState
 from fetch_pbd_interaction.session import Session
-from fetch_pbd_interaction.msg import ExecutionStatus, GuiCommand
+from fetch_pbd_interaction.msg import ExecutionStatus, GuiInput
 from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList
-from fetch_pbd_speech_recognition.msg import Command
 from fetch_pbd_interaction.msg import RobotSound, WorldState
 from fetch_pbd_interaction.robot import Robot
 from std_msgs.msg import String
@@ -63,9 +62,7 @@ class Interaction:
                                               MarkerArray,
                                               queue_size=10)
 
-        rospy.Subscriber('recognized_command', Command,
-                         self._speech_command_cb)
-        rospy.Subscriber('gui_command', GuiCommand, self._gui_command_cb)
+        rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
 
         rospy.Subscriber('world_update', WorldState, self._world_update_cb)
 
@@ -86,20 +83,32 @@ class Interaction:
 
         # Command/callback pairs for input
         self._responses = {
-            Command.TEST_MICROPHONE: self._test_microphone,
-            Command.OPEN_HAND: self._open_hand,
-            Command.CLOSE_HAND: self._close_hand,
-            Command.STOP_EXECUTION: self._stop_execution,
-            Command.DELETE_ALL_STEPS: self._delete_all_primitives,
-            Command.DELETE_LAST_STEP: self._delete_last_primitive,
-            Command.CREATE_NEW_ACTION: self._create_action,
-            Command.EXECUTE_ACTION: self._execute_action,
-            Command.NEXT_ACTION: self._next_action,
-            Command.PREV_ACTION: self._previous_action,
-            Command.SAVE_POSE: self._save_primitive,
-            Command.RECORD_OBJECT_POSE: self._record_object_pose,
-            Command.START_RECORDING_MOTION: self._start_recording,
-            Command.STOP_RECORDING_MOTION: self._stop_recording
+            # Action Creation/Navigation
+            GuiInput.CREATE_ACTION: self._create_action,
+            GuiInput.SWITCH_TO_ACTION: self._switch_to_action,
+            GuiInput.NEXT_ACTION: self._next_action,
+            GuiInput.PREV_ACTION: self._previous_action,
+            GuiInput.UPDATE_ACTION_NAME: self._update_action_name,
+            # GuiInput.DELETE_CURRENT_ACTION: self._delete_current_action,
+            GuiInput.DELETE_ACTION: self._delete_action,
+            GuiInput.COPY_ACTION: self._copy_action,
+            # Primitive Creation Navigation
+            GuiInput.SWITCH_PRIMITIVE_ORDER: self._switch_primitive_order,
+            GuiInput.DELETE_PRIMITIVE: self._delete_primitive,
+            GuiInput.COPY_PRIMITIVE: self._copy_primitive,
+            GuiInput.SELECT_PRIMITIVE: self._select_primitive,
+            GuiInput.DELETE_ALL_PRIMITIVES: self._delete_all_primitives,
+            GuiInput.DELETE_LAST_PRIMITIVE: self._delete_last_primitive,
+            # Programming
+            GuiInput.OPEN_HAND: self._open_hand,
+            GuiInput.CLOSE_HAND: self._close_hand,
+            GuiInput.RECORD_OBJECTS: self._record_objects,
+            GuiInput.SAVE_TARGET: self._save_target,
+            GuiInput.START_RECORDING_TRAJECTORY: self._start_recording_trajectory,
+            GuiInput.STOP_RECORDING_TRAJECTORY: self._stop_recording_trajectory,
+            # Execution
+            GuiInput.STOP_EXECUTION: self._stop_execution,
+            GuiInput.EXECUTE_ACTION: self._execute_action,
         }
 
         # Span off a thread to run the update loops.
@@ -160,7 +169,7 @@ class Interaction:
             action_status = current_action.get_status()
 
             # if action_status != ExecutionStatus.NOT_EXECUTING:
-            #     self._arm_reset_publisher.publish(String(''))
+            #     # self._arm_reset_publisher.publish(String(''))
             #     if action_status != ExecutionStatus.EXECUTING:
             #         self._end_execution()
 
@@ -222,90 +231,52 @@ class Interaction:
     # The following methods receive commands from speech / GUI and
     # process them. These are the multiplexers.
 
-    def _speech_command_cb(self, command):
-        '''Callback for when a "speech" command is received.
-
-        Note that Commands can actually be received from speech OR the
-        GUI. They are called "speech commands" because they include all
-        commands that can be issued with speech. The few commands that
-        can be issued through the GUI and not through speech come as
-        GUICommands, and are processed below in _gui_command_cb(...).
+    def _gui_input_cb(self, gui_input):
+        '''Callback for when input is received from GUI
 
         Args:
-            command (Command): The command received from speech OR the
-                GUI.
+            input (GuiInput): The input received from GUI
         '''
         # We extract the command string as we use it a lot.
-        cmd = command.command
+        cmd = gui_input.command
         if cmd in self._responses.keys():
             rospy.loginfo('\033[32m' + 'Calling response for command ' + cmd
                           + '\033[0m')
             response = self._responses[cmd]
 
             if not self._session.n_actions() > 0:
-                response()
+                response(gui_input)
             elif ((self._session.get_current_action().get_status() !=
                     ExecutionStatus.EXECUTING) or cmd == Command.STOP_EXECUTION):
-                response()
+                response(gui_input)
             else:
                 rospy.logwarn(
                     'Ignoring speech command during execution: ' + cmd)
         else:
             rospy.logwarn('This command (' + cmd + ') is unknown.')
 
-    def _gui_command_cb(self, command):
-        '''Callback for when a GUICommand is received.
-
-        Note that a GUICommand is not any command received from the GUI;
-        it is specifically a command that is only possible from the GUI.
-        Commands sent from the GUI that are also possible via speech are
-        sent via Command messages and handled in the
-        _speech_command_cb(...) function above.
+    def _create_action(self, gui_input):
+        '''Creates a new empty action.
 
         Args:
-            command (GUICommand): The command received from the GUI.
+            gui_input (GuiInput) : unused
         '''
-        # We extract the command string as we use it a lot.
-        cmd = command.command
+        self._session.new_action()
+        self._clear_world_objects_srv()
+        self._robot.play_sound(RobotSound.CREATED_ACTION)
+        self._robot.nod_head()
 
-        # Because the GUI commands involve selecting actions or primitives
-        # within actions, we have two prerequisites: first, we cannot be
-        # currently executing an action, and second, we must have at
-        # least one action.
-        is_executing = False
-        if self._session.n_actions() > 0:
-            if (self._session.get_current_action().get_status() ==
-                ExecutionStatus.EXECUTING):
-                is_executing = True
-
-        if not is_executing:
-            if cmd == GuiCommand.SWITCH_TO_ACTION:
-                index = int(command.param)
-                self._switch_to_action(index)
-
-            elif cmd == GuiCommand.SELECT_ACTION_STEP:
-                # Command: select a primitive in the current action.
-                primitive_number = int(command.param)
-                self._select_action_primitive(primitive_number)
-            else:
-                # Command: unknown. (Currently impossible.)
-                rospy.logwarn('This command (' + cmd + ') is unknown.')
-        else:
-            # Currently executing; ignore command.
-            rospy.logwarn('Ignoring GUI command during execution: ' + cmd)
-
-    def _switch_to_action(self, index):
+    def _switch_to_action(self, gui_input):
         '''Switches to an action that is already loaded in the session.
 
         The action is accessed by the index in the session's action list.
         The index is 0-based, so the first action is action 0.
 
         Args:
-            index: int, the index into the session's action list to switch to.
+            gui_input (GuiInput) : contains the index into the session's action list to switch to.
         '''
         # Command: switch to a specified action.
-        success = self._session.switch_to_action(
-            index)
+        success = self._session.switch_to_action(int(gui_input.param))
         if not success:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
@@ -313,23 +284,145 @@ class Interaction:
             self._robot.play_sound(RobotSound.SUCCESS)
             self._robot.nod_head()
 
-    def _select_action_primitive(self, primitive_number):
+    def _next_action(self, gui_input):
+        '''Switches to next action.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if self._session.next_action():
+                self._robot.play_sound(RobotSound.SUCCESS)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _previous_action(self, gui_input):
+        '''Switches to previous action.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if self._session.previous_action():
+                self._robot.play_sound(RobotSound.SUCCESS)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _update_action_name(self, gui_input):
+        '''Update name of action.
+
+        Args:
+            gui_input (GuiInput) : contains new name of action
+        '''
+        self._session.update_action_name(gui_input.param)
+
+    def _delete_action(self, gui_input):
+        '''Deletes action with certain index
+
+        Args:
+            gui_input (GuiInput) : contains index of action to delete
+        '''
+        self._session.delete_action(int(gui_input.param))
+
+    def _copy_action(self, gui_input):
+        '''Copies action with certain index
+
+        Args:
+            gui_input (GuiInput) : contains index of action to copy
+        '''
+        self._session.copy_action(int(gui_input.param))
+        self._clear_world_objects_srv()
+        self._robot.play_sound(RobotSound.CREATED_ACTION)
+        self._robot.nod_head()
+
+    def _switch_primitive_order(self, gui_input):
+        '''Changes the order of primitives
+
+        Args:
+            gui_input (GuiInput) : contains the previous and current indices
+                                   of the moved primitive
+        '''
+        old_index = gui_input.list_params[0]
+        new_index = gui_input.list_params[1]
+        self._session.switch_primitive_order(old_index, new_index)
+
+    def _delete_primitive(self, gui_input):
+        '''Deletes primitive with certain index from current action
+
+        Args:
+            gui_input (GuiInput) : contains index of primitive to delete
+        '''
+        self._session.delete_primitive(int(gui_input.param))
+
+    def _copy_primitive(self, gui_input):
+        '''Copies primitive with certain index from current action
+
+        Args:
+            gui_input (GuiInput) : contains index of primitive to copy
+        '''
+        self._session.copy_primitive(int(gui_input.param))
+
+    def _select_primitive(self, gui_input):
         '''Selects a primitive in the current action.
 
         Args:
-            primitive_number: int, the index in the list of primitives for the current
-            action.
+            gui_input (GuiInput) : contains index of primitive to select
         '''
+        primitive_number = int(gui_input.param)
         self._session.select_action_primitive(primitive_number)
-        rospy.loginfo('Selected action primitive ' + str(primitive_number))
 
-    # The following methods are selected from commands (either GUI or
-    # speech) and then called from within a Response objects's
-    # respond(...) function. They follow the same pattern of their
-    # accepted and returned values.
+    def _delete_last_primitive(self, gui_input):
+        '''Deletes last primitive of the current action.
 
-    def _open_hand(self):
-        '''Opens gripper'''
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if self._session.n_primitives() > 0:
+                self._session.delete_last_primitive()
+                self._robot.play_sound(RobotSound.OTHER)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _delete_all_primitives(self, gui_input):
+        '''Deletes all primitives in the current action.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if self._session.n_primitives() > 0:
+                self._session.clear_current_action()
+                self._robot.play_sound(RobotSound.ALL_POSES_DELETED)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _open_hand(self, gui_input):
+        '''Opens gripper
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
         # First, open the hand if it's closed.
         if self._robot.get_gripper_state() != GripperState.OPEN:
             # Hand was closed, now open.
@@ -347,9 +440,12 @@ class Interaction:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.look_at_ee(follow=False)
 
+    def _close_hand(self, gui_input):
+        '''Closes gripper
 
-    def _close_hand(self):
-        '''Closes gripper'''
+        Args:
+            gui_input (GuiInput) : unused
+        '''
         # First, close the hand if it's open.
         if self._robot.get_gripper_state() != GripperState.CLOSED:
             self._robot.set_gripper_state(GripperState.CLOSED)
@@ -366,118 +462,12 @@ class Interaction:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.look_at_ee(follow=False)
 
-    def _create_action(self):
-        '''Creates a new empty action.'''
-        self._session.new_action()
-        self._clear_world_objects_srv()
-        self._robot.play_sound(RobotSound.CREATED_ACTION)
-        self._robot.nod_head()
+    def _record_objects(self, gui_input):
+        '''Makes the robot look for a table and objects.
 
-    def _next_action(self):
-        '''Switches to next action.'''
-        if self._session.n_actions() > 0:
-            if self._session.next_action():
-                self._robot.play_sound(RobotSound.SUCCESS)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _previous_action(self):
-        '''Switches to previous action.'''
-        if self._session.n_actions() > 0:
-            if self._session.previous_action():
-                self._robot.play_sound(RobotSound.SUCCESS)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _delete_last_primitive(self):
-        '''Deletes last primitive of the current action.'''
-        if self._session.n_actions() > 0:
-            if self._session.n_primitives() > 0:
-                self._session.delete_last_primitive()
-                self._robot.play_sound(RobotSound.OTHER)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _delete_all_primitives(self):
-        '''Deletes all primitives in the current action.'''
-        if self._session.n_actions() > 0:
-            if self._session.n_primitives() > 0:
-                self._session.clear_current_action()
-                self._robot.play_sound(RobotSound.ALL_POSES_DELETED)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _stop_execution(self):
-        '''Stops ongoing execution after current primitive is finished'''
-        status = self._session.get_current_action().get_status()
-        if status == ExecutionStatus.EXECUTING:
-            self._session.get_current_action().stop_execution()
-            self._robot.play_sound(RobotSound.OTHER)
-            # self._robot.nod_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _start_recording(self):
-        '''Starts recording continuous motion.'''
-        if self._session.n_actions() > 0:
-            if not self._is_recording_motion:
-                self._is_recording_motion = True
-                self._session.start_recording_arm_trajectory()
-                self._robot.play_sound(RobotSound.START_TRAJECTORY)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _stop_recording(self):
-        '''Stops recording continuous motion.'''
-        if self._is_recording_motion:
-            self._is_recording_motion = False
-
-            self._session.stop_recording_arm_trajectory()
-            self._robot.play_sound(RobotSound.POSE_SAVED)
-            self._robot.nod_head()
-
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _save_primitive(self):
-        '''Saves current arm state as an action primitive.'''
-        if self._session.n_actions() > 0:
-            self._session.add_arm_target_to_action()
-            self._robot.play_sound(RobotSound.POSE_SAVED)
-            self._robot.nod_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
-
-    def _record_object_pose(self):
-        '''Makes the robot look for a table and objects.'''
+        Args:
+            gui_input (GuiInput) : unused
+        '''
         self._looking_down = True
         self._robot.look_down()
         resp = self._update_world_srv()
@@ -492,16 +482,64 @@ class Interaction:
 
         self._looking_down = False
 
-    def _test_microphone(self):
-        '''Makes sound to confirm that microphone is working.'''
+    def _save_target(self, gui_input):
+        '''Saves current arm state as an action primitive (ArmTarget).
 
-        self._robot.play_sound(RobotSound.MICROPHONE_WORKING)
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            self._session.add_arm_target_to_action()
+            self._robot.play_sound(RobotSound.POSE_SAVED)
+            self._robot.nod_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 
-    def _execute_action(self):
+    def _start_recording_trajectory(self, gui_input):
+        '''Starts recording continuous motion.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if not self._is_recording_motion:
+                self._is_recording_motion = True
+                self._session.start_recording_arm_trajectory()
+                self._robot.play_sound(RobotSound.START_TRAJECTORY)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _stop_recording_trajectory(self, gui_input):
+        '''Stops recording continuous motion.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._is_recording_motion:
+            self._is_recording_motion = False
+
+            self._session.stop_recording_arm_trajectory()
+            self._robot.play_sound(RobotSound.POSE_SAVED)
+            self._robot.nod_head()
+
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
+    def _execute_action(self, gui_input):
         '''Starts the execution of the current action.
         TODO(sarah): Currently requires > 1 primitive in order to execute.
                      Should be an easy fix, but not sure if there are
                      repercussions elsewhere.
+
+        Args:
+            gui_input (GuiInput) : unused
         '''
         # We must have a current action.
         if self._session.n_actions() > 0:
@@ -513,14 +551,31 @@ class Interaction:
                 # Now, see if we can execute.
                 if self._session.get_current_action().is_object_required():
                     # We need an object; check if we have one.
+                    self._looking_down = True
+
                     self._robot.look_down()
                     resp = self._update_world_srv()
+                    self._looking_down = False
+
                     # objects = resp.objects
                     if resp.object_list:
                         # An object is required, and we got one. Execute.
                         self._session.get_current_action().update_objects()
                         self._session.get_current_action().start_execution(
                             EXECUTION_Z_OFFSET)
+                        # status = self._session.get_current_action().get_status()
+                        for i in range(1000):
+                            status = self._session.get_current_action().get_status()
+                            if status != ExecutionStatus.EXECUTING:
+                                break
+                            rospy.sleep(0.1)
+                        if status == ExecutionStatus.SUCCEEDED:
+                            self._robot.play_sound(RobotSound.SUCCESS)
+                            self._robot.nod_head()
+                        else:
+                            self._robot.play_sound(RobotSound.ERROR)
+                            self._robot.shake_head()
+
                     else:
                         # An object is required, but we didn't get it.
                         self._robot.play_sound(RobotSound.ERROR)
@@ -529,6 +584,18 @@ class Interaction:
                     # No object is required: start execution now.
                     self._session.get_current_action().start_execution(
                             EXECUTION_Z_OFFSET)
+
+                    for i in range(1000):
+                        status = self._session.get_current_action().get_status()
+                        if status != ExecutionStatus.EXECUTING:
+                            break
+                        rospy.sleep(0.1)
+                    if status == ExecutionStatus.SUCCEEDED:
+                        self._robot.play_sound(RobotSound.SUCCESS)
+                        self._robot.nod_head()
+                    else:
+                        self._robot.play_sound(RobotSound.ERROR)
+                        self._robot.shake_head()
 
                 # Reply: starting execution.
                 self._robot.play_sound(RobotSound.STARTING_EXECUTION)
@@ -544,5 +611,18 @@ class Interaction:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
 
+    def _stop_execution(self, gui_input):
+        '''Stops ongoing execution after current primitive is finished
 
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        status = self._session.get_current_action().get_status()
+        if status == ExecutionStatus.EXECUTING:
+            self._session.get_current_action().stop_execution()
+            self._robot.play_sound(RobotSound.OTHER)
+            # self._robot.nod_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
 

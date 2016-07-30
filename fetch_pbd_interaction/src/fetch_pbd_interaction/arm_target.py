@@ -32,17 +32,13 @@ from fetch_pbd_interaction.srv import GetObjectList, \
 # Marker options
 # --------------
 # Colors
-COLOR_TRAJ_ENDPOINT_SPHERES = ColorRGBA(1.0, 0.5, 0.0, 0.8)
-COLOR_TRAJ_STEP_SPHERES = ColorRGBA(0.8, 0.4, 0.0, 0.8)
 COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
-COLOR_STEP_TEXT = ColorRGBA(0.0, 0.0, 0.0, 0.5)
 COLOR_MESH_REACHABLE = ColorRGBA(1.0, 0.5, 0.0, 0.6)
 COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
 
 # Scales
 SCALE_TRAJ_STEP_SPHERES = Vector3(0.02, 0.02, 0.02)
 SCALE_OBJ_REF_ARROW = Vector3(0.02, 0.03, 0.04)
-SCALE_STEP_TEXT = Vector3(0, 0, 0.03)
 
 # Gripper mesh related
 STR_MESH_GRIPPER_FOLDER = 'package://fetch_description/meshes/'
@@ -122,6 +118,7 @@ class ArmTarget(Primitive):
         self._sub_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
+        self._pose_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -207,19 +204,20 @@ class ArmTarget(Primitive):
 
         return None
 
-    def make_marker(self, click_cb, delete_cb):
+    def make_marker(self, click_cb, delete_cb, pose_change_cb):
         '''Adds marker to world'''
 
         rospy.loginfo("Making marker")
         self._marker_click_cb = click_cb
         self._marker_delete_cb = delete_cb
+        self._pose_change_cb = pose_change_cb
         self.update_ref_frames()
 
     def delete_marker(self):
         '''Removes marker from the world.'''
 
-        rospy.loginfo("Deleting marker for: {}".format(self._get_name()))
-        self._im_server.clear()
+        rospy.loginfo("Deleting marker for: {}".format(self.get_name()))
+        self._im_server.erase(self.get_name())
         self._im_server.applyChanges()
 
     def update_ref_frames(self):
@@ -255,6 +253,9 @@ class ArmTarget(Primitive):
         # Update ref frame name if it's absolute.
         if ref_type == ArmState.ROBOT_BASE:
             ref_name = BASE_LINK
+        elif ref_name == '':
+            ref_name = BASE_LINK
+            rospy.loginfo("Empty frame")
 
         return ref_name
 
@@ -276,7 +277,7 @@ class ArmTarget(Primitive):
 
     def update_viz(self):
         '''Updates visualization fully.'''
-        rospy.loginfo("Updating viz for: {}".format(self._get_name()))
+        rospy.loginfo("Updating viz for: {}".format(self.get_name()))
         draw_markers = True
         if not self._arm_state.ref_type == ArmState.ROBOT_BASE:
             landmark_name = self._arm_state.ref_landmark.name
@@ -290,8 +291,20 @@ class ArmTarget(Primitive):
             self._im_server.applyChanges()
 
     def get_primitive_number(self):
-        '''Returns what number this primitive is in the sequence'''
+        '''Returns what number this primitive is in the sequence
+
+        Returns:
+            int
+        '''
         return self._number
+
+    def set_primitive_number(self, num):
+        '''Sets what number this primitive is in the sequence
+
+        Args:
+            num (int)
+        '''
+        self._number = num
 
     def is_object_required(self):
         '''Check if this primitive requires an object to be present
@@ -345,6 +358,22 @@ class ArmTarget(Primitive):
         '''Reduces the number of the primitive.'''
         self._number -= 1
         self._update_menu()
+
+    def set_name(self, name):
+        '''Sets the display name for the primitive.
+
+        Args:
+            name (str) : A human-readable unique name for the primitive.
+        '''
+        self._name = name
+
+    def get_name(self):
+        '''Returns the display name for the primitive.
+
+        Returns:
+            str: A human-readable unique name for the primitive.
+        '''
+        return self._name
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -596,7 +625,7 @@ class ArmTarget(Primitive):
 
         # Update.
         self._update_viz_core()
-        self._menu_handler.apply(self._im_server, self._get_name())
+        self._menu_handler.apply(self._im_server, self.get_name())
         self._im_server.applyChanges()
 
     def _get_menu_id(self, ref_name):
@@ -629,16 +658,6 @@ class ArmTarget(Primitive):
         refs = [obj.name for obj in object_list]
         return refs[index]
 
-
-
-    def _get_name(self):
-        '''Generates the unique name for the primitive.
-
-        Returns:
-            str: A human-readable unique name for the primitive.
-        '''
-        return 'primitive_' + str(self._number)
-
     def _set_ref(self, new_ref):
         '''Changes the reference frame of the primitive to
         new_ref_name.
@@ -661,53 +680,17 @@ class ArmTarget(Primitive):
                 ArmState
         '''
 
-        ref_type = new_landmark.name
-        if ref_type == ArmState.ROBOT_BASE:
-            if arm_state.ref_type == ArmState.ROBOT_BASE:
-                # Transform from robot base to itself (nothing to do).
-                rospy.logdebug(
-                    'No reference frame transformations needed (both ' +
-                    'absolute).')
-            elif arm_state.ref_type == ArmState.OBJECT:
-                # Transform from object to robot base.
-                abs_ee_pose = self._tf_listener.transformPose(
-                    arm_state.ee_pose,
-                    'base_link'
-                )
-                arm_state.ee_pose = abs_ee_pose
-                arm_state.ref_type = ArmState.ROBOT_BASE
-                arm_state.ref_landmark = Landmark()
-            else:
-                rospy.logerr(
-                    'Unhandled reference frame conversion: ' +
-                    str(arm_state.ref_type) + ' to ' + str(ref_type))
-        elif ref_type == ArmState.OBJECT:
-            if arm_state.ref_type == ArmState.ROBOT_BASE:
-                # Transform from robot base to object.
-                rel_ee_pose = self._tf_listener.transformPose(
-                    arm_state.ee_pose, new_landmark.name)
-                arm_state.ee_pose = rel_ee_pose
-                arm_state.ref_type = ArmState.OBJECT
-                arm_state.ref_landmark = new_landmark
-            elif arm_state.ref_type == ArmState.OBJECT:
-                # Transform between the same object (nothign to do).
-                if arm_state.ref_landmark.name == new_landmark.name:
-                    rospy.logdebug(
-                        'No reference frame transformations needed (same ' +
-                        'object).')
-                else:
-                    # Transform between two different objects.
-                    rel_ee_pose = self._tf_listener.transformPose(
-                        arm_state.ee_pose,
-                        new_landmark.name
-                    )
-                    arm_state.ee_pose = rel_ee_pose
-                    arm_state.ref_type = ArmState.OBJECT
-                    arm_state.ref_landmark = new_landmark
-            else:
-                rospy.logerr(
-                    'Unhandled reference frame conversion: ' +
-                    str(arm_state.ref_type) + ' to ' + str(ref_type))
+        if arm_state.ref_landmark.name != new_landmark.name:
+            ee_pose = self._tf_listener.transformPose(
+                                new_landmark.name,
+                                arm_state.ee_pose
+                            )
+        arm_state.ref_landmark = new_landmark
+        arm_state.ee_pose = ee_pose
+        if new_landmark.name == 'base_link':
+            arm_state.ref_type = ArmState.ROBOT_BASE
+        else:
+            arm_state.ref_type = ArmState.OBJECT
         return arm_state
 
     def _get_marker_pose(self):
@@ -744,26 +727,9 @@ class ArmTarget(Primitive):
                 )
             )
 
-        # Make and add the text for this step ('Step X').
-        text_pos = Point()
-        text_pos.x = pose.pose.position.x
-        text_pos.y = pose.pose.position.y
-        text_pos.z = pose.pose.position.z + TEXT_Z_OFFSET
-        menu_control.markers.append(
-            Marker(
-                type=Marker.TEXT_VIEW_FACING,
-                id=self._number,
-                scale=SCALE_STEP_TEXT,
-                text='Step ' + str(self._number),
-                color=COLOR_STEP_TEXT,
-                header=Header(frame_id=frame_id),
-                pose=Pose(text_pos, Quaternion(0, 0, 0, 1))
-            )
-        )
-
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
-        int_marker.name = self._get_name()
+        int_marker.name = self.get_name()
         int_marker.header.frame_id = frame_id
         int_marker.pose = pose.pose
         int_marker.scale = INT_MARKER_SCALE
@@ -846,7 +812,7 @@ class ArmTarget(Primitive):
         implementations may provide further visual cues.
 
         Returns:
-            ColorRGBA: The color for the gripper mesh for this step.
+            ColorRGBA: The color for the gripper mesh for this arm target.
         '''
         if self.is_reachable():
             return COLOR_MESH_REACHABLE
@@ -866,12 +832,14 @@ class ArmTarget(Primitive):
         '''
 
         mesh_color = self._get_mesh_marker_color()
+        # frame_id = self.get_ref_name()
 
         # Create mesh 1 (palm).
         mesh1 = ArmTarget._make_mesh_marker(mesh_color)
         mesh1.mesh_resource = STR_GRIPPER_PALM_FILE
         mesh1.pose.position.x = ArmTarget._offset
         mesh1.pose.orientation.w = 1
+        # mesh1.header.frame_id = frame_id
 
         # TODO (sarah): make all of these numbers into constants
         if gripper_state == GripperState.OPEN:
@@ -880,24 +848,28 @@ class ArmTarget(Primitive):
             mesh2.pose.position.x = 0.08
             mesh2.pose.position.y = -0.165
             mesh2.pose.orientation.w = 1
+            # mesh2.header.frame_id = frame_id
 
             mesh3 = ArmTarget._make_mesh_marker(mesh_color)
             mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
             mesh3.pose.position.x = 0.08
             mesh3.pose.position.y = 0.165
             mesh3.pose.orientation.w = 1
+            # mesh3.header.frame_id = frame_id
         else:
             mesh2 = ArmTarget._make_mesh_marker(mesh_color)
             mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
             mesh2.pose.position.x = 0.08
             mesh2.pose.position.y = -0.116
             mesh2.pose.orientation.w = 1
+            # mesh2.header.frame_id = frame_id
 
             mesh3 = ArmTarget._make_mesh_marker(mesh_color)
             mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
             mesh3.pose.position.x = 0.08
             mesh3.pose.position.y = 0.116
             mesh3.pose.orientation.w = 1
+            # mesh3.header.frame_id = frame_id
 
         # Append all meshes we made.
         control.markers.append(mesh1)
@@ -948,8 +920,8 @@ class ArmTarget(Primitive):
         new_ref = self._get_menu_name(feedback.menu_entry_id)
         self._set_ref(new_ref)
         rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for action step ' +
-            self._get_name())
+            'Switching reference frame to ' + new_ref + ' for primitive ' +
+            self.get_name())
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
         self.update_viz()
@@ -972,6 +944,7 @@ class ArmTarget(Primitive):
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             self._set_new_pose(feedback.pose)
             self.update_viz()
+            self._pose_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls

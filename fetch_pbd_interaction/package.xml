@@ -4,7 +4,7 @@
   <version>0.0.0</version>
   <description>The fetch_pbd_interaction package</description>
 
-  <!-- One maintainer tag required, multiple allowed, one person per tag --> 
+  <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
   <maintainer email="sksellio@gmail.com">Sarah Elliott</maintainer>
@@ -53,33 +53,6 @@
   <run_depend>rospy_message_converter</run_depend>
   <run_depend>std_msgs</run_depend>
   <run_depend>tf</run_depend>
-  <!--
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>interactive_markers</run_depend>
-  <run_depend>kinematics_msgs</run_depend>
-  <run_depend>object_manipulation_msgs</run_depend>
-  <run_depend>pr2_arm_kinematics</run_depend>
-  <run_depend>pr2_controllers_msgs</run_depend>
-  <run_depend>pr2_gazebo</run_depend>
-  <run_depend>pr2_gripper_sensor_msgs</run_depend>
-  <run_depend>pr2_interactive_manipulation</run_depend>
-  <run_depend>pr2_interactive_manipulation_frontend</run_depend>
-  <run_depend>rviz</run_depend>
-  <run_depend>pr2_interactive_object_detection</run_depend>
-  <run_depend>pr2_mechanism_controllers</run_depend>
-  <run_depend>pr2_mechanism_msgs</run_depend>
-  <run_depend>pr2_pbd_speech_recognition</run_depend>
-  <run_depend>pr2_social_gaze</run_depend>
-  <run_depend>rospy</run_depend>
-  <run_depend>rostest</run_depend>
-  <run_depend>rqt_gui</run_depend>
-  <run_depend>sound_play</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>tabletop_collision_map_processing</run_depend>
-  <run_depend>tf</run_depend>
-  <run_depend>tf_throttle</run_depend>
-  <run_depend>trajectory_filter_server</run_depend>
-  <run_depend>visualization_msgs</run_depend>-->
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

@@ -1,6 +1,9 @@
 uint8 n_actions
-uint8 i_current_action
-uint8 n_steps
-uint8 i_current_step
+uint8 current_action
+uint8 n_primitives
+uint8 current_primitive
+string[] action_names
 string[] ref_frames
+string[] primitive_names
+std_msgs/ColorRGBA[] primitive_colors
 fetch_pbd_interaction/Landmark[] objects

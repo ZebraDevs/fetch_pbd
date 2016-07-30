@@ -34,7 +34,7 @@ add_message_files(
   ExecutionStatus.msg
   RobotSound.msg
   ExperimentState.msg
-  GuiCommand.msg
+  GuiInput.msg
   WorldState.msg
 )
 

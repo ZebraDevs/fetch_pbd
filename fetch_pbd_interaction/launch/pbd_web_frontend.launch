@@ -1,0 +1,15 @@
+<launch>
+	<!-- This runs the things needed for the web frontend to work -->
+
+	<include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
+
+    <node name="marker_proxy_1" pkg="interactive_marker_proxy" type="proxy" respawn="true" output="screen" args="topic_ns:=programmed_actions target_frame:=base_link">
+        <!-- <param name="topic_ns" value="programmed_actions" /> -->
+        <!-- <param name="target_frame" value="base_link" /> -->
+    </node>
+    <node name="marker_proxy_2" pkg="interactive_marker_proxy" type="proxy" respawn="true" output="screen" args="topic_ns:=world_objects target_frame:=base_link">
+        <!-- <param name="topic_ns" value="world_objects" /> -->
+        <!-- <param name="target_frame" value="base_link" /> -->
+    </node>
+    <node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher" respawn="true" output="screen" />
+</launch>

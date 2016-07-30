@@ -1,0 +1,8 @@
+{
+  "name": "Fetch Programming by Demonstration",
+  "short_name": "Fetch Programming by Demonstration",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3f51b5",
+  "theme_color": "#3f51b5"
+}

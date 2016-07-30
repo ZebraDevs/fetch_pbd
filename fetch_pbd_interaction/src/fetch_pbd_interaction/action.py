@@ -24,9 +24,9 @@ from fetch_pbd_interaction.msg import ExecutionStatus
 # Module level constants
 # ######################################################################
 
-# Marker properties for little arrows drawn between consecutive steps.
+# Marker properties for little arrows drawn between consecutive primitives.
 LINK_MARKER_LIFETIME = rospy.Duration()
-LINK_SCALE = Vector3(0.01, 0.03, 0.01)
+LINK_SCALE = Vector3(0.01, 0.03, 0.03)
 LINK_COLOR = ColorRGBA(0.8, 0.8, 0.8, 0.3)  # sort of light gray
 
 # ROS topics, etc.
@@ -56,8 +56,8 @@ class Action:
             tf_listener (TransformListener)
             im_server (InteractiveMarkerSerever)
             primitive_click_cb (function(int)): The function to call when a
-                step is clicked on (normally in the GUI). The function
-                should take the step number of the step
+                primitive is clicked on (normally in the GUI). The function
+                should take the number of the primitive
             action_id (int, optional): The index of this action.
 
         '''
@@ -73,8 +73,9 @@ class Action:
         self._preempt = False
         self._z_offset = 0.0
         self._tf_listener = tf_listener
+        self._primitive_counter = 0
 
-        # Markers to connect consecutive action steps together
+        # Markers to connect consecutive primitives together
         self._link_markers = {}
 
         # TODO(sarah): Understand this note better
@@ -83,7 +84,7 @@ class Action:
         # conditions involving this (e.g. marker_click_cb(...)).
         #
         # In general, be aware the other code calling these methods
-        # with data about this class (like how many steps it holds)
+        # with data about this class (like how many primitives it holds)
         # is bad because that means the outside code is assuming that it
         # knows about state internal to this class, and that information
         # may not be true by the time the code here gets executed. This
@@ -91,7 +92,7 @@ class Action:
         # we must reason asyncronously.
         #
         # Unless the information you have (e.g. about the number of
-        # steps that exist) was learned while this lock was acquired,
+        # primitives that exist) was learned while this lock was acquired,
         # you cannot assume it is true.
         self._lock = threading.Lock()
 
@@ -113,6 +114,30 @@ class Action:
         '''
         return self._action_id
 
+    def set_action_id(self, action_id):
+        ''' Returns action_id
+
+        Args:
+            action_id (int)
+        '''
+        self._action_id = action_id
+
+    def set_name(self, name):
+        '''Sets human-readable name for action
+
+        Args:
+            name (string)
+        '''
+        self._name = name
+
+    def get_name(self):
+        '''Returns human-readable name for action
+
+        Returns
+            (string)
+        '''
+        return self._name
+
     def get_json(self):
         '''Return json for this action for saving to db
 
@@ -121,6 +146,7 @@ class Action:
         '''
         json = {}
         json['name'] = self._name
+        json['primitive_counter'] = self._primitive_counter
         json['id'] = self._action_id
         json['seq'] = []
         for primitive in self._seq:
@@ -136,6 +162,7 @@ class Action:
         '''
         self._action_id = json['id']
         self._name = json['name']
+        self._primitive_counter = json['primitive_counter']
         for primitive in json['seq']:
             if primitive.has_key('arm_target'):
                 target = primitive['arm_target']
@@ -207,12 +234,14 @@ class Action:
         '''
         self._lock.acquire()
         rospy.loginfo("Adding primitive")
-
+        primitive.set_name("primitive_" + str(self._primitive_counter))
+        self._primitive_counter+=1
         self._seq.append(primitive)
 
         primitive.make_marker(
             self.marker_click_cb,  # marker_click_cb
-            self._delete_primitive
+            self.delete_primitive,
+            self._primitive_pose_change
         )
 
         self._update_links()
@@ -220,6 +249,7 @@ class Action:
         self._update_markers()
 
         self._lock.release()
+        self.update_viz()
 
     def update_objects(self):
         '''For each primitive, updates the reference frames based on
@@ -243,11 +273,11 @@ class Action:
         '''Removes all visualization from Rviz relating to this action.'''
         self._lock.acquire()
 
-        # Destroy the action step markers.
+        # Destroy the primitive markers.
         for primitive in self._seq:
             rospy.loginfo("Deleting marker")
             primitive.delete_marker()
-
+        self._im_server.clear()
         # Mark the links for destruction.
         for i in self._link_markers.keys():
             self._link_markers[i].action = Marker.DELETE
@@ -288,6 +318,7 @@ class Action:
         if is_selected:
             self._primitive_click_cb(primitive_number)
         self._lock.release()
+        # self.update_viz()
 
     def select_primitive(self, primitive_number):
         '''Makes the interactive marker for the indicated primitive
@@ -309,19 +340,23 @@ class Action:
             # Construct the markers.
             primitive.make_marker(
                 self.marker_click_cb,  # marker_click_cb
-                self._delete_primitive,
+                self.delete_primitive,
+                self._primitive_pose_change,
             )
 
             self._update_links()
 
         self._update_markers()
         self._lock.release()
+        self.update_viz()
+
+    def _primitive_pose_change(self):
+        '''Update links when primitive pose changes'''
+        self.update_viz()
 
     def delete_last_primitive(self):
         '''Deletes the last primitive of the action.'''
-        self._lock.acquire()
-        self._delete_primitive(len(self._seq) - 1)
-        self._lock.release()
+        self.delete_primitive(len(self._seq) - 1)
 
     def is_object_required(self):
         '''Returns whether this action has any primitives that are relative
@@ -354,6 +389,19 @@ class Action:
         self._lock.release()
         return ref_frame_names
 
+    def get_primitive_names(self):
+        '''Returns the names of primitives.
+
+        Returns:
+            [str]
+        '''
+        self._lock.acquire()
+        names = []
+        for primitive in self._seq:
+            names += [primitive.get_name()]
+        self._lock.release()
+        return names
+
     def get_primitive(self, index):
         '''Returns primitive of the action based on index.
 
@@ -361,7 +409,7 @@ class Action:
             index (int): Index (0-based) of primitive to return.
 
         Returns:
-            Primitive|None: Returns None if no such step exists.
+            Primitive|None: Returns None if no such primitive exists.
         '''
         # NOTE(mbforbes): For this lock to be meaningful, we have to
         # check that the index is valid within it.
@@ -382,6 +430,7 @@ class Action:
         self._lock.acquire()
         self._update_links()
         m_array = MarkerArray()
+        rospy.loginfo("link markers: {}".format(self._link_markers))
         for i in self._link_markers.keys():
             m_array.markers.append(self._link_markers[i])
         self._marker_publisher.publish(m_array)
@@ -395,6 +444,50 @@ class Action:
         self._link_markers = dict()
         self._lock.release()
 
+    def decrease_id(self):
+        '''Decrement the action's id by one'''
+        self._action_id = self._action_id - 1
+
+    def switch_primitive_order(self, old_index, new_index):
+        '''Change the order of primitives in action
+
+        Args:
+            old_index (int)
+            new_index (int)
+        '''
+        self._lock.acquire()
+        primitive = self._seq.pop(old_index)
+        self._seq.insert(new_index, primitive)
+        self._lock.release()
+        self.update_viz()
+
+    def delete_primitive(self, to_delete):
+        '''Deletes a primitive from the action.
+
+        NOTE(mbforbes): The lock should be acquired before calling this
+        method.
+
+        Args:
+            to_delete (int): The index of the primitive to delete.
+        '''
+        self._lock.acquire()
+        self._seq[to_delete].delete_marker()
+        for i in range(to_delete + 1, self.n_primitives()):
+            self._seq[i].decrease_id()
+        self._seq.pop(to_delete)
+        self._lock.release()
+        self.update_viz()
+        self._delete_primitive_cb()
+
+    def execute_primitive(self, to_execute):
+        '''Execute specified primitive
+
+        Args:
+            to_execute (int)
+        '''
+        self._seq[to_execute].execute()
+
+
     # ##################################################################
     # Static methods: Internal ("private")
     # ##################################################################
@@ -402,7 +495,7 @@ class Action:
     @staticmethod
     def _get_link(primitive0, primitive1, marker_id):
         '''Returns a marker representing a link b/w two consecutive
-        action steps (both must already exist).
+        primitives (both must already exist).
 
         Args:
             primitive0 (Primitive)
@@ -414,6 +507,8 @@ class Action:
         '''
         start = primitive0.get_absolute_position(use_final=True)
         end = primitive1.get_absolute_position(use_final=False)
+        rospy.loginfo("start: {}".format(start))
+        rospy.loginfo("end: {}".format(end))
         if not start is None and not end is None:
             return Marker(type=Marker.ARROW,
                           id=marker_id,
@@ -543,25 +638,6 @@ class Action:
         for primitive in self._seq:
             primitive.update_viz()
 
-    def _delete_primitive(self, to_delete):
-        '''Deletes a primitive from the action.
-
-        NOTE(mbforbes): The lock should be acquired before calling this
-        method.
-
-        Args:
-            to_delete (int): The index of the primitive to delete.
-        '''
-        rospy.loginfo('Deleting step: ' + str(to_delete))
-
-        self._seq[to_delete].delete_marker()
-        for i in range(to_delete + 1, self.n_primitives()):
-            self._seq[i].decrease_id()
-        self._seq.pop(to_delete)
-
-        self.update_viz()
-        self._delete_primitive_cb()
-
     def _update_links(self):
         '''Updates the visualized links b/w action primitives.'''
         current_num_links = len(self._link_markers)
@@ -580,3 +656,8 @@ class Action:
                 if i in self._link_markers:
                     self._link_markers[i].action = Marker.DELETE
 
+        if new_num_links == 0:
+            self._link_markers[0] = Action._get_link(self._seq[0],
+                                           self._seq[0], 0)
+
+            self._link_markers[0].action = Marker.DELETE

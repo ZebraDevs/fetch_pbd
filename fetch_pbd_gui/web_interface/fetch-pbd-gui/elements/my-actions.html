@@ -1,0 +1,318 @@
+<!--
+@license
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+
+<link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../bower_components/paper-menu/paper-menu.html">
+<link rel="import" href="../bower_components/paper-listbox/paper-listbox.html">
+
+
+<link rel="import" href="imports.html">
+
+
+<link href="../bower_components/iron-icons/iron-icons.html" rel="import">
+<link href="../bower_components/iron-icons/av-icons.html" rel="import">
+<link href="../bower_components/iron-icons/image-icons.html" rel="import">
+
+
+<dom-module id="my-actions">
+  <template>
+
+
+    <style>
+      :host {
+        display: block;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 8px 8px;
+      }
+      .title {
+        @apply(--paper-font-display1);
+        margin-bottom: 10px;
+      }
+      iron-pages {
+        height: 100%;
+      }
+      iron-pages > section {
+        height: 100%;
+      }
+      #blockly {
+        position: relative;
+      }
+      paper-button {
+        @apply(--paper-font-button);
+        border-radius: 2px;
+        padding: 6px 16px;
+        height: 36px;
+      }
+      paper-button:hover {
+        background-color: #e0e0e0;
+      }
+      paper-button.delete:hover {
+        background-color: #FFCDD2;
+      }
+      .create {
+        background-color: #43A047;
+        color: var(--primary-text-color);
+        margin-left: 0;
+        margin-bottom: 10px;
+      }
+      .delete {
+        color: #D32F2F;
+      }
+      .listBack {
+        background-color: #fff;
+      }
+      .programList {
+        border-spacing: 0;
+          width: 100%;
+      }
+      .programList th, td {
+        border-bottom: 1px solid var(--divider-color);
+        padding: 5px 10px;
+      }
+      .programList th {
+        text-align: left;
+        padding: 15px;
+      }
+      .programList tr:last-child td {
+        border-bottom: none;
+      }
+
+      h1 {
+        font-size: 22px;
+        margin: 16px 0;
+        color: #212121;
+      }
+    </style>
+
+     <paper-button class="create" raised on-tap="onCreate"><iron-icon icon="add"></iron-icon> Create new action</paper-button>
+        <paper-material class="listBack">
+          <table class="programList">
+            <thead>
+              <tr>
+                <th>Actions</th>
+                <th>Options</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template is="dom-repeat" items="{{actions}}">
+                <tr>
+                  <td>{{item.name}}</td>
+                  <td>
+                    <paper-button on-tap="onRun" noink data-action$="{{item.action}}"><iron-icon icon="av:play-circle-filled"></iron-icon>Run</paper-button>
+                    <paper-button on-tap="onEdit" noink data-action$="{{item.action}}"><iron-icon icon="image:edit"></iron-icon>Edit</paper-button>
+                    <paper-button on-tap="onCopy" noink data-action$="{{item.action}}"><iron-icon icon="content-copy"></iron-icon>Copy</paper-button>
+                    <paper-button class="delete" noink data-action$="{{item.action}}" on-tap="onDelete"><iron-icon icon="delete"></iron-icon>Delete</paper-button>
+                  </td>
+                </tr>
+              </template>
+<!--          <template is="dom-if" if="{{noActions}}">
+                <tr>
+                  <td colspan="2">
+                    No actions yet.
+                  </td>
+                </tr>
+              </template> -->
+            </tbody>
+          </table>
+        </paper-material>
+  </template>
+
+  <script>
+
+    Polymer({
+      is: 'my-actions',
+
+        properties: {
+              actions: {
+          type: Array,
+          value: [],
+        },
+
+        noActions: {
+          type: Boolean,
+          computed: 'isEmpty(actions)'
+        },
+
+        globalOptions: {
+          type: Object,
+          value: function() {
+            return {};
+          },
+          notify: true,
+        },
+
+        config: {
+          computed: '_computeConfig(globalOptions, displays, sidebarOpened)',
+          notify: true,
+          type: Object,
+        },
+
+        displays: {
+          type: Array,
+          value: function() {
+            return [];
+          },
+        },
+
+        ros: {
+          type: Object,
+          observer: '_rosChanged',
+        },
+
+        sidebarOpened: {
+          type: Boolean,
+          value: true,
+        },
+
+        tfClient: Object, // The ROSLIB.TFClient
+        websocketUrl: {
+          type: String,
+          notify: true,
+          computed: '_computeWebsocketUrl(globalOptions.url)',
+        },
+
+        _viewer: Object,
+        _urdf: Object,
+        _grid: Object,
+        _im: Object,
+        action_buttons: [],
+        expListener: Object,
+        inputPub: Object,
+        spinputPub: Object,
+        expSrv: Object,
+        // currentAction : "0",
+        pagePub: Object
+      },
+
+      isEmpty: function(actions) {
+        return actions.length === 0;
+      },
+
+      attached: function () {
+        var that = this;
+        this.ros = new ROSLIB.Ros({
+          url : 'ws://localhost:9090'
+        });
+
+        this.expListener = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/experiment_state',
+          messageType : 'fetch_pbd_interaction/ExperimentState'
+        });
+
+        this.expListener.subscribe(function(message) {
+          that.expCallback(that, message);
+        });
+
+        this.pagePub = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/page_change',
+          messageType : 'std_msgs/String'
+        });
+
+        this.inputPub = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/gui_input',
+          messageType : 'fetch_pbd_interaction/GuiInput'
+        });
+
+        this.expSrv = new ROSLIB.Service({
+          ros : this.ros,
+          name : '/get_experiment_state',
+          serviceType : 'fetch_pbd_interaction/GetExperimentState'
+        });
+
+        var request = new ROSLIB.ServiceRequest({});
+
+        this.expSrv.callService(request, function(result) {
+            that.expCallback(that, result.state);
+        });
+
+      },
+
+      execute : function() {
+        var message = new ROSLIB.Message({
+          command : "execute-action"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      expCallback : function(that, message) {
+        that.actions = []
+        for (i = 0; i < message.n_actions; i++) {
+          id = i + '';
+          action = { action : id, name : message.action_names[i] };
+          that.push('actions', action);
+          console.log(id);
+        }
+      },
+
+      onCreate : function() {
+        var message = new ROSLIB.Message({
+          command : "create-action"
+        });
+        this.inputPub.publish(message);
+      },
+
+      onEdit : function(evt) {
+        var actionId = evt.model.item.action;
+        console.log(actionId);
+        var message = new ROSLIB.Message({
+          command : "switch-to-action",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+        var message = new ROSLIB.Message({
+          data : "current-action",
+        });
+        this.pagePub.publish(message);
+      },
+
+      onCopy : function(evt) {
+        var actionId = evt.model.item.action;
+        console.log(actionId);
+        var message = new ROSLIB.Message({
+          command : "copy-action",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+        var message = new ROSLIB.Message({
+          data : "current-action",
+        });
+        this.pagePub.publish(message);
+      },
+
+      onRun : function(evt) {
+        var actionId = evt.model.item.action;
+        console.log(actionId);
+        var message = new ROSLIB.Message({
+          command : "switch-to-action",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+        this.execute();
+      },
+
+      onDelete : function(evt) {
+        var actionId = evt.model.item.action;
+        console.log("Delete " + actionId);
+        var message = new ROSLIB.Message({
+          command : "delete-action",
+          param : actionId
+        });
+        this.inputPub.publish(message);
+      },
+    });
+  </script>
+</dom-module>

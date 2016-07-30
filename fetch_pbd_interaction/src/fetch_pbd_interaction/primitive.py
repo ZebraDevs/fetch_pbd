@@ -28,7 +28,7 @@ class Primitive:
         pass
 
     @abstractmethod
-    def make_marker(self, click_cb, delete_cb):
+    def make_marker(self, click_cb, delete_cb, pose_change_cb):
         pass
 
     @abstractmethod
@@ -60,6 +60,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def set_primitive_number(self):
+        pass
+
+    @abstractmethod
     def is_object_required(self):
         pass
 
@@ -79,6 +83,13 @@ class Primitive:
     def decrease_id(self):
         pass
 
+    @abstractmethod
+    def set_name(self):
+        pass
+
+    @abstractmethod
+    def get_name(self):
+        pass
 
 
 
