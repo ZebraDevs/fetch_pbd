@@ -435,6 +435,14 @@ class Action:
         self._lock.release()
         return names
 
+    def get_primitives(self):
+        '''Return list of primitives
+
+        Returns:
+            [Primitive]
+        '''
+        return self._seq
+
     def get_primitive(self, index):
         '''Returns primitive of the action based on index.
 
@@ -560,6 +568,14 @@ class Action:
 
     def _primitive_pose_change(self):
         '''Update links when primitive pose changes'''
+        self._lock.acquire()
+        for primitive in self._seq:
+            primitive.make_marker(
+                self.marker_click_cb,  # marker_click_cb
+                self.delete_primitive,
+                self._primitive_pose_change,
+        )
+        self._lock.release()
         self.update_viz()
 
     def _is_condition_met(self, condition):

@@ -218,7 +218,7 @@ class SocialGaze:
             GetGazeGoalResponse
         '''
         goal = self._current_gaze_action
-        rospy.loginfo("Gaze Goal: {}".format(goal))
+        # rospy.loginfo("Gaze Goal: {}".format(goal))
         return GetGazeGoalResponse(int(goal))
 
 
@@ -250,7 +250,7 @@ class SocialGaze:
         Args:
             goal (GazeGoal): what type of action to perform next
         '''
-        rospy.loginfo("Got a head goal: {}".format(goal.action))
+        # rospy.loginfo("Got a head goal: {}".format(goal.action))
         command = goal.action
         if self._no_interrupt.count(self._current_gaze_action) == 0:
             if (self._current_gaze_action != command or
@@ -270,8 +270,8 @@ class SocialGaze:
                     self._start_glance()
                 elif command == GazeGoal.LOOK_AT_POINT:
                     self._target_focus_point = goal.point
-                rospy.loginfo('\tSetting gaze action to: ' +
-                              self.gaze_goal_strs[command])
+                # rospy.loginfo('\tSetting gaze action to: ' +
+                #               self.gaze_goal_strs[command])
                 self._current_gaze_action = command
 
                 while not self._is_action_complete:

@@ -206,8 +206,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         this.expListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/experiment_state',
-          messageType : 'fetch_pbd_interaction/ExperimentState'
+          name : '/session_state',
+          messageType : 'fetch_pbd_interaction/SessionState'
         });
 
         this.expListener.subscribe(function(message) {
@@ -228,8 +228,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         this.expSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/get_experiment_state',
-          serviceType : 'fetch_pbd_interaction/GetExperimentState'
+          name : '/get_session_state',
+          serviceType : 'fetch_pbd_interaction/GetSessionState'
         });
 
         var request = new ROSLIB.ServiceRequest({});

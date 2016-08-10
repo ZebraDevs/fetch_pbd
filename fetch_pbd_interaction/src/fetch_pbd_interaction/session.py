@@ -15,6 +15,9 @@ import threading
 import couchdb
 import threading
 
+# ROS builtins
+from tf import TransformBroadcaster
+
 # Local
 from fetch_pbd_interaction.action import Action
 from fetch_pbd_interaction.arm_target import ArmTarget
@@ -45,6 +48,8 @@ class Session:
 
         self._robot = robot
         self._tf_listener = _tf_listener
+        self._tf_broadcaster = TransformBroadcaster()
+
         self._im_server = im_server
 
         self._couch = couchdb.Server()
@@ -475,6 +480,14 @@ class Session:
         self._update_session_state()
         # self._lock.release()
 
+    def publish_primitive_tf(self):
+        '''Publish tf frame for each primitive of current action'''
+        if not self._current_action_id is None:
+            self._lock.acquire()
+            primitives = self._actions[self._current_action_id].get_primitives()
+            self._lock.release()
+            for primitive in primitives:
+                self._publish_primitive_tf(primitive)
 
     # ##################################################################
     # Instance methods: Internal ("private")
@@ -642,3 +655,21 @@ class Session:
             self._current_action_id = self._action_ids[-1]
 
             # self._actions[self._current_action_id].initialize_viz()
+
+    def _publish_primitive_tf(self, primitive, parent="base_link"):
+        ''' Publishes a TF for primitive
+
+        Args:
+            primitive (Primitive)
+            parent (str): The parent reference frame.
+        '''
+        pose = primitive.get_absolute_pose()
+        position = pose.pose.position
+        orientation = pose.pose.orientation
+        pos = (position.x, position.y, position.z)
+        rot = (orientation.x, orientation.y, orientation.z, orientation.w)
+        name = "primitive_" + str(primitive.get_number())
+        # TODO(mbforbes): Is it necessary to change the position
+        # and orientation into tuples to send to TF?
+        self._tf_broadcaster.sendTransform(
+            pos, rot, rospy.Time.now(), name, parent)

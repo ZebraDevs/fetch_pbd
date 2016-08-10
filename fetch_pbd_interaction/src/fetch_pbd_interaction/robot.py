@@ -289,7 +289,7 @@ class Robot:
             follow (bool, optional) : If True, follow end effector,
                                       else, just glance at end effector
         '''
-        rospy.loginfo("Look at ee")
+        # rospy.loginfo("Look at ee")
         goal = GazeGoal()
         if follow:
             goal.action = GazeGoal.FOLLOW_EE

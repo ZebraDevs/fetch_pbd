@@ -143,7 +143,7 @@ class Interaction:
         arm_moving = self._robot.is_arm_moving()
 
         if not arm_moving and not self._looking_down:
-            rospy.loginfo("Arm moving")
+            # rospy.loginfo("Arm moving")
             self._robot.look_forward()
         else:
             if self._session.n_actions() > 0:
@@ -159,6 +159,8 @@ class Interaction:
 
         # Update the current action if there is one.
         if self._session.n_actions() > 0:
+            self._session.publish_primitive_tf()
+
 
             # Record trajectory primitive.
             if self._is_recording_motion:

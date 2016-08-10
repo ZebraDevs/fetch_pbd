@@ -44,6 +44,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def get_ref_frame_name(self):
+        pass
+
+    @abstractmethod
     def is_control_visible(self):
         pass
 
@@ -76,6 +80,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def get_absolute_pose(self, use_final=True):
+        pass
+
+    @abstractmethod
     def get_absolute_position(self, use_final=True):
         pass
 
@@ -89,6 +97,10 @@ class Primitive:
 
     @abstractmethod
     def get_name(self):
+        pass
+
+    @abstractmethod
+    def get_number(self):
         pass
 
 
