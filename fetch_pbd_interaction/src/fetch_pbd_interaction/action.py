@@ -74,6 +74,7 @@ class Action:
         self._z_offset = 0.0
         self._tf_listener = tf_listener
         self._primitive_counter = 0
+        self._marker_visibility = []
 
         # Markers to connect consecutive primitives together
         self._link_markers = {}
@@ -99,7 +100,8 @@ class Action:
         if Action._marker_publisher is None:
             Action._marker_publisher = rospy.Publisher(TOPIC_MARKERS,
                                                                  MarkerArray,
-                                                                 queue_size=10)
+                                                                 queue_size=10,
+                                                                 latch=True)
 
 
     # ##################################################################
@@ -176,7 +178,7 @@ class Action:
                                   self._im_server)
                 primitive.build_from_json(target)
 
-            self.add_primitive(primitive)
+            self.add_primitive(primitive, False)
 
         self.reset_viz()
 
@@ -226,7 +228,7 @@ class Action:
         self._status = status
 
 
-    def add_primitive(self, primitive):
+    def add_primitive(self, primitive, add_marker=True):
         '''Add primitive to action.
 
         Args:
@@ -237,19 +239,21 @@ class Action:
         primitive.set_name("primitive_" + str(self._primitive_counter))
         self._primitive_counter+=1
         self._seq.append(primitive)
+        if add_marker:
+            primitive.make_marker(
+                self.marker_click_cb,  # marker_click_cb
+                self.delete_primitive,
+                self._primitive_pose_change
+            )
+            self._marker_visibility.append(True)
+            self._update_links()
 
-        primitive.make_marker(
-            self.marker_click_cb,  # marker_click_cb
-            self.delete_primitive,
-            self._primitive_pose_change
-        )
-
-        self._update_links()
-
-        self._update_markers()
-
-        self._lock.release()
-        self.update_viz()
+            self._update_markers()
+            self._lock.release()
+            self.update_viz()
+        else:
+            self._marker_visibility.append(False)
+            self._lock.release()
 
     def update_objects(self):
         '''For each primitive, updates the reference frames based on
@@ -291,6 +295,38 @@ class Action:
         # rospy.sleep(2.0)
         self._link_markers = {}
         self._lock.release()
+
+    def delete_primitive_marker(self, primitive_number):
+        '''Delete marker with certain index
+
+        Args:
+            primitive_number (int)
+        '''
+        self._marker_visibility[primitive_number] = False
+        primitive = self._seq[primitive_number]
+        primitive.delete_marker()
+
+    def make_primitive_marker(self, primitive_number):
+        '''Delete marker with certain index
+
+        Args:
+            primitive_number (int)
+        '''
+        self._marker_visibility[primitive_number] = True
+        primitive = self._seq[primitive_number]
+        primitive.make_marker(
+                self.marker_click_cb,  # marker_click_cb
+                self.delete_primitive,
+                self._primitive_pose_change,
+        )
+
+    def get_marker_visibility(self):
+        '''Returns visibility status of primitive markers
+
+        Returns:
+            [bool]
+        '''
+        return self._marker_visibility
 
     def marker_click_cb(self, primitive_number, is_selected):
         '''Callback for when one of the markers is clicked.
@@ -334,6 +370,7 @@ class Action:
 
         rospy.loginfo("Initialising viz for: {}".format(self.get_action_id()))
         self._lock.acquire()
+        self._marker_visibility = [True] * len(self._seq)
         for i in range(len(self._seq)):
             primitive = self._seq[i]
 
@@ -348,10 +385,6 @@ class Action:
 
         self._update_markers()
         self._lock.release()
-        self.update_viz()
-
-    def _primitive_pose_change(self):
-        '''Update links when primitive pose changes'''
         self.update_viz()
 
     def delete_last_primitive(self):
@@ -430,7 +463,7 @@ class Action:
         self._lock.acquire()
         self._update_links()
         m_array = MarkerArray()
-        rospy.loginfo("link markers: {}".format(self._link_markers))
+        # rospy.loginfo("link markers: {}".format(self._link_markers))
         for i in self._link_markers.keys():
             m_array.markers.append(self._link_markers[i])
         self._marker_publisher.publish(m_array)
@@ -475,6 +508,7 @@ class Action:
         for i in range(to_delete + 1, self.n_primitives()):
             self._seq[i].decrease_id()
         self._seq.pop(to_delete)
+        self._update_links()
         self._lock.release()
         self.update_viz()
         self._delete_primitive_cb()
@@ -523,6 +557,10 @@ class Action:
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
+
+    def _primitive_pose_change(self):
+        '''Update links when primitive pose changes'''
+        self.update_viz()
 
     def _is_condition_met(self, condition):
         '''Returns whether the given pre-condition or post-condition is
@@ -643,21 +681,24 @@ class Action:
         current_num_links = len(self._link_markers)
         new_num_links = len(self._seq) - 1
 
+        # rospy.loginfo("current: {}, new: {}".format(current_num_links, new_num_links))
+
         self._link_markers = {}
 
         for i in range(new_num_links):
+            # if self._marker_visibility[i] and self._marker_visibility[i + 1]:
             link_marker = Action._get_link(self._seq[i],
-                                           self._seq[i + 1],
-                                           i)
+                                       self._seq[i + 1],
+                                       i)
             if not link_marker is None:
                 self._link_markers[i] = link_marker
         if (current_num_links - new_num_links) > 0:
             for i in range(new_num_links, current_num_links):
-                if i in self._link_markers:
-                    self._link_markers[i].action = Marker.DELETE
+                self._link_markers[i] = Marker(id=i, action=Marker.DELETE)
 
         if new_num_links == 0:
             self._link_markers[0] = Action._get_link(self._seq[0],
                                            self._seq[0], 0)
 
             self._link_markers[0].action = Marker.DELETE
+

@@ -99,6 +99,8 @@ class Interaction:
             GuiInput.SELECT_PRIMITIVE: self._select_primitive,
             GuiInput.DELETE_ALL_PRIMITIVES: self._delete_all_primitives,
             GuiInput.DELETE_LAST_PRIMITIVE: self._delete_last_primitive,
+            GuiInput.HIDE_PRIMITIVE_MARKER: self._hide_primitive_marker,
+            GuiInput.SHOW_PRIMITIVE_MARKER: self._show_primitive_marker,
             # Programming
             GuiInput.OPEN_HAND: self._open_hand,
             GuiInput.CLOSE_HAND: self._close_hand,
@@ -381,6 +383,24 @@ class Interaction:
         primitive_number = int(gui_input.param)
         self._session.select_action_primitive(primitive_number)
 
+    def _delete_all_primitives(self, gui_input):
+        '''Deletes all primitives in the current action.
+
+        Args:
+            gui_input (GuiInput) : unused
+        '''
+        if self._session.n_actions() > 0:
+            if self._session.n_primitives() > 0:
+                self._session.clear_current_action()
+                self._robot.play_sound(RobotSound.ALL_POSES_DELETED)
+                self._robot.nod_head()
+            else:
+                self._robot.play_sound(RobotSound.ERROR)
+                self._robot.shake_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+
     def _delete_last_primitive(self, gui_input):
         '''Deletes last primitive of the current action.
 
@@ -399,23 +419,21 @@ class Interaction:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
 
-    def _delete_all_primitives(self, gui_input):
-        '''Deletes all primitives in the current action.
+    def _hide_primitive_marker(self, gui_input):
+        '''Hide marker with certain index
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInput) : contains index of marker to hide
         '''
-        if self._session.n_actions() > 0:
-            if self._session.n_primitives() > 0:
-                self._session.clear_current_action()
-                self._robot.play_sound(RobotSound.ALL_POSES_DELETED)
-                self._robot.nod_head()
-            else:
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
-        else:
-            self._robot.play_sound(RobotSound.ERROR)
-            self._robot.shake_head()
+        self._session.hide_primitive_marker(int(gui_input.param))
+
+    def _show_primitive_marker(self, gui_input):
+        '''Show marker with certain index
+
+        Args:
+            gui_input (GuiInput) : contains index of marker to show
+        '''
+        self._session.show_primitive_marker(int(gui_input.param))
 
     def _open_hand(self, gui_input):
         '''Opens gripper

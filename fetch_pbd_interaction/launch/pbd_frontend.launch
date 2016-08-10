@@ -3,14 +3,11 @@
 
 	<!-- This is the GUI that lets you send speech commands with buttons
 	and displays what the robot would say. -->
-	<node name="fetch_pbd_gui" pkg="rqt_gui" type="rqt_gui" output="screen"></node>
+	<!-- <node name="fetch_pbd_gui" pkg="rqt_gui" type="rqt_gui" output="screen"></node> -->
 
 	<!-- This is the interactive manipulation stuff for visualization
 	(this will run RVIZ). -->
 	<!--<include file="$(find pr2_pbd_interaction)/launch/pr2_interactive_manipulation_desktop.launch" />-->
-
-	<!-- This adds speech recognition (using pocketsphinx). -->
-	<include file="$(find fetch_pbd_speech_recognition)/launch/command_recognition.launch"/>
 
     <!-- rviz -->
 

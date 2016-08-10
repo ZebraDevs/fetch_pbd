@@ -19,9 +19,9 @@ import threading
 from fetch_pbd_interaction.action import Action
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory  import ArmTrajectory
-from fetch_pbd_interaction.msg import ExperimentState
-from fetch_pbd_interaction.srv import GetExperimentState, \
-                                     GetExperimentStateResponse, \
+from fetch_pbd_interaction.msg import SessionState
+from fetch_pbd_interaction.srv import GetSessionState, \
+                                     GetSessionStateResponse, \
                                      GetObjectList
 
 
@@ -62,20 +62,22 @@ class Session:
         self._current_arm_trajectory = None
 
         # Publishers & Services
-        self._state_publisher = rospy.Publisher('experiment_state',
-                                                ExperimentState,
+        self._state_publisher = rospy.Publisher('session_state',
+                                                SessionState,
                                                 queue_size=10)
-        rospy.Service('get_experiment_state', GetExperimentState,
-                      self._get_experiment_state_cb)
+        rospy.Service('get_session_state', GetSessionState,
+                      self._get_session_state_cb)
         self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
                                                        GetObjectList)
 
         # Load saved actions
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
+        # if not self._current_action_id is None:
+        #     self._marker_visibility = [True] * self.n_primitives()
 
         # Send initial broadcast of experiment state.
-        self._update_experiment_state()
+        self._update_session_state()
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -94,7 +96,7 @@ class Session:
 
     def new_action(self, name=None):
         '''Creates new action.'''
-        if self.n_actions() > 0:
+        if self.n_actions() > 0 and not self._current_action_id is None:
             self.get_current_action().reset_viz()
             self._current_action_id = self.n_actions()
         else:
@@ -117,7 +119,8 @@ class Session:
             self._current_action_id: action
         })
         self._action_ids.append(self._current_action_id)
-        self._update_experiment_state()
+        self._marker_visibility = [True] * self.n_primitives()
+        self._update_session_state()
 
     def n_actions(self):
         '''Returns the number of actions programmed so far.
@@ -134,7 +137,7 @@ class Session:
             Action
         '''
         self._lock.acquire()
-        if self.n_actions() > 0:
+        if self.n_actions() > 0 and not self._current_action_id is None:
             action = self._actions[self._current_action_id]
             self._lock.release()
             return action
@@ -149,7 +152,7 @@ class Session:
             current_action.clear()
         else:
             rospy.logwarn("Can't clear action: No actions created yet.")
-        self._update_experiment_state()
+        self._update_session_state()
 
     def update_arm_trajectory(self):
         '''Saves current arm state into continuous trajectory.'''
@@ -180,7 +183,7 @@ class Session:
             current_action.add_primitive(self._current_arm_trajectory)
         else:
             rospy.logwarn("Can't add primitive: No actions created yet.")
-        self._update_experiment_state()
+        self._update_session_state()
         self._current_arm_trajectory = None
 
     def add_arm_target_to_action(self):
@@ -199,7 +202,7 @@ class Session:
             current_action.add_primitive(arm_target)
         else:
             rospy.logwarn("Can't add primitive: No actions created yet.")
-        self._update_experiment_state()
+        self._update_session_state()
 
     def delete_last_primitive(self):
         '''Removes the last primitive of the action.'''
@@ -209,7 +212,7 @@ class Session:
         else:
             rospy.logwarn("Can't delete last primitive:" +
                           " No actions created yet.")
-        self._update_experiment_state()
+        self._update_session_state()
 
     def switch_to_action(self, index):
         '''Switches to action with index
@@ -225,7 +228,7 @@ class Session:
             rospy.logwarn("Index out of bounds: {}".format(index))
             return False
 
-        if self.n_actions() > 0:
+        if self.n_actions() > 0 and not self._current_action_id is None:
             self.get_current_action().reset_viz()
 
         if not index in self._actions:
@@ -237,7 +240,8 @@ class Session:
         self._current_action_id = index
 
         self.get_current_action().initialize_viz()
-        self._update_experiment_state()
+        # self._marker_visibility = [True] * self.n_primitives()
+        self._update_session_state()
         return True
 
     def next_action(self):
@@ -273,7 +277,7 @@ class Session:
         Returns:
             int
         '''
-        if self.n_actions() > 0:
+        if self.n_actions() > 0 and not self._current_action_id is None:
             return self._actions[self._current_action_id].n_primitives()
         else:
             rospy.logwarn(
@@ -286,8 +290,9 @@ class Session:
         Args:
             name (string)
         '''
-        self.get_current_action().set_name(name)
-        self._update_experiment_state()
+        if not self._current_action_id is None:
+            self.get_current_action().set_name(name)
+            self._update_session_state()
 
     def copy_action(self, action_id):
         '''Make a copy of action
@@ -316,7 +321,7 @@ class Session:
                 self._action_ids.append(new_id)
 
         self._current_action_id = new_id
-        self._update_experiment_state()
+        self._update_session_state()
 
 
     def copy_primitive(self, primitive_number):
@@ -361,7 +366,7 @@ class Session:
 
         self._actions[self._current_action_id].update_viz()
 
-        self._update_experiment_state()
+        self._update_session_state()
 
     def delete_action_current_action(self):
         '''Delete current action'''
@@ -414,7 +419,7 @@ class Session:
         self._lock.release()
 
         rospy.loginfo("actions: {}".format(self._actions))
-        self._update_experiment_state()
+        self._update_session_state()
 
     def switch_primitive_order(self, old_index, new_index):
         '''Change the order of primitives in action
@@ -444,9 +449,46 @@ class Session:
         '''
         self._actions[self._current_action_id].execute_primitive(primitive_number)
 
+    def hide_primitive_marker(self, primitive_number):
+        '''Hide marker with primitive_number
+
+        Args:
+            primitive_number (int)
+        '''
+        # self._lock.acquire()
+        # self._marker_visibility[primitive_number] = False
+        action = self._actions[self._current_action_id]
+        action.delete_primitive_marker(primitive_number)
+        self._update_session_state()
+        # self._lock.release()
+
+    def show_primitive_marker(self, primitive_number):
+        '''Show marker with primitive_number
+
+        Args:
+            primitive_number (int)
+        '''
+        # self._lock.acquire()
+        # self._marker_visibility[primitive_number] = True
+        action = self._actions[self._current_action_id]
+        action.make_primitive_marker(primitive_number)
+        self._update_session_state()
+        # self._lock.release()
+
+
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
+
+    def _get_marker_visibility(self):
+        '''Get the visibility of the markers
+
+        Returns:
+            [bool]
+        '''
+        if self._current_action_id is None:
+            return []
+        return self._actions[self._current_action_id].get_marker_visibility()
 
     def _update_db_with_action(self, action):
         '''Adds action to db if it does not already exist.
@@ -470,7 +512,9 @@ class Session:
         Or if it exists, delete the existing entry and replace with
         update version
         '''
-        self._update_db_with_action(self.get_current_action())
+        action = self.get_current_action()
+        if not action is None:
+            self._update_db_with_action(action)
 
 
     def _selected_primitive_cb(self, selected_primitive):
@@ -481,54 +525,57 @@ class Session:
             selected_primitive (int): ID of the primitive selected.
         '''
         self._selected_primitive = selected_primitive
-        self._async_update_experiment_state()
+        self._async_update_session_state()
 
     def _delete_primitive_cb(self):
         '''Updates the db when primitive deleted.
         '''
-        self._async_update_experiment_state()
+        self._async_update_session_state()
 
-    def _get_experiment_state_cb(self, req):
+    def _get_session_state_cb(self, req):
         '''Response to the experiment state service call.
 
         Args:
-            req (GetExperimentStateRequest): Unused.
+            req (GetSessionStateRequest): Unused.
         Returns:
-            GetExperimentStateResponse
+            GetSessionStateResponse
         '''
-        return GetExperimentStateResponse(self._get_experiment_state())
+        return GetSessionStateResponse(self._get_session_state())
 
-    def _async_update_experiment_state(self):
+    def _async_update_session_state(self):
         '''Launches a new thread to asynchronously update experiment
         state.'''
         threading.Thread(group=None,
-                         target=self._update_experiment_state,
-                         name='experiment_state_publish_thread').start()
+                         target=self._update_session_state,
+                         name='session_state_publish_thread').start()
 
-    def _update_experiment_state(self):
+    def _update_session_state(self):
         '''Publishes a message with the latest state.'''
         if len(self._actions) > 0:
             self._update_db_with_current_action()
-        state = self._get_experiment_state()
+        state = self._get_session_state()
         self._state_publisher.publish(state)
 
-    def _get_experiment_state(self):
+    def _get_session_state(self):
         '''Creates and returns a message with the latest state.
 
         Returns:
-            ExperimentState
+            SessionState
         '''
         index = self._current_action_id
 
         # Should the GUI retrieve this information itself?
         object_list = self._get_object_list_srv().object_list
 
-        return ExperimentState(
-            self.n_actions(), index, self.n_primitives(),
+        return SessionState(
+            self.n_actions(),
+            index,
+            self.n_primitives(),
             self._selected_primitive,
             self._get_action_names(),
             self._get_ref_frame_names(),
             self._get_primitive_names(),
+            self._get_marker_visibility(),
             [],
             object_list)
 
@@ -552,7 +599,7 @@ class Session:
             [str]
         '''
         # This can be called before anything's set up.
-        if self.n_actions() < 1:
+        if self.n_actions() < 1 or self._current_action_id is None:
             return []
         # Once we've got an action, we can query / return things.
         action = self._actions[self._current_action_id]
@@ -566,7 +613,7 @@ class Session:
             [str]
         '''
         # This can be called before anything's set up.
-        if self.n_actions() < 1:
+        if self.n_actions() < 1 or self._current_action_id is None:
             return []
         # Once we've got an action, we can query / return things.
         action = self._actions[self._current_action_id]
@@ -588,9 +635,10 @@ class Session:
             action.build_from_json(result.value)
             self._actions[result.value['id']] = action
             self._action_ids.append(int(result.value['id']))
+        rospy.loginfo("DONE LOADING EVERYTHING")
 
         if len(self._actions) > 0:
             # Select the starting action as the action with the largest id
             self._current_action_id = self._action_ids[-1]
 
-            self._actions[self._current_action_id].initialize_viz()
+            # self._actions[self._current_action_id].initialize_viz()

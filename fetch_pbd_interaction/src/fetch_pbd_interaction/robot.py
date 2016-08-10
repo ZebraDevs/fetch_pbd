@@ -53,8 +53,8 @@ class Robot:
         Args:
             tf_listener (TransformListener)
         '''
-
         self._tf_listener = tf_listener
+
         # arm services
 
         self.move_arm_to_joints_srv = rospy.ServiceProxy(
@@ -99,7 +99,6 @@ class Robot:
         rospy.wait_for_service('set_gripper_state')
 
         rospy.loginfo("Got all arm services")
-
 
         # head services
 
@@ -253,7 +252,8 @@ class Robot:
         goal = GazeGoal()
         goal.action = GazeGoal.SHAKE
         goal.repeat = num
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
 
     def nod_head(self, num=5):
@@ -265,7 +265,8 @@ class Robot:
         goal = GazeGoal()
         goal.action = GazeGoal.NOD
         goal.repeat = num
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
 
     def look_at_point(self, point):
@@ -277,7 +278,8 @@ class Robot:
         goal = GazeGoal()
         goal.action = GazeGoal.LOOK_AT_POINT
         goal.point = point
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
 
     def look_at_ee(self, follow=True):
@@ -293,14 +295,16 @@ class Robot:
             goal.action = GazeGoal.FOLLOW_EE
         else:
             goal.action = GazeGoal.GLANCE_EE
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
 
     def look_forward(self):
         '''Point head forward'''
         goal = GazeGoal()
         goal.action = GazeGoal.LOOK_FORWARD
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
 
     def look_down(self):
@@ -309,7 +313,8 @@ class Robot:
         # looking at static point
         goal = GazeGoal()
         goal.action = GazeGoal.LOOK_DOWN
-        if goal.action != self.current_gaze_goal_srv().gaze_goal:
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
             self.gaze_client.send_goal(goal)
         while (self.gaze_client.get_state() == GoalStatus.PENDING or
                self.gaze_client.get_state() == GoalStatus.ACTIVE):

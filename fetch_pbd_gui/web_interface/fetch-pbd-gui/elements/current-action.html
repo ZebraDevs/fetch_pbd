@@ -150,6 +150,11 @@
                       data-primitive$="{{item.number}}"
                       on-tap="onDelete"
                       icon="delete"> </paper-icon-button>
+                    <paper-icon-button
+                      noink
+                      data-primitive$="{{item.number}}"
+                      on-tap="toggleMarker"
+                      src="{{item.marker}}"> </paper-icon-button>
                   </div>
               </template>
             </sortable-list>
@@ -225,6 +230,14 @@
         inputPub: Object,
         action_name : '',
         expListener : Object,
+        showMarkerIcon : {
+          type: String,
+          value: "../icons/show_marker.png",
+        },
+        hideMarkerIcon : {
+          type: String,
+          value: "../icons/hide_marker.png",
+        },
       },
 
       behaviors: [Polymer.IronResizableBehavior],
@@ -329,8 +342,8 @@
 
         this.expSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/get_experiment_state',
-          serviceType : 'fetch_pbd_interaction/GetExperimentState'
+          name : '/get_session_state',
+          serviceType : 'fetch_pbd_interaction/GetSessionState'
         });
 
         var request = new ROSLIB.ServiceRequest({});
@@ -341,8 +354,8 @@
 
         this.expListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/experiment_state',
-          messageType : 'fetch_pbd_interaction/ExperimentState'
+          name : '/session_state',
+          messageType : 'fetch_pbd_interaction/SessionState'
         });
 
         this.expListener.subscribe(function(message) {
@@ -354,8 +367,20 @@
         that.action_name = message.action_names[message.current_action];
         that.primitives = []
         for (i = 0; i < message.n_primitives; i++) {
-          primitive = { name : message.primitive_names[i], number: i + '' };
-          console.log(primitive)
+          console.log("Visibility");
+
+          console.log(message.marker_visibility[i]);
+          if (message.marker_visibility[i]) {
+            markerStatus = that.showMarkerIcon;
+          }
+          else {
+            markerStatus = that.hideMarkerIcon;
+          }
+          primitive = {
+            name : message.primitive_names[i],
+            number: i + '',
+            marker: markerStatus
+          };
           that.push('primitives', primitive);
         }
       },
@@ -436,36 +461,53 @@
       },
 
       onEdit : function(evt) {
-        var actionId = evt.model.item.primitive;//.action;
-        console.log(actionId);
+        var primitiveId = evt.model.item.primitive;//.action;
+        console.log(primitiveId);
       },
 
       onCopy : function(evt) {
-        var actionId = evt.model.item.number;//.action;
-        console.log(actionId);
+        var primitiveId = evt.model.item.number;//.action;
+        console.log(primitiveId);
         var message = new ROSLIB.Message({
           command : "copy-primitive",
-          param : actionId
+          param : primitiveId
         });
         this.inputPub.publish(message);
       },
 
       onRun : function(evt) {
-        var actionId = evt.model.item.number;
-        console.log(actionId);
+        var primitiveId = evt.model.item.number;
+        console.log(primitiveId);
         var message = new ROSLIB.Message({
           command : "execute-primitive",
-          param : actionId
+          param : primitiveId
         });
         this.inputPub.publish(message);
       },
 
       onDelete : function(evt) {
-        var actionId = evt.model.item.number;
+        var primitiveId = evt.model.item.number;
         console.log(evt.model.item.number);
         var message = new ROSLIB.Message({
           command : "delete-primitive",
-          param : actionId
+          param : primitiveId
+        });
+        this.inputPub.publish(message);
+      },
+
+      toggleMarker : function(evt) {
+        var primitiveId = evt.model.item.number;
+        console.log(evt.model.item.number);
+        if (this.primitives[parseInt(primitiveId)].marker === this.showMarkerIcon){
+          guiCommand = "hide-primitive-marker";
+        }
+        else {
+          guiCommand = "show-primitive-marker";
+        }
+        console.log(guiCommand);
+        var message = new ROSLIB.Message({
+          command : guiCommand,
+          param : primitiveId
         });
         this.inputPub.publish(message);
       },

@@ -33,7 +33,7 @@ add_message_files(
   Landmark.msg
   ExecutionStatus.msg
   RobotSound.msg
-  ExperimentState.msg
+  SessionState.msg
   GuiInput.msg
   WorldState.msg
 )
@@ -41,7 +41,7 @@ add_message_files(
 add_service_files(
   FILES
   ExecuteActionById.srv
-  GetExperimentState.srv
+  GetSessionState.srv
   Ping.srv
   MoveArm.srv
   SetGripperState.srv

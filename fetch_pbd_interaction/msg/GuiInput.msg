@@ -15,6 +15,8 @@ string COPY_PRIMITIVE = copy-primitive
 string SELECT_PRIMITIVE = select-primitive
 string DELETE_ALL_PRIMITIVES = delete-all-primitives
 string DELETE_LAST_PRIMITIVE = delete-last-primitive
+string HIDE_PRIMITIVE_MARKER = hide-primitive-marker
+string SHOW_PRIMITIVE_MARKER = show-primitive-marker
 
 # Programming
 string OPEN_HAND = open-hand

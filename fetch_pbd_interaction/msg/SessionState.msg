@@ -5,5 +5,6 @@ uint8 current_primitive
 string[] action_names
 string[] ref_frames
 string[] primitive_names
+bool[] marker_visibility
 std_msgs/ColorRGBA[] primitive_colors
 fetch_pbd_interaction/Landmark[] objects
