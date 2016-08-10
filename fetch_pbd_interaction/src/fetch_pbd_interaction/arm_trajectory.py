@@ -924,18 +924,18 @@ class ArmTrajectory(Primitive):
         )
 
         # Add an arrow to the relative object, if there is one.
-        if not self._ref_type == ArmState.ROBOT_BASE:
-            menu_control.markers.append(
-                Marker(
-                    type=Marker.ARROW,
-                    id=(ID_OFFSET_REF_ARROW + self._number),
-                    lifetime=TRAJ_MARKER_LIFETIME,
-                    scale=SCALE_OBJ_REF_ARROW,
-                    header=Header(frame_id=frame_id),
-                    color=COLOR_OBJ_REF_ARROW,
-                    points=[pose.pose.position, Point(0, 0, 0)]
-                )
-            )
+        # if not self._ref_type == ArmState.ROBOT_BASE:
+        #     menu_control.markers.append(
+        #         Marker(
+        #             type=Marker.ARROW,
+        #             id=(ID_OFFSET_REF_ARROW + self._number),
+        #             lifetime=TRAJ_MARKER_LIFETIME,
+        #             scale=SCALE_OBJ_REF_ARROW,
+        #             header=Header(frame_id=frame_id),
+        #             color=COLOR_OBJ_REF_ARROW,
+        #             points=[pose.pose.position, Point(0, 0, 0)]
+        #         )
+        #     )
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
