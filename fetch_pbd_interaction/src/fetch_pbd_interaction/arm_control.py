@@ -26,7 +26,8 @@ from fetch_pbd_interaction.srv import MoveArm, MoveArmResponse, \
                                       SetGripperState, \
                                       SetGripperStateResponse, \
                                       GetJointStates, GetJointStatesResponse, \
-                                      GetArmMovement, GetArmMovementResponse
+                                      GetArmMovement, GetArmMovementResponse, \
+                                      MoveArmTraj, MoveArmTrajResponse
 
 # ######################################################################
 # Module level constants
@@ -64,7 +65,9 @@ class ArmControl:
         self._arm.close_gripper()
         self._status = ExecutionStatus.NOT_EXECUTING
 
-        rospy.Service('move_arm_to_joints', MoveArm, self._move_to_joints)
+        rospy.Service('move_arm_to_joints_plan', MoveArm, self._move_to_joints_plan)
+        rospy.Service('move_arm_to_joints', MoveArmTraj, self._move_to_joints)
+
         rospy.Service('move_arm_to_pose', MoveArm, self._move_to_pose)
         rospy.Service('start_move_arm_to_pose', MoveArm,
                       self._start_move_to_pose)
@@ -318,13 +321,10 @@ class ArmControl:
         self._arm.relax_arm()
         return MoveArmResponse(success)
 
-    def _move_to_joints(self, req):
+    def _move_to_joints_plan(self, req):
         '''
         Makes the arms move to the joint positions contained in the
         passed arm states.
-
-        Note: This is not currently used, but kept around in case it
-        is needed for implementing continuous trajectories
 
         This assumes that the joint positions are valid (i.e. IK has
         been called previously to set each ArmState's joints to good
@@ -340,21 +340,11 @@ class ArmControl:
         # Estimate times to get to both poses.
         arm_state = req.arm_state
 
-        time_to_pose = None
-
-        if arm_state is not None:
-            time_to_pose = self._arm.get_time_to_pose(arm_state.ee_pose)
-
-        # If both arms are moving, adjust velocities and find most
-        # moving arm. Look at it.
-        is_moving = time_to_pose is not None
-
         # Move arms to target.
-        suc = False
-        if is_moving:
-            self._status = ExecutionStatus.EXECUTING
-            suc = self._arm.move_to_joints(
-                arm_state.joint_pose, time_to_pose)
+
+        self._status = ExecutionStatus.EXECUTING
+        suc = self._arm.move_to_joints_plan(arm_state.joint_pose, arm_state.velocities)
+
 
         # Wait until both arms complete the trajectory.
         while self._arm.is_executing():
@@ -365,7 +355,7 @@ class ArmControl:
         # Verify that both arms succeeded
         # DEBUG: remove
 
-        if is_moving and not suc:
+        if not suc:
             self._status = ExecutionStatus.NO_IK
             success = False
         else:
@@ -374,6 +364,64 @@ class ArmControl:
 
         self._arm.relax_arm()
         return MoveArmResponse(success)
+
+    def _move_to_joints(self, req):
+        '''
+        Makes the arms move to the joint positions contained in the
+        passed arm states.
+
+        Note: This moves directly to the joint positions using interpolation
+
+        This assumes that the joint positions are valid (i.e. IK has
+        been called previously to set each ArmState's joints to good
+        values).
+
+        Args:
+            req (MoveArmRequest)
+
+        Returns:
+            MoveArmResponse: Whether the arms successfully moved to the passed
+                joint positions.
+        '''
+        # Estimate times to get to both poses.
+        joints = []
+        # times_to_poses = []
+        # arm_state = req.arm_state[i]
+
+        # time_to_pose = None
+
+        # if arm_state is not None:
+        #     time_to_pose = self._arm.get_time_to_pose(arm_state.ee_pose)
+        for arm_state in req.arm_states:
+            joints.append(arm_state.joint_pose)
+
+        # If both arms are moving, adjust velocities and find most
+        # moving arm. Look at it.
+
+        # Move arms to target.
+        suc = False
+        self._status = ExecutionStatus.EXECUTING
+        suc = self._arm.move_to_joints(
+            joints, req.times)
+
+        # Wait until both arms complete the trajectory.
+        while self._arm.is_executing():
+            rospy.sleep(MOVE_TO_JOINTS_SLEEP_INTERVAL)
+
+        rospy.loginfo('\tArms reached target.')
+
+        # Verify that both arms succeeded
+        # DEBUG: remove
+
+        if not suc:
+            self._status = ExecutionStatus.NO_IK
+            success = False
+        else:
+            self._status = ExecutionStatus.SUCCEEDED
+            success = True
+
+        self._arm.relax_arm()
+        return MoveArmTrajResponse(success)
 
 
     def _is_arm_moving(self, req):

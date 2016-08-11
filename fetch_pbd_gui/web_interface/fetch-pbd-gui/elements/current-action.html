@@ -18,12 +18,12 @@
 <link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="../bower_components/paper-input/paper-input.html">
 <link rel="import" href="imports.html">
-<link rel="import" href="sortable-list.html">
 
 <dom-module id="current-action">
   <template>
     <style include="iron-flex iron-flex-alignment">
     <style is="custom-style">
+
       .flex-vertical {
         @apply(--layout-vertical);
         height: 400px;
@@ -31,7 +31,7 @@
       .flexchild-vertical {
         @apply(--layout-flex);
       }
-      #primitive_list_container {
+      #primitiveListContainer {
         width: 400px;
         float: right;
         display:block;
@@ -51,10 +51,8 @@
       .flexchild-horizontal {
         @apply(--layout-flex);
       }
-      #wrapper {
-        margin-left: 200px;
-      }
       #viewer {
+        overflow:hidden;
         padding-left: 32px;
       }
       #actionName {
@@ -95,13 +93,10 @@
       paper-icon-button.delete:hover {
         background-color: #FFCDD2;
       }
-      .listBack {
-        background-color: #fff;
-      }
-      sortable-list {
+      drag-sort-list {
         margin: 15px;
       }
-      sortable-list > div {
+      drag-sort-list > div {
         background: white;
         border: 1px solid #ddd;
         border-radius: 3px;
@@ -116,19 +111,47 @@
       .delete {
         color: #D32F2F;
       }
+
+      .backdrop {
+        background-color: #fff;
+      }
+      .primitiveList {
+        border-spacing: 0;
+          width: 100%;
+      }
+      .primitiveList th, td {
+        border-bottom: 1px solid var(--divider-color);
+        padding: 5px 10px;
+      }
+      .primitiveList th {
+        text-align: left;
+        padding: 15px;
+      }
+      .primitiveList tr:last-child td {
+        border-bottom: none;
+      }
+
     </style>
 
     <div id="container" class="container flex-vertical">
       <paper-input id="actionName" label="Action name" class="programName flex" value="{{action_name}}" on-change="onNameChange"></paper-input>
       <div id="container" class="flex-horizontal">
         <div id="viewer" class="flex"></div>
-        <div id="primitive_list_container" >
+        <div id="primitiveListContainer" >
           <div class="title">Primitive List</div>
           <div style="overflow:auto; height:550px;">
-            <sortable-list id="primitive_list">
+            <table id="primitiveList" class="primitiveList">
+            <thead>
+              <tr>
+                <th>Primitives</th>
+                <th>Options</th>
+              </tr>
+            </thead>
+            <tbody>
               <template is="dom-repeat" items="{{primitives}}">
-                  <div class="left-content">
-                    <div class="left-content-item-name">{{item.name}}</div>
+              <tr draggable="true" on-dragstart="dragstart" on-dragend="dragend" on-dragenter="dragenter">
+                  <td>{{item.name}}</td>
+                  <td>
                     <paper-icon-button
                       noink
                       data-primitive$="{{item.number}}"
@@ -155,9 +178,12 @@
                       data-primitive$="{{item.number}}"
                       on-tap="toggleMarker"
                       src="{{item.marker}}"> </paper-icon-button>
-                  </div>
+                  </td>
+                </tr>
               </template>
-            </sortable-list>
+              </tbody>
+
+              </table>
           </div>
         </div>
       </div>
@@ -168,8 +194,8 @@
         </paper-button>
         <paper-button raised id="save_pose_button" on-tap="savePose">Save Pose</paper-button>
         <paper-button raised id="record_objects_button" on-tap="recordObjects">Record Objects</paper-button>
-        <!-- <paper-button raised id="start_recording_button" on-tap="startRecording">Start Recording Trajectory</paper-button> -->
-        <!-- <paper-button raised id="stop_recording_button" on-tap="stopRecording">Start Recording Trajectory</paper-button> -->
+        <paper-button raised id="start_recording_button" on-tap="startRecording">Start Recording Trajectory</paper-button>
+        <paper-button raised id="stop_recording_button" on-tap="stopRecording">Stop Recording Trajectory</paper-button>
         <paper-button raised id="open_hand_button" on-tap="openHand">Open Hand</paper-button>
         <paper-button raised id="close_hand_button" on-tap="closeHand">Close Hand</paper-button>
         <paper-button raised id="delete_all_button" on-tap="deleteAll">Delete All Primitives</paper-button>
@@ -179,6 +205,7 @@
   </template>
 
   <script>
+
     Polymer({
       is: 'current-action',
 
@@ -238,6 +265,10 @@
           type: String,
           value: "../icons/hide_marker.png",
         },
+        dragSource : Object,
+        dragSourceId : Number,
+        dragTarget : Object,
+        dragTargetId : Number
       },
 
       behaviors: [Polymer.IronResizableBehavior],
@@ -317,10 +348,6 @@
           rootObject : this._viewer.selectableObjects
         });
 
-        // window.setTimeout(function() {
-        //   that.resize()
-        // }, 100);
-
         this.addEventListener('iron-resize', function() {
           that.resize();
         });
@@ -329,15 +356,6 @@
           ros : this.ros,
           name : '/gui_input',
           messageType : 'fetch_pbd_interaction/GuiInput'
-        });
-
-        this.$.primitive_list.addEventListener('sort-update', function(ev) {
-          var message = new ROSLIB.Message({
-            command : "switch-primitive-order",
-            list_params : [ev.detail.oldIndex, ev.detail.newIndex]
-          });
-          that.inputPub.publish(message);
-
         });
 
         this.expSrv = new ROSLIB.Service({
@@ -361,6 +379,54 @@
         this.expListener.subscribe(function(message) {
           that.expCallback(that, message);
         });
+      },
+
+      isAbove : function(source, target) {
+        if (source.parentNode == target.parentNode) {
+          for (var i = source; i; i = i.previousSibling) {
+            if (i === target) {
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+
+      dragstart : function(evt) {
+        console.log("Start");
+        this.dragSource = evt.target;
+        evt.dataTransfer.effectAllowed = 'move';
+        this.dragSourceId = evt.model.item.number;
+
+      },
+
+      dragenter : function (evt) {
+        this.dragTarget = evt.target;
+        this.dragTargetId = evt.model.item.number;
+      },
+
+      dragend : function(evt) {
+        var target = this.dragTarget;
+        var oldIndex = this.dragSourceId;
+        var newIndex = this.dragTargetId;
+
+        if (target.nodeName == "TD") {
+         target = target.parentNode;
+        }
+
+        if (this.isAbove(this.dragSource, target)) {
+          target.parentNode.insertBefore(this.dragSource, target);
+        } else {
+          target.parentNode.insertBefore(this.dragSource, target.nextSibling);
+        }
+
+        console.log("Old: " + oldIndex);
+        console.log("New: " + newIndex);
+        var message = new ROSLIB.Message({
+          command : "switch-primitive-order",
+          list_params : [parseInt(oldIndex), parseInt(newIndex)]
+        });
+        this.inputPub.publish(message);
       },
 
       expCallback : function(that, message) {
@@ -388,6 +454,7 @@
       resize: function() {
         if (this._viewer) {
           var width = this.$.viewer.offsetWidth;
+          console.log('viewerWidth', this.$.viewer.offsetWidth);
           var height = 600;
           this._viewer.resize(width, height);
         }
@@ -415,6 +482,22 @@
         console.log("Save target");
         var message = new ROSLIB.Message({
           command : "save-target"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      startRecording : function() {
+        var message = new ROSLIB.Message({
+          command : "start-recording-trajectory"
+        });
+
+        this.inputPub.publish(message);
+      },
+
+      stopRecording : function() {
+        var message = new ROSLIB.Message({
+          command : "stop-recording-trajectory"
         });
 
         this.inputPub.publish(message);

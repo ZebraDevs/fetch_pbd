@@ -185,7 +185,9 @@ class Session:
 
         if self.n_actions() > 0:
             current_action = self._actions[self._current_action_id]
-            current_action.add_primitive(self._current_arm_trajectory)
+            current_action.add_primitive(self._current_arm_trajectory, False)
+            self.publish_primitive_tf()
+            current_action.make_primitive_marker(-1)
         else:
             rospy.logwarn("Can't add primitive: No actions created yet.")
         self._update_session_state()
@@ -480,6 +482,16 @@ class Session:
         self._update_session_state()
         # self._lock.release()
 
+    def execute_primitive(self, primitive_number):
+        '''Execute primitive with number
+
+        Args:
+            primitive_number (int)
+        '''
+        action = self._actions[self._current_action_id]
+        primitive = action.get_primitive(primitive_number)
+        primitive.execute()
+
     def publish_primitive_tf(self):
         '''Publish tf frame for each primitive of current action'''
         if not self._current_action_id is None:
@@ -512,7 +524,7 @@ class Session:
             action (Action)
         '''
         json = action.get_json()
-        rospy.loginfo("json: {}".format(json))
+        # rospy.loginfo("json: {}".format(json))
         action_id_str = str(action.get_action_id())
         if action_id_str in self._db:
             self._db.delete(self._db[action_id_str])
@@ -663,7 +675,10 @@ class Session:
             primitive (Primitive)
             parent (str): The parent reference frame.
         '''
-        pose = primitive.get_absolute_pose()
+        # try:
+        marker_pose = primitive.get_absolute_pose(log=log)
+        # rospy.loginfo("Pose")
+        pose = self._tf_listener.transformPose('base_link', marker_pose)
         position = pose.pose.position
         orientation = pose.pose.orientation
         pos = (position.x, position.y, position.z)
@@ -673,3 +688,5 @@ class Session:
         # and orientation into tuples to send to TF?
         self._tf_broadcaster.sendTransform(
             pos, rot, rospy.Time.now(), name, parent)
+        # except Exception, e:
+        #     rospy.loginfo(str(e))

@@ -343,13 +343,46 @@ class ArmTrajectory(Primitive):
         Returns
             bool : Success of execution
         '''
-        for i in range(len(self._arm_states)):
-            arm_state = self._arm_states[i]
-            gripper_state = self._gripper_states[i]
-            if not self._robot.move_arm_to_joints(arm_state):
-                return False
-            self._robot.set_gripper_state(gripper_state)
-        return True
+        # for i in range(len(self._arm_states)):
+        #     arm_state = self._arm_states[i]
+
+        #     if not i == (len(self._arm_states) - 1):
+        #         velocities = [0.2] * len(arm_state.joint_pose)
+        #         velocities[-1] = 0.2
+        #         velocities[-2] = 0.2
+
+        #     else:
+        #         velocities = [0] * len(arm_state.joint_pose)
+        #     arm_state.velocities = velocities
+        #     gripper_state = self._gripper_states[i]
+        #     if i == 0:
+        #         result  = self._robot.move_arm_to_joints_plan(arm_state)
+        #     else:
+        #         result  = self._robot.move_arm_to_joints(self._arm_states, self._timing)
+        #     if not result1:
+        #         return False
+        # self._robot.set_gripper_state(gripper_state)
+        # return result1 and result2
+        first_arm_state = self._arm_states[0]
+
+        velocities = [0.2] * len(first_arm_state.joint_pose)
+
+        first_arm_state.velocities = velocities
+
+        result1  = self._robot.move_arm_to_joints_plan(first_arm_state)
+        result2  = self._robot.move_arm_to_joints(self._arm_states, self._timing)
+        last_arm_state = self._arm_states[-1]
+
+        velocities = [0.0] * len(last_arm_state.joint_pose)
+
+        last_arm_state.velocities = velocities
+        result3  = self._robot.move_arm_to_joints_plan(last_arm_state)
+
+
+        gripper_state = self._gripper_states[-1]
+
+        self._robot.set_gripper_state(gripper_state)
+        return result1 and result2 and result3
 
     def is_reachable(self):
         '''Check if robot can physically reach all steps in trajectory'''
@@ -372,9 +405,9 @@ class ArmTrajectory(Primitive):
         arm_state = self._arm_states[index]
 
         try:
-            abs_pose = self._tf_listener.transformPose('base_link',
-                                                   arm_state)
-            return ArmTrajectory._offset_pose(abs_pose)
+            abs_pose = self._tf_listener.transformPose(BASE_LINK,
+                                                   arm_state.ee_pose)
+            return abs_pose
         except:
             frame_id = arm_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
@@ -391,7 +424,7 @@ class ArmTrajectory(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self.get_absolute_pose(use_final)
+        abs_pose = self._get_absolute_pose(use_final)
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -869,7 +902,7 @@ class ArmTrajectory(Primitive):
         intermediate_pose = self._tf_listener.transformPose(
                                                 BASE_LINK,
                                                 self._arm_states[i].ee_pose)
-        offset_pose = ArmTarget._offset_pose(intermediate_pose)
+        offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
         return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                 offset_pose)
 
@@ -896,7 +929,7 @@ class ArmTrajectory(Primitive):
                 id=self._number,
                 lifetime=TRAJ_MARKER_LIFETIME,
                 scale=SCALE_TRAJ_STEP_SPHERES,
-                header=Header(frame_id=frame_id),
+                header=Header(frame_id=''),
                 color=COLOR_TRAJ_STEP_SPHERES,
                 points=point_list
             )
@@ -907,7 +940,7 @@ class ArmTrajectory(Primitive):
             ArmTrajectory._make_sphere_marker(
                 self._number + ID_OFFSET_TRAJ_FIRST,
                 self._get_traj_pose(0).pose,
-                frame_id,
+                '',
                 TRAJ_ENDPOINT_SCALE
             )
         )
@@ -918,7 +951,7 @@ class ArmTrajectory(Primitive):
             ArmTrajectory._make_sphere_marker(
                 self._number + ID_OFFSET_TRAJ_LAST,
                 self._get_traj_pose(last_index).pose,
-                frame_id,
+                '',
                 TRAJ_ENDPOINT_SCALE
             )
         )
@@ -1038,8 +1071,11 @@ class ArmTrajectory(Primitive):
         Returns:
             Pose
         '''
-
-        return self._arm_states[index].ee_pose
+        offset_pose = self._offset_pose(self._arm_states[index].ee_pose)
+        new_pose = self._tf_listener.transformPose(
+                                            "primitive_" + str(self._number),
+                                            offset_pose)
+        return new_pose
 
     def _marker_feedback_cb(self, feedback):
         '''Callback for when an event occurs on the marker.
@@ -1109,3 +1145,25 @@ class ArmTrajectory(Primitive):
         ref_type = ref_dict[dominant_ref_obj.name]
         # Find the frame number (int) and return with the object.
         return ref_type, dominant_ref_obj
+
+    def _get_absolute_pose(self, use_final=True):
+        '''Returns the absolute pose of the primitive.
+
+        Args:
+            use_final (bool, optional). For trajectories only. Whether to
+                get the final pose in the trajectory. Defaults to True.
+
+        Returns:
+            PoseStamped
+        '''
+        index = len(self._arm_states) - 1 if use_final else 0
+        arm_state = self._arm_states[index]
+
+        try:
+            abs_pose = self._tf_listener.transformPose(BASE_LINK,
+                                                   arm_state.ee_pose)
+            return ArmTrajectory._offset_pose(abs_pose)
+        except:
+            frame_id = arm_state.ee_pose.header.frame_id
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            return None

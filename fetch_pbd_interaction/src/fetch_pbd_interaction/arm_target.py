@@ -279,7 +279,7 @@ class ArmTarget(Primitive):
         if ref_type == ArmState.ROBOT_BASE:
             ref_name = BASE_LINK
         elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = "primitive_" + str(self._number)
+            ref_name = "primitive_" + str(self._number - 1)
         elif ref_name == '':
             ref_name = BASE_LINK
             rospy.loginfo("Empty frame: {}".format(self._number))
@@ -364,7 +364,7 @@ class ArmTarget(Primitive):
         '''Check if robot can physically reach target'''
         return self._robot.can_reach(self._arm_state)
 
-    def get_absolute_pose(self, use_final=True):
+    def get_absolute_pose(self, use_final=True, log=False):
         '''Returns the absolute pose of the primitive.
 
         Args:
@@ -376,7 +376,9 @@ class ArmTarget(Primitive):
         try:
             abs_pose = self._tf_listener.transformPose('base_link',
                                                self._arm_state.ee_pose)
-            return ArmTarget._offset_pose(abs_pose)
+            if log and self._number == 1:
+                rospy.loginfo("pose: {}".format(self._arm_state.ee_pose))
+            return abs_pose
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
@@ -392,7 +394,7 @@ class ArmTarget(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self.get_absolute_pose()
+        abs_pose = self._get_absolute_pose()
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -866,7 +868,7 @@ class ArmTarget(Primitive):
             control.orientation_mode = InteractiveMarkerControl.FIXED
         return control
 
-    def _set_new_pose(self, new_pose):
+    def _set_new_pose(self, new_pose, frame_id):
         '''Changes the pose of the primitive to new_pose.
 
         Args:
@@ -874,7 +876,7 @@ class ArmTarget(Primitive):
         '''
         rospy.loginfo("Setting new ee_pose!!!")
         pose_stamped = PoseStamped()
-        pose_stamped.header.frame_id = BASE_LINK
+        pose_stamped.header.frame_id = frame_id
         pose_stamped.pose = new_pose
         pose_stamped_transformed = self._tf_listener.transformPose(
                                                     self.get_ref_frame_name(),
@@ -1023,11 +1025,28 @@ class ArmTarget(Primitive):
             self._marker_click_cb(
                 self._number, self._is_control_visible)
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._set_new_pose(feedback.pose)
-            self.update_viz()
+            self._set_new_pose(feedback.pose, feedback.header.frame_id)
             self._pose_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
+
+    def _get_absolute_pose(self, use_final=True):
+        '''Returns the absolute pose of the primitive.
+
+        Args:
+            is_start (bool, optional). Unused
+
+        Returns:
+            PoseStamped
+        '''
+        try:
+            abs_pose = self._tf_listener.transformPose('base_link',
+                                               self._arm_state.ee_pose)
+            return ArmTarget._offset_pose(abs_pose)
+        except:
+            frame_id = self._arm_state.ee_pose.header.frame_id
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            return None

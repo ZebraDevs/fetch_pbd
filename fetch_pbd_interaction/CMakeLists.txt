@@ -44,6 +44,7 @@ add_service_files(
   GetSessionState.srv
   Ping.srv
   MoveArm.srv
+  MoveArmTraj.srv
   SetGripperState.srv
   GetGripperState.srv
   GetEEPose.srv

@@ -111,6 +111,7 @@ class Interaction:
             # Execution
             GuiInput.STOP_EXECUTION: self._stop_execution,
             GuiInput.EXECUTE_ACTION: self._execute_action,
+            GuiInput.EXECUTE_PRIMITIVE: self._execute_primitive,
         }
 
         # Span off a thread to run the update loops.
@@ -646,3 +647,10 @@ class Interaction:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
 
+    def _execute_primitive(self, gui_input):
+        '''Execute primitive with certain index
+
+        Args:
+            gui_input (GuiInput) : contains index of primitive to execute
+        '''
+        self._session.execute_primitive(int(gui_input.param))

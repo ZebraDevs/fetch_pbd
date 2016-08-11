@@ -44,9 +44,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       iron-pages > section {
         height: 100%;
       }
-      #blockly {
-        position: relative;
-      }
       paper-button {
         @apply(--paper-font-button);
         border-radius: 2px;
@@ -59,7 +56,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       paper-button.delete:hover {
         background-color: #FFCDD2;
       }
-      .create {
+      .createNew {
         background-color: #43A047;
         color: var(--primary-text-color);
         margin-left: 0;
@@ -68,35 +65,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       .delete {
         color: #D32F2F;
       }
-      .listBack {
+      .backdrop {
         background-color: #fff;
       }
-      .programList {
+      .actionList {
         border-spacing: 0;
           width: 100%;
       }
-      .programList th, td {
+      .actionList th, td {
         border-bottom: 1px solid var(--divider-color);
         padding: 5px 10px;
       }
-      .programList th {
+      .actionList th {
         text-align: left;
         padding: 15px;
       }
-      .programList tr:last-child td {
+      .actionList tr:last-child td {
         border-bottom: none;
       }
 
-      h1 {
+/*      h1 {
         font-size: 22px;
         margin: 16px 0;
         color: #212121;
-      }
+      }*/
     </style>
 
-     <paper-button class="create" raised on-tap="onCreate"><iron-icon icon="add"></iron-icon> Create new action</paper-button>
-        <paper-material class="listBack">
-          <table class="programList">
+     <paper-button class="createNew" raised on-tap="onCreate"><iron-icon icon="add"></iron-icon> Create new action</paper-button>
+        <paper-material class="backdrop">
+          <table class="actionList">
             <thead>
               <tr>
                 <th>Actions</th>

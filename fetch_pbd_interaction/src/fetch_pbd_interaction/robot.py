@@ -21,7 +21,7 @@ from actionlib_msgs.msg import GoalStatus
 from fetch_pbd_interaction.srv import MoveArm, GetGripperState, \
                                       SetGripperState, GetArmMovement, \
                                       GetEEPose, GetJointStates, GetGazeGoal, \
-                                      GetNearestObject
+                                      GetNearestObject, MoveArmTraj
 from fetch_social_gaze.msg import GazeGoal, GazeAction
 from fetch_pbd_interaction.msg import ArmState, Landmark
 
@@ -56,9 +56,12 @@ class Robot:
         self._tf_listener = tf_listener
 
         # arm services
+        self.move_arm_to_joints_plan_srv = rospy.ServiceProxy(
+                                        'move_arm_to_joints_plan', MoveArm)
+        rospy.wait_for_service('move_arm_to_joints_plan')
 
         self.move_arm_to_joints_srv = rospy.ServiceProxy(
-                                        'move_arm_to_joints', MoveArm)
+                                        'move_arm_to_joints', MoveArmTraj)
         rospy.wait_for_service('move_arm_to_joints')
 
         self.move_arm_to_pose_srv = rospy.ServiceProxy(
@@ -147,15 +150,27 @@ class Robot:
         # TODO(sarah): Is this really necessary? Investigate.
         return self.start_move_arm_to_pose_srv(arm_state).success
 
-    def move_arm_to_joints(self, arm_state):
+    def move_arm_to_joints_plan(self, arm_state):
         '''Move robot's arm to joints positions from arm_state
+        using Moveit to plan
 
         Args:
             arm_state (ArmState) : contains joint position info
         Return:
             bool : success
         '''
-        return self.move_arm_to_joints_srv(arm_state).success
+        return self.move_arm_to_joints_plan_srv(arm_state).success
+
+    def move_arm_to_joints(self, arm_states, times):
+        '''Move robot's arm to joints positions from arm_state
+        without planning, just joint interpolation
+
+        Args:
+            arm_states ([ArmState]) : contains joint position info
+        Return:
+            bool : success
+        '''
+        return self.move_arm_to_joints_srv(arm_states, times).success
 
     def can_reach(self, arm_state):
         '''Returns whether arm can reach pose
@@ -208,6 +223,7 @@ class Robot:
                 ArmState.ROBOT_BASE,  # ref_frame (uint8)
                 abs_ee_pose,  # ee_pose (PoseStamped)
                 joint_pose,  # joint_pose ([float64])
+                [], # velocities
                 Landmark()  # ref_frame_landmark (Landmark)
             )
         else:
@@ -222,6 +238,7 @@ class Robot:
                 ArmState.OBJECT,  # ref_frame (uint8)
                 rel_ee_pose,  # ee_pose (PoseStamped)
                 joint_pose,  # joint_pose [float64]
+                [], # velocities
                 nearest_obj  # ref_frameLandmark (Landmark)
             )
 

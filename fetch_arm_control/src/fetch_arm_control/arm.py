@@ -17,6 +17,11 @@ import moveit_commander
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
 import actionlib
 import tf
+from control_msgs.msg import JointTrajectoryGoal, JointTrajectoryAction, \
+                             FollowJointTrajectoryGoal, \
+                             FollowJointTrajectoryAction, \
+                             FollowJointTrajectoryResult
+from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 
 from actionlib_msgs.msg import GoalStatus
 from actionlib import SimpleActionClient
@@ -91,6 +96,11 @@ class Arm:
         self._non_gravity_comp_controllers.append(
                     "arm_with_torso_controller/follow_joint_trajectory")
 
+        traj_controller_name = ("/arm_controller/follow_joint_trajectory")
+        self._traj_action_client = SimpleActionClient(
+                        traj_controller_name, FollowJointTrajectoryAction)
+        # self._traj_action_client.wait_for_server()
+
         # Initialise all the Moveit stuff
 
         # Wait for move_group to be ready
@@ -156,6 +166,27 @@ class Arm:
             state.name = controller
             state.state = state.STOPPED
             goal.updates.append(state)
+
+        self._controller_client.send_goal(goal)
+
+    def un_relax_arm(self):
+        '''Turns on gravity compensation controller and turns
+        off other controllers
+        '''
+
+        goal = QueryControllerStatesGoal()
+
+        for controller in self._non_gravity_comp_controllers:
+            state = ControllerState()
+            state.name = controller
+            state.state = state.RUNNING
+            goal.updates.append(state)
+
+        # for controller in self._gravity_comp_controllers:
+        #     state = ControllerState()
+        #     state.name = controller
+        #     state.state = state.STOPPED
+        #     goal.updates.append(state)
 
         self._controller_client.send_goal(goal)
 
@@ -303,25 +334,47 @@ class Arm:
         self._send_gripper_command(pos, eff, wait)
         self._gripper_state = GripperState.CLOSED
 
-    def move_to_joints(self, joints, time_to_joint):
-        '''Moves the arm to the desired joint angles.
-
-            Note: This function is currently unused, but kept around in case
-            needed later for implementing recording/playback of continuous
-            trajectories
+    def move_to_joints_plan(self, joints, velocities=None):
+        '''Moves the arm to the desired joint angles using moveit
 
         Args:
             joints ([float])
-            time_to_joint ([float]): Unused currently but probably would be
-                                     whenever this gets improved
         '''
 
-        joint_dict = {}
-        for i in range(len(joints)):
-            joint_dict[self._joint_names[i]] = joints[i]
+        # joint_dict = {}
+        # for i in range(len(joints)):
+        #     joint_dict[self._joint_names[i]] = joints[i]
+
+        # try:
+        #     self._move_group.set_joint_value_target(joint_dict)
+        # except Exception as e:
+        #     rospy.logerr("Moveit Error: {}".format(e))
+        #     return False
+
+        # self._move_group.set_planning_time(1.0)
+
+        # plan = self._move_group.plan()
+
+        # if not plan.joint_trajectory.points:
+        #     return False
+        # else:
+
+        #     self._is_executing = True
+        #     go = self._move_group.go(wait=True)
+        #     self._is_executing = False
+        #     rospy.loginfo("Go: {}".format(go))
+        #     return True
+        joint_state = JointState()
+        joint_state.position = joints
+        joint_state.name = self._joint_names
+        if velocities is None:
+            velocities = [0] * len(joints)
+        joint_state.velocity = velocities
+        # for i in range(len(joints)):
+        #     joint_dict[self._joint_names[i]] = joints[i]
 
         try:
-            self._move_group.set_joint_value_target(joint_dict)
+            self._move_group.set_joint_value_target(joint_state)
         except Exception as e:
             rospy.logerr("Moveit Error: {}".format(e))
             return False
@@ -339,6 +392,43 @@ class Arm:
             self._is_executing = False
             rospy.loginfo("Go: {}".format(go))
             return True
+
+    def move_to_joints(self, joints, times_to_joints, velocities=None):
+        '''Moves the arm to the desired joint angles directly without planning
+
+        Args:
+            joints ([float])
+            time_to_joint ([float])
+            velocities ([float])
+        '''
+        self.un_relax_arm()
+
+
+        trajectory = JointTrajectory()
+        trajectory.header.stamp = (rospy.Time.now() +
+                                             rospy.Duration(0.1))
+        trajectory.joint_names = self._joint_names
+        # if velocities is None:
+        #     velocities = [0] * len(joints)
+        for i in range(len(joints)):
+            trajectory.points.append(JointTrajectoryPoint(
+                            positions=joints[i],
+                            time_from_start=rospy.Duration(times_to_joints[i])))
+
+        self._is_executing = True
+
+        self._traj_action_client.send_goal(FollowJointTrajectoryGoal(trajectory=trajectory))
+        self._traj_action_client.wait_for_result()
+        self._is_executing = False
+        self.relax_arm()
+
+        result = self._traj_action_client.get_result()
+        if result.error_code == FollowJointTrajectoryResult.SUCCESSFUL:
+            rospy.loginfo("arm joints move successful")
+            return True
+        else:
+            rospy.loginfo("arm joints move not successful")
+            return False
 
     def get_time_to_pose(self, target_pose):
         '''Returns the time to get to the arm pose held in target_pose.
