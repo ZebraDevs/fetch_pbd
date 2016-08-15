@@ -103,7 +103,8 @@ class ArmTrajectory(Primitive):
             robot (Robot) : interface to lower level robot functionality
             tf_listener (TransformListener)
             im_server (InteractiveMarkerSerever)
-            number (int, optional): The number of this primitive in the action sequence
+            number (int, optional): The number of this primitive in the
+            action sequence
         '''
         self._name = '' # Unused currently
         self._robot = robot
@@ -128,6 +129,7 @@ class ArmTrajectory(Primitive):
         self._marker_click_cb = None
         self._marker_delete_cb = None
         self._pose_change_cb = None
+        self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -206,13 +208,15 @@ class ArmTrajectory(Primitive):
         '''
         return None
 
-    def make_marker(self, click_cb, delete_cb, pose_change_cb):
+    def make_marker(self, click_cb, delete_cb, pose_change_cb,
+                    action_change_cb):
         '''Adds marker to world'''
 
         rospy.loginfo("Making marker")
         self._marker_click_cb = click_cb
         self._marker_delete_cb = delete_cb
         self._pose_change_cb = pose_change_cb
+        self._action_change_cb = action_change_cb
         self.update_ref_frames()
 
     def delete_marker(self):
@@ -343,46 +347,27 @@ class ArmTrajectory(Primitive):
         Returns
             bool : Success of execution
         '''
-        # for i in range(len(self._arm_states)):
-        #     arm_state = self._arm_states[i]
-
-        #     if not i == (len(self._arm_states) - 1):
-        #         velocities = [0.2] * len(arm_state.joint_pose)
-        #         velocities[-1] = 0.2
-        #         velocities[-2] = 0.2
-
-        #     else:
-        #         velocities = [0] * len(arm_state.joint_pose)
-        #     arm_state.velocities = velocities
-        #     gripper_state = self._gripper_states[i]
-        #     if i == 0:
-        #         result  = self._robot.move_arm_to_joints_plan(arm_state)
-        #     else:
-        #         result  = self._robot.move_arm_to_joints(self._arm_states, self._timing)
-        #     if not result1:
-        #         return False
-        # self._robot.set_gripper_state(gripper_state)
-        # return result1 and result2
         first_arm_state = self._arm_states[0]
 
         velocities = [0.2] * len(first_arm_state.joint_pose)
 
         first_arm_state.velocities = velocities
 
-        result1  = self._robot.move_arm_to_joints_plan(first_arm_state)
-        result2  = self._robot.move_arm_to_joints(self._arm_states, self._timing)
+        first_state = self._robot.move_arm_to_joints_plan(first_arm_state)
+        all_states = self._robot.move_arm_to_joints(self._arm_states,
+                                                  self._timing)
         last_arm_state = self._arm_states[-1]
 
         velocities = [0.0] * len(last_arm_state.joint_pose)
 
         last_arm_state.velocities = velocities
-        result3  = self._robot.move_arm_to_joints_plan(last_arm_state)
+        last_state = self._robot.move_arm_to_joints_plan(last_arm_state)
 
 
         gripper_state = self._gripper_states[-1]
 
         self._robot.set_gripper_state(gripper_state)
-        return result1 and result2 and result3
+        return first_state and all_states and last_state
 
     def is_reachable(self):
         '''Check if robot can physically reach all steps in trajectory'''
@@ -1052,6 +1037,7 @@ class ArmTrajectory(Primitive):
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
         self.update_viz()
+        self._action_change_cb()
 
     def _delete_primitive_cb(self, feedback):
         '''Callback for when delete is requested.

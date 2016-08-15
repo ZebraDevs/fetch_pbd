@@ -14,16 +14,13 @@ from numpy.linalg import norm
 
 # ROS builtins
 import moveit_commander
-from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
 import actionlib
 import tf
-from control_msgs.msg import JointTrajectoryGoal, JointTrajectoryAction, \
-                             FollowJointTrajectoryGoal, \
+from control_msgs.msg import FollowJointTrajectoryGoal, \
                              FollowJointTrajectoryAction, \
                              FollowJointTrajectoryResult
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 
-from actionlib_msgs.msg import GoalStatus
 from actionlib import SimpleActionClient
 from control_msgs.msg import GripperCommandAction, GripperCommandGoal
 from sensor_msgs.msg import JointState
@@ -417,7 +414,8 @@ class Arm:
 
         self._is_executing = True
 
-        self._traj_action_client.send_goal(FollowJointTrajectoryGoal(trajectory=trajectory))
+        follow_goal = FollowJointTrajectoryGoal(trajectory=trajectory)
+        self._traj_action_client.send_goal(follow_goal)
         self._traj_action_client.wait_for_result()
         self._is_executing = False
         self.relax_arm()
@@ -619,6 +617,7 @@ class Arm:
         '''
         self._arm_movement = [movement] + self._arm_movement
         if len(self._arm_movement) > self._movement_buffer_size:
-            self._arm_movement = self._arm_movement[0:self._movement_buffer_size]
+            self._arm_movement = \
+                self._arm_movement[0:self._movement_buffer_size]
 
 

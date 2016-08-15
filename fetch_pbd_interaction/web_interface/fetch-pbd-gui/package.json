@@ -1,0 +1,12 @@
+{
+  "name": "fetch-pbd-gui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "eslint": "eslint"
+  },
+  "author": "",
+  "license": "ISC"
+}

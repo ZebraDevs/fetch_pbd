@@ -21,7 +21,6 @@ from fetch_pbd_interaction.msg import ExecutionStatus, GuiInput
 from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList
 from fetch_pbd_interaction.msg import RobotSound, WorldState
 from fetch_pbd_interaction.robot import Robot
-from std_msgs.msg import String
 from std_srvs.srv import Empty
 
 # ######################################################################
@@ -106,7 +105,8 @@ class Interaction:
             GuiInput.CLOSE_HAND: self._close_hand,
             GuiInput.RECORD_OBJECTS: self._record_objects,
             GuiInput.SAVE_TARGET: self._save_target,
-            GuiInput.START_RECORDING_TRAJECTORY: self._start_recording_trajectory,
+            GuiInput.START_RECORDING_TRAJECTORY: \
+                                self._start_recording_trajectory,
             GuiInput.STOP_RECORDING_TRAJECTORY: self._stop_recording_trajectory,
             # Execution
             GuiInput.STOP_EXECUTION: self._stop_execution,
@@ -162,7 +162,6 @@ class Interaction:
         if self._session.n_actions() > 0:
             self._session.publish_primitive_tf()
 
-
             # Record trajectory primitive.
             if self._is_recording_motion:
                 self._session.update_arm_trajectory()
@@ -172,7 +171,7 @@ class Interaction:
             current_action = self._session.get_current_action()
 
             action_status = current_action.get_status()
-
+            current_action.update_viz()
             # if action_status != ExecutionStatus.NOT_EXECUTING:
             #     # self._arm_reset_publisher.publish(String(''))
             #     if action_status != ExecutionStatus.EXECUTING:
@@ -252,7 +251,8 @@ class Interaction:
             if not self._session.n_actions() > 0:
                 response(gui_input)
             elif ((self._session.get_current_action().get_status() !=
-                    ExecutionStatus.EXECUTING) or cmd == Command.STOP_EXECUTION):
+                    ExecutionStatus.EXECUTING) or
+                    cmd == GuiInput.STOP_EXECUTION):
                 response(gui_input)
             else:
                 rospy.logwarn(
@@ -278,7 +278,8 @@ class Interaction:
         The index is 0-based, so the first action is action 0.
 
         Args:
-            gui_input (GuiInput) : contains the index into the session's action list to switch to.
+            gui_input (GuiInput) : contains the index into the session's action
+                                   list to switch to.
         '''
         # Command: switch to a specified action.
         success = self._session.switch_to_action(int(gui_input.param))
@@ -555,9 +556,6 @@ class Interaction:
 
     def _execute_action(self, gui_input):
         '''Starts the execution of the current action.
-        TODO(sarah): Currently requires > 1 primitive in order to execute.
-                     Should be an easy fix, but not sure if there are
-                     repercussions elsewhere.
 
         Args:
             gui_input (GuiInput) : unused
@@ -565,7 +563,7 @@ class Interaction:
         # We must have a current action.
         if self._session.n_actions() > 0:
             # We must have also recorded primitives (/poses/frames) in it.
-            if self._session.n_primitives() > 1:
+            if self._session.n_primitives() > 0:
                 # Save curent action and retrieve it.
                 # self._session.save_current_action()
 
@@ -584,9 +582,10 @@ class Interaction:
                         self._session.get_current_action().update_objects()
                         self._session.get_current_action().start_execution(
                             EXECUTION_Z_OFFSET)
-                        # status = self._session.get_current_action().get_status()
+                        # Wait a certain max time for execution to finish
                         for i in range(1000):
-                            status = self._session.get_current_action().get_status()
+                            action = self._session.get_current_action()
+                            status = action.get_status()
                             if status != ExecutionStatus.EXECUTING:
                                 break
                             rospy.sleep(0.1)
@@ -607,7 +606,8 @@ class Interaction:
                             EXECUTION_Z_OFFSET)
 
                     for i in range(1000):
-                        status = self._session.get_current_action().get_status()
+                        action = self._session.get_current_action()
+                        status = action.get_status()
                         if status != ExecutionStatus.EXECUTING:
                             break
                         rospy.sleep(0.1)

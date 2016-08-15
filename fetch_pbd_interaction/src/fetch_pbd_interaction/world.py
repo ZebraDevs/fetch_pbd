@@ -247,21 +247,6 @@ class World:
             pose=Pose(Point(), Quaternion(w=1.0))
         )
         button_control.markers.append(object_marker)
-        text_pos = Point()
-        position = pose.position
-        dimensions = dimensions
-        # text_pos.x = position.x + dimensions.x / 2 - 0.06
-        # text_pos.y = position.y - dimensions.y / 2 + 0.06
-        # text_pos.z = position.z + dimensions.z / 2 + 0.06
-        # text_marker = Marker(
-        #     type=Marker.TEXT_VIEW_FACING,
-        #     id=2001,
-        #     scale=SCALE_TEXT, text=int_marker.name,
-        #     color=COLOR_TEXT,
-        #     header=Header(frame_id=BASE_LINK),
-        #     pose=Pose(text_pos, Quaternion(0, 0, 0, 1))
-        # )
-        # button_control.markers.append(text_marker)
         int_marker.controls.append(button_control)
         return int_marker
 

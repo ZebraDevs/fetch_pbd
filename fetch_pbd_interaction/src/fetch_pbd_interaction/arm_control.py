@@ -12,7 +12,6 @@ import threading
 
 # ROS builtins
 from std_srvs.srv import Empty, EmptyResponse
-from std_msgs.msg import String
 from tf import TransformListener
 
 # Local
@@ -65,7 +64,8 @@ class ArmControl:
         self._arm.close_gripper()
         self._status = ExecutionStatus.NOT_EXECUTING
 
-        rospy.Service('move_arm_to_joints_plan', MoveArm, self._move_to_joints_plan)
+        rospy.Service('move_arm_to_joints_plan', MoveArm,
+                      self._move_to_joints_plan)
         rospy.Service('move_arm_to_joints', MoveArmTraj, self._move_to_joints)
 
         rospy.Service('move_arm_to_pose', MoveArm, self._move_to_pose)
@@ -343,7 +343,8 @@ class ArmControl:
         # Move arms to target.
 
         self._status = ExecutionStatus.EXECUTING
-        suc = self._arm.move_to_joints_plan(arm_state.joint_pose, arm_state.velocities)
+        suc = self._arm.move_to_joints_plan(arm_state.joint_pose,
+                                            arm_state.velocities)
 
 
         # Wait until both arms complete the trajectory.

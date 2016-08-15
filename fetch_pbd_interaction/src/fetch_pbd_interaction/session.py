@@ -13,7 +13,6 @@ import rospy
 import datetime
 import threading
 import couchdb
-import threading
 
 # ROS builtins
 from tf import TransformBroadcaster
@@ -65,6 +64,7 @@ class Session:
         self._current_action_id = None
         self._selected_primitive = 0
         self._current_arm_trajectory = None
+        self._marker_visibility = []
 
         # Publishers & Services
         self._state_publisher = rospy.Publisher('session_state',
@@ -113,7 +113,7 @@ class Session:
                         self._tf_listener,
                         self._im_server,
                         self._selected_primitive_cb,
-                        self._delete_primitive_cb,
+                        self._action_change_cb,
                         self._current_action_id)
         if not name is None:
             action.set_name(name)
@@ -319,7 +319,7 @@ class Session:
         for result in results:
             if int(result.value['id']) == action_id:
                 action = Action(self._robot, self._tf_listener, self._im_server,
-                           self._selected_primitive_cb, self._delete_primitive_cb)
+                           self._selected_primitive_cb, self._action_change_cb)
                 result.value['id'] = new_id
                 action.build_from_json(result.value)
                 name = action.get_name()
@@ -439,6 +439,7 @@ class Session:
         action = self._actions[self._current_action_id]
         action.switch_primitive_order(old_index, new_index)
         self._lock.release()
+        self._update_db_with_current_action()
 
     def delete_primitive(self, primitive_number):
         '''Delete specified primitive
@@ -446,15 +447,11 @@ class Session:
         Args:
             primitive_number (int) : Number of primitive to be deleted
         '''
-        self._actions[self._current_action_id].delete_primitive(primitive_number)
-
-    def execute_primitive(self, primitive_number):
-        '''Execute specified primitive
-
-        Args:
-            primitive_number (int) : Number of primitive to execute
-        '''
-        self._actions[self._current_action_id].execute_primitive(primitive_number)
+        self._lock.acquire()
+        action = self._actions[self._current_action_id]
+        action.delete_primitive(primitive_number)
+        self._lock.release()
+        self._update_db_with_current_action()
 
     def hide_primitive_marker(self, primitive_number):
         '''Hide marker with primitive_number
@@ -496,10 +493,19 @@ class Session:
         '''Publish tf frame for each primitive of current action'''
         if not self._current_action_id is None:
             self._lock.acquire()
-            primitives = self._actions[self._current_action_id].get_primitives()
+            action = self._actions[self._current_action_id]
+            primitives = action.get_primitives()
             self._lock.release()
             for primitive in primitives:
                 self._publish_primitive_tf(primitive)
+
+    # def update_viz(self):
+    #     '''Updates visualization, specifically links between markerks'''
+    #     if not self._current_action_id is None:
+    #         self._lock.acquire()
+    #         action = self._actions[self._current_action_id]
+    #         action.update_viz()
+    #         self._lock.release()
 
     # ##################################################################
     # Instance methods: Internal ("private")
@@ -552,9 +558,10 @@ class Session:
         self._selected_primitive = selected_primitive
         self._async_update_session_state()
 
-    def _delete_primitive_cb(self):
+    def _action_change_cb(self):
         '''Updates the db when primitive deleted.
         '''
+        self._update_db_with_current_action()
         self._async_update_session_state()
 
     def _get_session_state_cb(self, req):
@@ -656,7 +663,7 @@ class Session:
         # Load data from db into Action objects.
         for result in results:
             action = Action(self._robot, self._tf_listener, self._im_server,
-                       self._selected_primitive_cb, self._delete_primitive_cb)
+                       self._selected_primitive_cb, self._action_change_cb)
             action.build_from_json(result.value)
             self._actions[result.value['id']] = action
             self._action_ids.append(int(result.value['id']))
@@ -675,18 +682,19 @@ class Session:
             primitive (Primitive)
             parent (str): The parent reference frame.
         '''
-        # try:
-        marker_pose = primitive.get_absolute_pose(log=log)
-        # rospy.loginfo("Pose")
-        pose = self._tf_listener.transformPose('base_link', marker_pose)
-        position = pose.pose.position
-        orientation = pose.pose.orientation
-        pos = (position.x, position.y, position.z)
-        rot = (orientation.x, orientation.y, orientation.z, orientation.w)
-        name = "primitive_" + str(primitive.get_number())
-        # TODO(mbforbes): Is it necessary to change the position
-        # and orientation into tuples to send to TF?
-        self._tf_broadcaster.sendTransform(
-            pos, rot, rospy.Time.now(), name, parent)
-        # except Exception, e:
-        #     rospy.loginfo(str(e))
+        try:
+            marker_pose = primitive.get_absolute_pose()
+            # rospy.loginfo("Pose")
+            pose = self._tf_listener.transformPose('base_link', marker_pose)
+            position = pose.pose.position
+            orientation = pose.pose.orientation
+            pos = (position.x, position.y, position.z)
+            rot = (orientation.x, orientation.y, orientation.z, orientation.w)
+            name = "primitive_" + str(primitive.get_number())
+            # TODO(mbforbes): Is it necessary to change the position
+            # and orientation into tuples to send to TF?
+            self._tf_broadcaster.sendTransform(
+                pos, rot, rospy.Time.now(), name, parent)
+        except Exception, e:
+            # rospy.loginfo(str(e))
+            pass

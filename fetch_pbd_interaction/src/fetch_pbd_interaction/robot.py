@@ -53,6 +53,8 @@ class Robot:
         Args:
             tf_listener (TransformListener)
         '''
+        self._social_gaze = rospy.get_param("/social_gaze")
+        self._play_sound = rospy.get_param("/play_sound")
         self._tf_listener = tf_listener
 
         # arm services
@@ -266,12 +268,13 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
-        goal = GazeGoal()
-        goal.action = GazeGoal.SHAKE
-        goal.repeat = num
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
+        if self._social_gaze:
+            goal = GazeGoal()
+            goal.action = GazeGoal.SHAKE
+            goal.repeat = num
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
 
     def nod_head(self, num=5):
         '''Nods robot's head
@@ -279,12 +282,13 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
-        goal = GazeGoal()
-        goal.action = GazeGoal.NOD
-        goal.repeat = num
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
+        if self._social_gaze:
+            goal = GazeGoal()
+            goal.action = GazeGoal.NOD
+            goal.repeat = num
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
 
     def look_at_point(self, point):
         '''Points robot's head at point
@@ -292,12 +296,13 @@ class Robot:
         Args:
             point (Point)
         '''
-        goal = GazeGoal()
-        goal.action = GazeGoal.LOOK_AT_POINT
-        goal.point = point
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
+        if self._social_gaze:
+            goal = GazeGoal()
+            goal.action = GazeGoal.LOOK_AT_POINT
+            goal.point = point
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
 
     def look_at_ee(self, follow=True):
         '''Makes head look at (or follow) end effector position
@@ -307,35 +312,38 @@ class Robot:
                                       else, just glance at end effector
         '''
         # rospy.loginfo("Look at ee")
-        goal = GazeGoal()
-        if follow:
-            goal.action = GazeGoal.FOLLOW_EE
-        else:
-            goal.action = GazeGoal.GLANCE_EE
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
+        if self._social_gaze:
+            goal = GazeGoal()
+            if follow:
+                goal.action = GazeGoal.FOLLOW_EE
+            else:
+                goal.action = GazeGoal.GLANCE_EE
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
 
     def look_forward(self):
         '''Point head forward'''
-        goal = GazeGoal()
-        goal.action = GazeGoal.LOOK_FORWARD
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
+        if self._social_gaze:
+            goal = GazeGoal()
+            goal.action = GazeGoal.LOOK_FORWARD
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
 
     def look_down(self):
         '''Point head down at table'''
         # TODO(sarah): maybe actually scan for table instead of
         # looking at static point
-        goal = GazeGoal()
-        goal.action = GazeGoal.LOOK_DOWN
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
-        while (self.gaze_client.get_state() == GoalStatus.PENDING or
-               self.gaze_client.get_state() == GoalStatus.ACTIVE):
-            rospy.sleep(0.2)
+        if self._social_gaze:
+            goal = GazeGoal()
+            goal.action = GazeGoal.LOOK_DOWN
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
+            while (self.gaze_client.get_state() == GoalStatus.PENDING or
+                   self.gaze_client.get_state() == GoalStatus.ACTIVE):
+                rospy.sleep(0.2)
 
     # Sound stuff
 
@@ -345,5 +353,6 @@ class Robot:
         Args:
             requested_sound (RobotSound.ERROR|etc...) : see RobotSound.msg
         '''
-        self._sound_client.playWave(
+        if self._play_sound:
+            self._sound_client.playWave(
                 os.path.join(SOUNDS_DIR, requested_sound + SOUND_FILEFORMAT))

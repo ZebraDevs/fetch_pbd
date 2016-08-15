@@ -8,22 +8,22 @@ Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 -->
 
-<link rel="import" href="../bower_components/polymer/polymer.html">
-<link rel="import" href="../bower_components/paper-item/paper-item.html">
-<link rel="import" href="../bower_components/paper-input/paper-input.html">
-<link rel="import" href="../bower_components/paper-menu/paper-menu.html">
-<link rel="import" href="../bower_components/paper-listbox/paper-listbox.html">
+<link rel='import' href='../bower_components/polymer/polymer.html'>
+<link rel='import' href='../bower_components/paper-item/paper-item.html'>
+<link rel='import' href='../bower_components/paper-input/paper-input.html'>
+<link rel='import' href='../bower_components/paper-menu/paper-menu.html'>
+<link rel='import' href='../bower_components/paper-listbox/paper-listbox.html'>
 
 
-<link rel="import" href="imports.html">
+<link rel='import' href='imports.html'>
 
 
-<link href="../bower_components/iron-icons/iron-icons.html" rel="import">
-<link href="../bower_components/iron-icons/av-icons.html" rel="import">
-<link href="../bower_components/iron-icons/image-icons.html" rel="import">
+<link href='../bower_components/iron-icons/iron-icons.html' rel='import'>
+<link href='../bower_components/iron-icons/av-icons.html' rel='import'>
+<link href='../bower_components/iron-icons/image-icons.html' rel='import'>
 
 
-<dom-module id="my-actions">
+<dom-module id='my-actions'>
   <template>
 
 
@@ -91,9 +91,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       }*/
     </style>
 
-     <paper-button class="createNew" raised on-tap="onCreate"><iron-icon icon="add"></iron-icon> Create new action</paper-button>
-        <paper-material class="backdrop">
-          <table class="actionList">
+     <paper-button class='createNew' raised on-tap='onCreate'><iron-icon icon='add'></iron-icon> Create new action</paper-button>
+        <paper-material class='backdrop'>
+          <table class='actionList'>
             <thead>
               <tr>
                 <th>Actions</th>
@@ -101,20 +101,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
               </tr>
             </thead>
             <tbody>
-              <template is="dom-repeat" items="{{actions}}">
+              <template is='dom-repeat' items='{{actions}}'>
                 <tr>
                   <td>{{item.name}}</td>
                   <td>
-                    <paper-button on-tap="onRun" noink data-action$="{{item.action}}"><iron-icon icon="av:play-circle-filled"></iron-icon>Run</paper-button>
-                    <paper-button on-tap="onEdit" noink data-action$="{{item.action}}"><iron-icon icon="image:edit"></iron-icon>Edit</paper-button>
-                    <paper-button on-tap="onCopy" noink data-action$="{{item.action}}"><iron-icon icon="content-copy"></iron-icon>Copy</paper-button>
-                    <paper-button class="delete" noink data-action$="{{item.action}}" on-tap="onDelete"><iron-icon icon="delete"></iron-icon>Delete</paper-button>
+                    <paper-button on-tap='onRun' noink data-action$='{{item.action}}'><iron-icon icon='av:play-circle-filled'></iron-icon>Run</paper-button>
+                    <paper-button on-tap='onEdit' noink data-action$='{{item.action}}'><iron-icon icon='image:edit'></iron-icon>Edit</paper-button>
+                    <paper-button on-tap='onCopy' noink data-action$='{{item.action}}'><iron-icon icon='content-copy'></iron-icon>Copy</paper-button>
+                    <paper-button class='delete' noink data-action$='{{item.action}}' on-tap='onDelete'><iron-icon icon='delete'></iron-icon>Delete</paper-button>
                   </td>
                 </tr>
               </template>
-<!--          <template is="dom-if" if="{{noActions}}">
+<!--          <template is='dom-if' if='{{noActions}}'>
                 <tr>
-                  <td colspan="2">
+                  <td colspan='2'>
                     No actions yet.
                   </td>
                 </tr>
@@ -129,8 +129,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     Polymer({
       is: 'my-actions',
 
-        properties: {
-              actions: {
+      properties: {
+        actions: {
           type: Array,
           value: [],
         },
@@ -187,7 +187,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         inputPub: Object,
         spinputPub: Object,
         expSrv: Object,
-        // currentAction : "0",
+        // currentAction : '0',
         pagePub: Object
       },
 
@@ -232,46 +232,44 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         var request = new ROSLIB.ServiceRequest({});
 
         this.expSrv.callService(request, function(result) {
-            that.expCallback(that, result.state);
+          that.expCallback(that, result.state);
         });
 
       },
 
       execute : function() {
         var message = new ROSLIB.Message({
-          command : "execute-action"
+          command : 'execute-action'
         });
 
         this.inputPub.publish(message);
       },
 
       expCallback : function(that, message) {
-        that.actions = []
+        that.actions = [];
         for (i = 0; i < message.n_actions; i++) {
-          id = i + '';
-          action = { action : id, name : message.action_names[i] };
+          var id = i + '';
+          var action = { action : id, name : message.action_names[i] };
           that.push('actions', action);
-          console.log(id);
         }
       },
 
       onCreate : function() {
         var message = new ROSLIB.Message({
-          command : "create-action"
+          command : 'create-action'
         });
         this.inputPub.publish(message);
       },
 
       onEdit : function(evt) {
         var actionId = evt.model.item.action;
-        console.log(actionId);
         var message = new ROSLIB.Message({
-          command : "switch-to-action",
+          command : 'switch-to-action',
           param : actionId
         });
         this.inputPub.publish(message);
-        var message = new ROSLIB.Message({
-          data : "current-action",
+        message = new ROSLIB.Message({
+          data : 'current-action',
         });
         this.pagePub.publish(message);
       },
@@ -280,12 +278,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         var actionId = evt.model.item.action;
         console.log(actionId);
         var message = new ROSLIB.Message({
-          command : "copy-action",
+          command : 'copy-action',
           param : actionId
         });
         this.inputPub.publish(message);
-        var message = new ROSLIB.Message({
-          data : "current-action",
+        message = new ROSLIB.Message({
+          data : 'current-action',
         });
         this.pagePub.publish(message);
       },
@@ -294,7 +292,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         var actionId = evt.model.item.action;
         console.log(actionId);
         var message = new ROSLIB.Message({
-          command : "switch-to-action",
+          command : 'switch-to-action',
           param : actionId
         });
         this.inputPub.publish(message);
@@ -303,9 +301,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onDelete : function(evt) {
         var actionId = evt.model.item.action;
-        console.log("Delete " + actionId);
+        console.log('Delete ' + actionId);
         var message = new ROSLIB.Message({
-          command : "delete-action",
+          command : 'delete-action',
           param : actionId
         });
         this.inputPub.publish(message);

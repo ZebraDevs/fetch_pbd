@@ -11,7 +11,7 @@ import rospy
 
 # ROS builtins
 import tf
-from std_msgs.msg import ColorRGBA, Header
+from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Vector3, Point, Pose, Quaternion, PoseStamped
 from visualization_msgs.msg import Marker, InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
@@ -101,7 +101,8 @@ class ArmTarget(Primitive):
             im_server (InteractiveMarkerSerever)
             arm_state (ArmState, optional)
             gripper_state (GripperState.OPEN|GripperState.CLOSED, optional)
-            number (int, optional): The number of this primitive in the action sequence
+            number (int, optional): The number of this primitive in the
+            action sequence
         '''
         self._name = '' #Unused currently
         self._im_server = im_server
@@ -120,6 +121,7 @@ class ArmTarget(Primitive):
         self._marker_click_cb = None
         self._marker_delete_cb = None
         self._pose_change_cb = None
+        self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -205,13 +207,15 @@ class ArmTarget(Primitive):
 
         return None
 
-    def make_marker(self, click_cb, delete_cb, pose_change_cb):
+    def make_marker(self, click_cb, delete_cb, pose_change_cb,
+                    action_change_cb):
         '''Adds marker to world'''
 
         rospy.loginfo("Making marker")
         self._marker_click_cb = click_cb
         self._marker_delete_cb = delete_cb
         self._pose_change_cb = pose_change_cb
+        self._action_change_cb = action_change_cb
         self.update_ref_frames()
 
     def delete_marker(self):
@@ -325,13 +329,13 @@ class ArmTarget(Primitive):
         '''
         return self._number
 
-    def set_primitive_number(self, num):
+    def set_primitive_number(self, number):
         '''Sets what number this primitive is in the sequence
 
         Args:
             num (int)
         '''
-        self._number = num
+        self._number = number
 
     def is_object_required(self):
         '''Check if this primitive requires an object to be present
@@ -364,11 +368,11 @@ class ArmTarget(Primitive):
         '''Check if robot can physically reach target'''
         return self._robot.can_reach(self._arm_state)
 
-    def get_absolute_pose(self, use_final=True, log=False):
+    def get_absolute_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive.
 
         Args:
-            is_start (bool, optional). Unused
+            use_final (bool, optional). Unused
 
         Returns:
             PoseStamped
@@ -376,8 +380,6 @@ class ArmTarget(Primitive):
         try:
             abs_pose = self._tf_listener.transformPose('base_link',
                                                self._arm_state.ee_pose)
-            if log and self._number == 1:
-                rospy.loginfo("pose: {}".format(self._arm_state.ee_pose))
             return abs_pose
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
@@ -1008,6 +1010,7 @@ class ArmTarget(Primitive):
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
         self.update_viz()
+        self._action_change_cb()
 
     def _marker_feedback_cb(self, feedback):
         '''Callback for when an event occurs on the marker.
@@ -1037,7 +1040,7 @@ class ArmTarget(Primitive):
         '''Returns the absolute pose of the primitive.
 
         Args:
-            is_start (bool, optional). Unused
+            use_final (bool, optional). Unused
 
         Returns:
             PoseStamped

@@ -9,7 +9,10 @@
 	Note that this DOES NOT include the simulated robot. This (and
 	pbd_backend in general) work on both the real and simulated robot.
 	-->
-
+	<arg name="social_gaze" default="true" />
+	<param name="social_gaze" value="$(arg social_gaze)" />
+	<arg name="play_sound" default="true" />
+	<param name="play_sound" value="$(arg play_sound)" />
     <arg name="camera_frame_prefix" default="/head_camera" />
     <arg name="camera_name" default="head_camera" />
 
@@ -17,7 +20,7 @@
 	<arg name="sim" default="false" />
 
 	<!-- This makes the robot look around appropriately -->
-	<include file="$(find fetch_social_gaze)/launch/gaze.launch"/>
+	<include file="$(find fetch_social_gaze)/launch/gaze.launch" if="$(arg social_gaze)"/>
 
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
 

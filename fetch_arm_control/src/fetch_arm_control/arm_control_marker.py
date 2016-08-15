@@ -251,7 +251,8 @@ class ArmControlMarker:
             numpy.array
         '''
         return array((p.pose.position.x, p.pose.position.y,
-                     p.pose.position.z, p.pose.orientation.x, p.pose.orientation.y,
+                     p.pose.position.z,
+                     p.pose.orientation.x, p.pose.orientation.y,
                      p.pose.orientation.z, p.pose.orientation.w))
 
     @staticmethod
@@ -324,7 +325,8 @@ class ArmControlMarker:
             rospy.logdebug('Changing visibility of the pose controls.')
             self._is_control_visible = not self._is_control_visible
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self.set_new_pose(PoseStamped(Header(frame_id='base_link'), feedback.pose))
+            self.set_new_pose(PoseStamped(Header(frame_id='base_link'),
+                                                 feedback.pose))
             self.update()
         else:
             # This happens a ton, and doesn't need to be logged like

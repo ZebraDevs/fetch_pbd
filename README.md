@@ -2,7 +2,7 @@
 
 TODO: Travis build status and coveralls testing?
 
-This repository is a port of PR2 Programming by Demonstration to the Fetch robot.
+This repository is based on PR2 Programming by Demonstration. This version is for the Fetch Robot.
 
 The original [PR2 Programming by Demonstration](https://github.com/PR2/pr2_pbd) was done by [Maya Cakmak](http://www.mayacakmak.com/) and the [Human-Centered Robotics Lab](https://hcrlab.cs.washington.edu/) at the University of Washington.
 
@@ -15,10 +15,16 @@ Clone this repository and build on both your desktop machine and on the robot:
 cd ~/catkin_ws/src
 git clone https://github.com/fetchrobotics/sandbox.git
 cd ~/catkin_ws
-rosdep install --from-paths src --ignore-src --rosdistro=indigo -y
 catkin_make
 ```
 Note: The above may not work if other things in the sandbox are broken. Just clone the sandbox somewhere else and copy the fetch_pbd repo ONLY into your workspace.
+
+You also need NodeJs, npm and bower installed. To install Nodejs and npm, go [here](https://nodejs.org/en/). npm is installed with Nodejs. Then:
+```bash
+npm install -g bower
+cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
+bower install
+```
 
 ## Running
 ### Fetch
@@ -29,13 +35,26 @@ roslaunch fetch_pbd_interaction pbd_backend.launch
 ```
 
 ### Desktop
+Make sure to set your ROS_MASTER_URI to the robot.
+#### Terminal #1
 ```bash
-roslaunch fetch_pbd_interaction pbd_frontend.launch
+source ~/catkin_ws/devel/setup.bash
+roslaunch fetch_pbd_interaction pbd_web_frontend.launch
+```
+#### Terminal #2
+This will open the web interface.
+```bash
+cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
+polymer server --open
 ```
 
-Plug in a microphone to your computer.
-Speak into the microphone to issue speech commands to the robot.
-The voice commands are not currently documented.
+### Code Interface
+You can also access the actions you've programmed through code. You still need to run pbd_backend.launch (and you can run the frontend stuff too if you want; it won't hurt). Check out the examples folder.
+#### Commands on Fetch
+```bash
+source ~/catkin_ws/devel/setup.bash
+rosrun fetch_pbd_interaction test_session_interface.py
+```
 
 ## System Overview
 ### Interaction Node

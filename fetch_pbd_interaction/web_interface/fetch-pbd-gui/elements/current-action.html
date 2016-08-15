@@ -1,28 +1,28 @@
-<link rel="import" href="../bower_components/polymer/polymer.html">
-<link rel="import" href="../bower_components/iron-collapse/iron-collapse.html">
-<link rel="import" href="../bower_components/iron-flex-layout/iron-flex-layout-classes.html">
-<link href="../bower_components/iron-icons/iron-icons.html" rel="import">
-<link href="../bower_components/iron-icons/av-icons.html" rel="import">
-<link href="../bower_components/iron-icons/image-icons.html" rel="import">
-<link rel="import" href="../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
-<link rel="import" href="../bower_components/paper-button/paper-button.html">
-<link rel="import" href="../bower_components/paper-drawer-panel/paper-drawer-panel.html">
-<link rel="import" href="../bower_components/paper-fab/paper-fab.html">
-<link rel="import" href="../bower_components/paper-header-panel/paper-header-panel.html">
-<link rel="import" href="../bower_components/paper-item/paper-item.html">
-<link rel="import" href="../bower_components/paper-menu-button/paper-menu-button.html">
-<link rel="import" href="../bower_components/paper-menu/paper-menu.html">
-<link rel="import" href="../bower_components/paper-styles/color.html">
-<link rel="import" href="../bower_components/paper-styles/typography.html">
-<link rel="import" href="../bower_components/paper-toolbar/paper-toolbar.html">
-<link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
-<link rel="import" href="../bower_components/paper-input/paper-input.html">
-<link rel="import" href="imports.html">
+<link rel='import' href='../bower_components/polymer/polymer.html'>
+<link rel='import' href='../bower_components/iron-collapse/iron-collapse.html'>
+<link rel='import' href='../bower_components/iron-flex-layout/iron-flex-layout-classes.html'>
+<link href='../bower_components/iron-icons/iron-icons.html' rel='import'>
+<link href='../bower_components/iron-icons/av-icons.html' rel='import'>
+<link href='../bower_components/iron-icons/image-icons.html' rel='import'>
+<link rel='import' href='../bower_components/iron-resizable-behavior/iron-resizable-behavior.html'>
+<link rel='import' href='../bower_components/paper-button/paper-button.html'>
+<link rel='import' href='../bower_components/paper-drawer-panel/paper-drawer-panel.html'>
+<link rel='import' href='../bower_components/paper-fab/paper-fab.html'>
+<link rel='import' href='../bower_components/paper-header-panel/paper-header-panel.html'>
+<link rel='import' href='../bower_components/paper-item/paper-item.html'>
+<link rel='import' href='../bower_components/paper-menu-button/paper-menu-button.html'>
+<link rel='import' href='../bower_components/paper-menu/paper-menu.html'>
+<link rel='import' href='../bower_components/paper-styles/color.html'>
+<link rel='import' href='../bower_components/paper-styles/typography.html'>
+<link rel='import' href='../bower_components/paper-toolbar/paper-toolbar.html'>
+<link rel='import' href='../bower_components/paper-tooltip/paper-tooltip.html'>
+<link rel='import' href='../bower_components/paper-input/paper-input.html'>
+<link rel='import' href='imports.html'>
 
-<dom-module id="current-action">
+<dom-module id='current-action'>
   <template>
-    <style include="iron-flex iron-flex-alignment">
-    <style is="custom-style">
+    <style include='iron-flex iron-flex-alignment'>
+    <style is='custom-style'>
 
       .flex-vertical {
         @apply(--layout-vertical);
@@ -133,14 +133,14 @@
 
     </style>
 
-    <div id="container" class="container flex-vertical">
-      <paper-input id="actionName" label="Action name" class="programName flex" value="{{action_name}}" on-change="onNameChange"></paper-input>
-      <div id="container" class="flex-horizontal">
-        <div id="viewer" class="flex"></div>
-        <div id="primitiveListContainer" >
-          <div class="title">Primitive List</div>
-          <div style="overflow:auto; height:550px;">
-            <table id="primitiveList" class="primitiveList">
+    <div id='container' class='container flex-vertical'>
+      <paper-input id='actionName' label='Action name' class='programName flex' value='{{action_name}}' on-change='onNameChange'></paper-input>
+      <div id='container' class='flex-horizontal'>
+        <div id='viewer' class='flex'></div>
+        <div id='primitiveListContainer' >
+          <div class='title'>Primitive List</div>
+          <div style='overflow:auto; height:550px;'>
+            <table id='primitiveList' class='primitiveList'>
             <thead>
               <tr>
                 <th>Primitives</th>
@@ -148,36 +148,36 @@
               </tr>
             </thead>
             <tbody>
-              <template is="dom-repeat" items="{{primitives}}">
-              <tr draggable="true" on-dragstart="dragstart" on-dragend="dragend" on-dragenter="dragenter">
+              <template is='dom-repeat' items='{{primitives}}'>
+              <tr draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination'>
                   <td>{{item.name}}</td>
                   <td>
                     <paper-icon-button
                       noink
-                      data-primitive$="{{item.number}}"
-                      on-tap="onRun"
-                      icon="av:play-circle-filled"> </paper-icon-button>
+                      data-primitive$='{{item.number}}'
+                      on-tap='onRun'
+                      icon='av:play-circle-filled'> </paper-icon-button>
+                    <!-- <paper-icon-button
+                      noink
+                      data-primitive$='{{item.number}}'
+                      on-tap='onEdit'
+                      icon='image:edit'> </paper-icon-button> -->
                     <paper-icon-button
                       noink
-                      data-primitive$="{{item.number}}"
-                      on-tap="onEdit"
-                      icon="image:edit"> </paper-icon-button>
+                      data-primitive$='{{item.number}}'
+                      on-tap='onCopy'
+                      icon='content-copy'> </paper-icon-button>
+                    <paper-icon-button
+                      class='delete'
+                      noink
+                      data-primitive$='{{item.number}}'
+                      on-tap='onDelete'
+                      icon='delete'> </paper-icon-button>
                     <paper-icon-button
                       noink
-                      data-primitive$="{{item.number}}"
-                      on-tap="onCopy"
-                      icon="content-copy"> </paper-icon-button>
-                    <paper-icon-button
-                      class="delete"
-                      noink
-                      data-primitive$="{{item.number}}"
-                      on-tap="onDelete"
-                      icon="delete"> </paper-icon-button>
-                    <paper-icon-button
-                      noink
-                      data-primitive$="{{item.number}}"
-                      on-tap="toggleMarker"
-                      src="{{item.marker}}"> </paper-icon-button>
+                      data-primitive$='{{item.number}}'
+                      on-tap='toggleMarker'
+                      src='{{item.marker}}'> </paper-icon-button>
                   </td>
                 </tr>
               </template>
@@ -187,19 +187,19 @@
           </div>
         </div>
       </div>
-      <div id="buttons" class="flexchild-vertical">
-        <paper-button raised id="execute_button" on-tap="execute">
-          <iron-icon icon="av:play-circle-filled"></iron-icon>
+      <div id='buttons' class='flexchild-vertical'>
+        <paper-button raised id='execute_button' on-tap='execute'>
+          <iron-icon icon='av:play-circle-filled'></iron-icon>
           Run
         </paper-button>
-        <paper-button raised id="save_pose_button" on-tap="savePose">Save Pose</paper-button>
-        <paper-button raised id="record_objects_button" on-tap="recordObjects">Record Objects</paper-button>
-        <paper-button raised id="start_recording_button" on-tap="startRecording">Start Recording Trajectory</paper-button>
-        <paper-button raised id="stop_recording_button" on-tap="stopRecording">Stop Recording Trajectory</paper-button>
-        <paper-button raised id="open_hand_button" on-tap="openHand">Open Hand</paper-button>
-        <paper-button raised id="close_hand_button" on-tap="closeHand">Close Hand</paper-button>
-        <paper-button raised id="delete_all_button" on-tap="deleteAll">Delete All Primitives</paper-button>
-        <paper-button raised id="delete_last_button" on-tap="deleteLast">Delete Last Primitive</paper-button>
+        <paper-button raised id='save_pose_button' on-tap='savePose'>Save Pose</paper-button>
+        <paper-button raised id='record_objects_button' on-tap='recordObjects'>Record Objects</paper-button>
+        <paper-button raised id='start_recording_button' on-tap='startRecording'>Start Recording Trajectory</paper-button>
+        <paper-button raised id='stop_recording_button' on-tap='stopRecording'>Stop Recording Trajectory</paper-button>
+        <paper-button raised id='open_hand_button' on-tap='openHand'>Open Hand</paper-button>
+        <paper-button raised id='close_hand_button' on-tap='closeHand'>Close Hand</paper-button>
+        <paper-button raised id='delete_all_button' on-tap='deleteAll'>Delete All Primitives</paper-button>
+        <paper-button raised id='delete_last_button' on-tap='deleteLast'>Delete Last Primitive</paper-button>
       </div>
     </div>
   </template>
@@ -259,16 +259,16 @@
         expListener : Object,
         showMarkerIcon : {
           type: String,
-          value: "../icons/show_marker.png",
+          value: '../icons/show_marker.png',
         },
         hideMarkerIcon : {
           type: String,
-          value: "../icons/hide_marker.png",
+          value: '../icons/hide_marker.png',
         },
         dragSource : Object,
         dragSourceId : Number,
-        dragTarget : Object,
-        dragTargetId : Number
+        dropTarget : Object,
+        dropTargetId : Number
       },
 
       behaviors: [Polymer.IronResizableBehavior],
@@ -367,7 +367,7 @@
         var request = new ROSLIB.ServiceRequest({});
 
         this.expSrv.callService(request, function(result) {
-            that.expCallback(that, result.state);
+          that.expCallback(that, result.state);
         });
 
         this.expListener = new ROSLIB.Topic({
@@ -392,26 +392,25 @@
         return false;
       },
 
-      dragstart : function(evt) {
-        console.log("Start");
+      dragPrimitive : function(evt) {
         this.dragSource = evt.target;
         evt.dataTransfer.effectAllowed = 'move';
         this.dragSourceId = evt.model.item.number;
 
       },
 
-      dragenter : function (evt) {
-        this.dragTarget = evt.target;
-        this.dragTargetId = evt.model.item.number;
+      getDestination : function (evt) {
+        this.dropTarget = evt.target;
+        this.dropTargetId = evt.model.item.number;
       },
 
-      dragend : function(evt) {
-        var target = this.dragTarget;
+      dropPrimitive : function(evt) {
+        var target = this.dropTarget;
         var oldIndex = this.dragSourceId;
-        var newIndex = this.dragTargetId;
+        var newIndex = this.dropTargetId;
 
-        if (target.nodeName == "TD") {
-         target = target.parentNode;
+        if (target.nodeName == 'TD') {
+          target = target.parentNode;
         }
 
         if (this.isAbove(this.dragSource, target)) {
@@ -420,10 +419,8 @@
           target.parentNode.insertBefore(this.dragSource, target.nextSibling);
         }
 
-        console.log("Old: " + oldIndex);
-        console.log("New: " + newIndex);
         var message = new ROSLIB.Message({
-          command : "switch-primitive-order",
+          command : 'switch-primitive-order',
           list_params : [parseInt(oldIndex), parseInt(newIndex)]
         });
         this.inputPub.publish(message);
@@ -431,18 +428,17 @@
 
       expCallback : function(that, message) {
         that.action_name = message.action_names[message.current_action];
-        that.primitives = []
+        that.primitives = [];
         for (i = 0; i < message.n_primitives; i++) {
-          console.log("Visibility");
+          var markerStatus;
 
-          console.log(message.marker_visibility[i]);
           if (message.marker_visibility[i]) {
             markerStatus = that.showMarkerIcon;
           }
           else {
             markerStatus = that.hideMarkerIcon;
           }
-          primitive = {
+          var primitive = {
             name : message.primitive_names[i],
             number: i + '',
             marker: markerStatus
@@ -454,7 +450,6 @@
       resize: function() {
         if (this._viewer) {
           var width = this.$.viewer.offsetWidth;
-          console.log('viewerWidth', this.$.viewer.offsetWidth);
           var height = 600;
           this._viewer.resize(width, height);
         }
@@ -464,7 +459,7 @@
         var that = this;
 
         var message = new ROSLIB.Message({
-          command : "update-action-name",
+          command : 'update-action-name',
           param : that.action_name
         });
         that.inputPub.publish(message);
@@ -472,16 +467,15 @@
 
       execute : function() {
         var message = new ROSLIB.Message({
-          command : "execute-action"
+          command : 'execute-action'
         });
 
         this.inputPub.publish(message);
       },
 
       savePose : function() {
-        console.log("Save target");
         var message = new ROSLIB.Message({
-          command : "save-target"
+          command : 'save-target'
         });
 
         this.inputPub.publish(message);
@@ -489,7 +483,7 @@
 
       startRecording : function() {
         var message = new ROSLIB.Message({
-          command : "start-recording-trajectory"
+          command : 'start-recording-trajectory'
         });
 
         this.inputPub.publish(message);
@@ -497,7 +491,7 @@
 
       stopRecording : function() {
         var message = new ROSLIB.Message({
-          command : "stop-recording-trajectory"
+          command : 'stop-recording-trajectory'
         });
 
         this.inputPub.publish(message);
@@ -505,7 +499,7 @@
 
       openHand : function() {
         var message = new ROSLIB.Message({
-          command : "open-hand"
+          command : 'open-hand'
         });
 
         this.inputPub.publish(message);
@@ -513,7 +507,7 @@
 
       closeHand : function() {
         var message = new ROSLIB.Message({
-          command : "close-hand"
+          command : 'close-hand'
         });
 
         this.spinputPub.publish(message);
@@ -521,7 +515,7 @@
 
       deleteLast : function() {
         var message = new ROSLIB.Message({
-          command : "delete-last-primitive"
+          command : 'delete-last-primitive'
         });
 
         this.inputPub.publish(message);
@@ -529,7 +523,7 @@
 
       deleteAll : function() {
         var message = new ROSLIB.Message({
-          command : "delete-all-primitives"
+          command : 'delete-all-primitives'
         });
 
         this.inputPub.publish(message);
@@ -537,7 +531,7 @@
 
       recordObjects : function() {
         var message = new ROSLIB.Message({
-          command : "record-objects"
+          command : 'record-objects'
         });
 
         this.inputPub.publish(message);
@@ -545,14 +539,13 @@
 
       onEdit : function(evt) {
         var primitiveId = evt.model.item.primitive;//.action;
-        console.log(primitiveId);
       },
 
       onCopy : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
         console.log(primitiveId);
         var message = new ROSLIB.Message({
-          command : "copy-primitive",
+          command : 'copy-primitive',
           param : primitiveId
         });
         this.inputPub.publish(message);
@@ -560,9 +553,8 @@
 
       onRun : function(evt) {
         var primitiveId = evt.model.item.number;
-        console.log(primitiveId);
         var message = new ROSLIB.Message({
-          command : "execute-primitive",
+          command : 'execute-primitive',
           param : primitiveId
         });
         this.inputPub.publish(message);
@@ -570,9 +562,8 @@
 
       onDelete : function(evt) {
         var primitiveId = evt.model.item.number;
-        console.log(evt.model.item.number);
         var message = new ROSLIB.Message({
-          command : "delete-primitive",
+          command : 'delete-primitive',
           param : primitiveId
         });
         this.inputPub.publish(message);
@@ -580,14 +571,13 @@
 
       toggleMarker : function(evt) {
         var primitiveId = evt.model.item.number;
-        console.log(evt.model.item.number);
+        var guiCommand;
         if (this.primitives[parseInt(primitiveId)].marker === this.showMarkerIcon){
-          guiCommand = "hide-primitive-marker";
+          guiCommand = 'hide-primitive-marker';
         }
         else {
-          guiCommand = "show-primitive-marker";
+          guiCommand = 'show-primitive-marker';
         }
-        console.log(guiCommand);
         var message = new ROSLIB.Message({
           command : guiCommand,
           param : primitiveId
