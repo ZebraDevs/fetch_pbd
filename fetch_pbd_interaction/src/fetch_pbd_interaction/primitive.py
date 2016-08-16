@@ -114,6 +114,10 @@ class Primitive:
     def set_pose(self, pose):
         pass
 
+    @abstractmethod
+    def pose_editable(self):
+        pass
+
 
 
 

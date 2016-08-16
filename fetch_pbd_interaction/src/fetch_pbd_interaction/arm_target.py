@@ -456,6 +456,14 @@ class ArmTarget(Primitive):
         self.update_viz()
         self._action_change_cb()
 
+    def pose_editable(self):
+        '''Return whether pose of primitive is editable
+
+        Returns:
+            bool : True
+        '''
+        return True
+
     # ##################################################################
     # Static methods: Internal ("private")
     # ##################################################################
@@ -819,9 +827,10 @@ class ArmTarget(Primitive):
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
-        pose = self._get_marker_pose()
-        if pose is None:
-            return False
+        pose = None
+        while pose is None:
+            pose = self._get_marker_pose()
+            rospy.sleep(0.1)
 
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
@@ -1065,6 +1074,7 @@ class ArmTarget(Primitive):
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             self._set_new_pose(feedback.pose, feedback.header.frame_id)
             self._pose_change_cb()
+            self._action_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls

@@ -244,7 +244,6 @@ class Session:
         self._current_action_id = index
 
         self.get_current_action().initialize_viz()
-        # self._marker_visibility = [True] * self.n_primitives()
         self._update_session_state()
         return True
 
@@ -622,6 +621,7 @@ class Session:
             self._get_ref_frame_names(),
             self._get_primitive_names(),
             self._get_marker_visibility(),
+            self._get_primitives_editable(),
             [],
             object_list,
             positions,
@@ -678,6 +678,18 @@ class Session:
         # Once we've got an action, we can query / return things.
         action = self._actions[self._current_action_id]
         return action.get_primitive_names()
+
+    def _get_primitives_editable(self):
+        '''Returns list of whether primitive poses are editable
+
+        Returns:
+            [bool]
+        '''
+        if self.n_actions() < 1 or self._current_action_id is None:
+            return []
+        # Once we've got an action, we can query / return things.
+        action = self._actions[self._current_action_id]
+        return action.get_primitives_editable()
 
     def _load_session_state(self):
         '''Loads the experiment state from couchdb database.'''

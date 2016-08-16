@@ -36,13 +36,13 @@ from fetch_pbd_interaction.srv import GetObjectList, \
 # --------------
 # Colors
 COLOR_TRAJ_ENDPOINT_SPHERES = ColorRGBA(1.0, 0.5, 0.0, 0.8)
-COLOR_TRAJ_STEP_SPHERES = ColorRGBA(0.8, 0.4, 0.0, 0.8)
+COLOR_TRAJ_LINE = ColorRGBA(0.8, 0.4, 0.0, 0.8)
 COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
 COLOR_MESH_REACHABLE = ColorRGBA(1.0, 0.5, 0.0, 0.6)
 COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
 
 # Scales
-SCALE_TRAJ_STEP_SPHERES = Vector3(0.02, 0.02, 0.02)
+SCALE_TRAJ_LINE = Vector3(0.02, 0.0, 0.0)
 SCALE_OBJ_REF_ARROW = Vector3(0.02, 0.03, 0.04)
 
 # Gripper mesh related
@@ -389,7 +389,7 @@ class ArmTrajectory(Primitive):
         index = len(self._arm_states) - 1 if use_final else 0
         arm_state = self._arm_states[index]
 
-        return arm_state
+        return arm_state.ee_pose
 
     def get_absolute_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive.
@@ -517,6 +517,14 @@ class ArmTrajectory(Primitive):
             pose (PoseStamped) : Unused
         '''
         rospy.logwarn("Changing pose of trajectory is not currently supported")
+
+    def pose_editable(self):
+        '''Return whether pose of primitive is editable
+
+        Returns:
+            bool : False
+        '''
+        return False
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -911,7 +919,7 @@ class ArmTrajectory(Primitive):
             Pose
         '''
         try:
-            i = int(len(self._arm_states) / 2)
+            i = int(len(self._arm_states) - 1)
             # self._tf_listener.waitForTransform(BASE_LINK,
             #                      self._arm_states[i].ee_pose.header.frame_id,
             #                      rospy.Time.now(),
@@ -932,9 +940,10 @@ class ArmTrajectory(Primitive):
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
-        pose = self._get_marker_pose()
-        if pose is None:
-            return False
+        pose =  None
+        while pose is None:
+            pose = self._get_marker_pose()
+            rospy.sleep(0.1)
 
         # Handle trajectories.
         # First, get all trajectory positions.
@@ -946,12 +955,12 @@ class ArmTrajectory(Primitive):
         # list).
         menu_control.markers.append(
             Marker(
-                type=Marker.SPHERE_LIST,
+                type=Marker.LINE_STRIP,
                 id=self._number,
                 lifetime=TRAJ_MARKER_LIFETIME,
-                scale=SCALE_TRAJ_STEP_SPHERES,
+                scale=SCALE_TRAJ_LINE,
                 header=Header(frame_id=''),
-                color=COLOR_TRAJ_STEP_SPHERES,
+                color=COLOR_TRAJ_LINE,
                 points=point_list
             )
         )
@@ -1094,11 +1103,20 @@ class ArmTrajectory(Primitive):
         Returns:
             Pose
         '''
-        offset_pose = self._offset_pose(self._arm_states[index].ee_pose)
-        new_pose = self._tf_listener.transformPose(
-                                            "primitive_" + str(self._number),
-                                            offset_pose)
-        return new_pose
+        try:
+            intermediate_pose = self._tf_listener.transformPose(
+                                        BASE_LINK,
+                                        self._arm_states[index].ee_pose)
+            # offset_pose = ArmTrajectory._offset_pose(intermediate_pose, -1)
+
+            new_pose = self._tf_listener.transformPose(
+                                                "primitive_" + str(self._number),
+                                                intermediate_pose)
+            return new_pose
+
+        except Exception, e:
+            rospy.logwarn("Unable to transform marker to correct pose")
+            return self._arm_states[index].ee_pose
 
     def _marker_feedback_cb(self, feedback):
         '''Callback for when an event occurs on the marker.

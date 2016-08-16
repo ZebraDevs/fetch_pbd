@@ -172,7 +172,8 @@
                             noink
                             data-primitive$='{{item.number}}'
                             on-tap='onEdit'
-                            icon='image:edit'>
+                            icon='image:edit'
+                            disabled='{{item.editDisabled}}'>
                         </paper-icon-button>
                       </div>
                       <div style='flex:none;'>
@@ -515,6 +516,7 @@
             name : message.primitive_names[i],
             number: i + '',
             marker: markerStatus,
+            editDisabled : !message.primitive_pose_editable[i],
             position: {
               x: message.positions[i].x,
               y: message.positions[i].y,

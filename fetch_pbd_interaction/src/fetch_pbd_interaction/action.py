@@ -241,7 +241,7 @@ class Action:
         rospy.loginfo("Adding primitive")
         if add_name:
             primitive.set_name("primitive_" + str(self._primitive_counter))
-        self._primitive_counter += 1
+            self._primitive_counter += 1
         self._seq.append(primitive)
         if add_marker:
             primitive.make_marker(
@@ -375,7 +375,7 @@ class Action:
         '''Initialize visualization.'''
 
         rospy.loginfo("Initialising viz for: {}".format(self.get_action_id()))
-        self._lock.acquire()
+        # self._lock.acquire()
         self._marker_visibility = [True] * len(self._seq)
         for i in range(len(self._seq)):
             primitive = self._seq[i]
@@ -391,7 +391,7 @@ class Action:
             self._update_links()
 
         self._update_markers()
-        self._lock.release()
+        # self._lock.release()
         self.update_viz()
 
     def delete_last_primitive(self):
@@ -464,6 +464,19 @@ class Action:
             names += [primitive.get_name()]
         self._lock.release()
         return names
+
+    def get_primitives_editable(self):
+        '''Returns list of whether primitive poses are editable
+
+        Returns:
+            [bool]
+        '''
+        self._lock.acquire()
+        editable = []
+        for primitive in self._seq:
+            editable += [primitive.pose_editable()]
+        self._lock.release()
+        return editable
 
     def update_primitive_pose(self, primitive_number, position, orientation):
         '''Update pose of primitive given by primitive_number
