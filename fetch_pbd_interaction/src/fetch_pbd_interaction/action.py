@@ -11,14 +11,15 @@ import rospy
 import threading
 
 # ROS builtins
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Vector3, PoseStamped, Quaternion
 from std_msgs.msg import Header, ColorRGBA
 from visualization_msgs.msg import MarkerArray, Marker
+import tf
 
 # Local
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory import ArmTrajectory
-from fetch_pbd_interaction.msg import ExecutionStatus
+from fetch_pbd_interaction.msg import ExecutionStatus, OrientationRPY
 
 # ######################################################################
 # Module level constants
@@ -178,7 +179,7 @@ class Action:
                                   self._im_server)
                 primitive.build_from_json(target)
 
-            self.add_primitive(primitive, False)
+            self.add_primitive(primitive, False, False)
 
         self.reset_viz()
 
@@ -228,15 +229,18 @@ class Action:
         self._status = status
 
 
-    def add_primitive(self, primitive, add_marker=True):
+    def add_primitive(self, primitive, add_marker=True, add_name=True):
         '''Add primitive to action.
 
         Args:
             primitive (Primitive)
+            add_marker (bool)
+            add_name (bool)
         '''
         self._lock.acquire()
         rospy.loginfo("Adding primitive")
-        primitive.set_name("primitive_" + str(self._primitive_counter))
+        if add_name:
+            primitive.set_name("primitive_" + str(self._primitive_counter))
         self._primitive_counter += 1
         self._seq.append(primitive)
         if add_marker:
@@ -425,6 +429,29 @@ class Action:
         self._lock.release()
         return ref_frame_names
 
+    def get_primitive_positions_orientations(self):
+        '''Returns the positions and orientations of primitives
+
+        Returns:
+            Point[], OrientationRPY[]
+        '''
+        self._lock.acquire()
+        positions = []
+        orientations = []
+        for primitive in self._seq:
+            pose = primitive.get_relative_pose()
+            quaternion = (
+                pose.pose.orientation.x,
+                pose.pose.orientation.y,
+                pose.pose.orientation.z,
+                pose.pose.orientation.w)
+            euler = tf.transformations.euler_from_quaternion(quaternion)
+            rpy = OrientationRPY(euler[0], euler[1], euler[2])
+            positions += [pose.pose.position]
+            orientations += [rpy]
+        self._lock.release()
+        return positions, orientations
+
     def get_primitive_names(self):
         '''Returns the names of primitives.
 
@@ -437,6 +464,32 @@ class Action:
             names += [primitive.get_name()]
         self._lock.release()
         return names
+
+    def update_primitive_pose(self, primitive_number, position, orientation):
+        '''Update pose of primitive given by primitive_number
+
+        Args:
+            primitive_number (int)
+            position (Point)
+            orientation (OrientationRPY)
+        '''
+
+        frame_id = self.get_ref_frame_names()[primitive_number]
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = frame_id
+        pose_stamped.pose.position = position
+        roll = orientation.r
+        pitch = orientation.p
+        yaw = orientation.y
+        quat = tf.transformations.quaternion_from_euler(roll, pitch, yaw)
+
+        pose_stamped.pose.orientation = Quaternion(quat[0],
+                                                   quat[1],
+                                                   quat[2],
+                                                   quat[3])
+        primitive = self._seq[primitive_number]
+        primitive.set_pose(pose_stamped)
+        self._primitive_pose_change()
 
     def get_primitives(self):
         '''Return list of primitives
@@ -522,6 +575,8 @@ class Action:
         self._update_links()
         self._lock.release()
         self.update_viz()
+        rospy.loginfo("Got here first")
+
         self._action_change_cb()
 
     def execute_primitive(self, to_execute):
@@ -694,8 +749,9 @@ class Action:
 
     def _update_markers(self):
         '''Updates the markers after a change.'''
-        for primitive in self._seq:
-            primitive.update_viz()
+        for idx, primitive in enumerate(self._seq):
+            if self._marker_visibility[idx]:
+                primitive.update_viz()
 
     def _update_links(self):
         '''Updates the visualized links b/w action primitives.'''
@@ -715,8 +771,10 @@ class Action:
                 self._link_markers[i] = Marker(id=i, action=Marker.DELETE)
 
         if new_num_links == 0:
-            self._link_markers[0] = Action._get_link(self._seq[0],
+            marker = Action._get_link(self._seq[0],
                                            self._seq[0], 0)
 
-            self._link_markers[0].action = Marker.DELETE
+            if not marker is None:
+                self._link_markers[0] = marker
+                self._link_markers[0].action = Marker.DELETE
 

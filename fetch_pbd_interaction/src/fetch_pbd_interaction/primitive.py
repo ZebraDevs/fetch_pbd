@@ -83,6 +83,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def get_relative_pose(self):
+        pass
+
+    @abstractmethod
     def get_absolute_pose(self, use_final=True):
         pass
 
@@ -105,6 +109,11 @@ class Primitive:
     @abstractmethod
     def get_number(self):
         pass
+
+    @abstractmethod
+    def set_pose(self, pose):
+        pass
+
 
 
 

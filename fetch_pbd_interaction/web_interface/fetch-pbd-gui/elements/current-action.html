@@ -26,13 +26,13 @@
 
       .flex-vertical {
         @apply(--layout-vertical);
-        height: 400px;
+        height: 500px;
       }
       .flexchild-vertical {
         @apply(--layout-flex);
       }
       #primitiveListContainer {
-        width: 400px;
+        width: 500px;
         float: right;
         display:block;
       }
@@ -120,7 +120,7 @@
           width: 100%;
       }
       .primitiveList th, td {
-        border-bottom: 1px solid var(--divider-color);
+        /*border-bottom: 1px solid var(--divider-color);*/
         padding: 5px 10px;
       }
       .primitiveList th {
@@ -131,6 +131,11 @@
         border-bottom: none;
       }
 
+      .listDiv {
+        border-bottom: 1px solid var(--divider-color);
+        border-top: 1px solid var(--divider-color);
+
+      }
     </style>
 
     <div id='container' class='container flex-vertical'>
@@ -147,46 +152,90 @@
                 <th>Options</th>
               </tr>
             </thead>
-            <tbody>
+            </table>
+            <ul style='list-style: none; padding: 5px;''>
               <template is='dom-repeat' items='{{primitives}}'>
-              <tr draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination'>
-                  <td>{{item.name}}</td>
-                  <td>
-                    <paper-icon-button
-                      noink
-                      data-primitive$='{{item.number}}'
-                      on-tap='onRun'
-                      icon='av:play-circle-filled'> </paper-icon-button>
-                    <!-- <paper-icon-button
-                      noink
-                      data-primitive$='{{item.number}}'
-                      on-tap='onEdit'
-                      icon='image:edit'> </paper-icon-button> -->
-                    <paper-icon-button
-                      noink
-                      data-primitive$='{{item.number}}'
-                      on-tap='onCopy'
-                      icon='content-copy'> </paper-icon-button>
-                    <paper-icon-button
-                      class='delete'
-                      noink
-                      data-primitive$='{{item.number}}'
-                      on-tap='onDelete'
-                      icon='delete'> </paper-icon-button>
-                    <paper-icon-button
-                      noink
-                      data-primitive$='{{item.number}}'
-                      on-tap='toggleMarker'
-                      src='{{item.marker}}'> </paper-icon-button>
-                  </td>
-                </tr>
-              </template>
-              </tbody>
+                <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination'>
+                  <div class='listDiv'>
+                    <div style='display: flex;'>
+                      <div style='flex:auto; line-height: 36px; vertical-align: middle; display: inline-block; '>{{item.name}}</div>
+                      <div style='flex:none;'>
+                        <paper-icon-button
+                            noink
+                            data-primitive$='{{item.number}}'
+                            on-tap='onRun'
+                            icon='av:play-circle-filled'>
+                        </paper-icon-button>
+                      </div>
+                      <div style='flex:none;'>
+                        <paper-icon-button
+                            noink
+                            data-primitive$='{{item.number}}'
+                            on-tap='onEdit'
+                            icon='image:edit'>
+                        </paper-icon-button>
+                      </div>
+                      <div style='flex:none;'>
+                        <paper-icon-button
+                            noink
+                            data-primitive$='{{item.number}}'
+                            on-tap='onCopy'
+                            icon='content-copy'>
+                        </paper-icon-button>
+                      </div>
+                      <div style='flex:none;'>
+                        <paper-icon-button
+                            class='delete'
+                            noink
+                            data-primitive$='{{item.number}}'
+                            on-tap='onDelete'
+                            icon='delete'>
+                        </paper-icon-button>
+                      </div>
+                      <div style='flex:none;'>
+                        <paper-icon-button
+                              noink
+                              data-primitive$='{{item.number}}'
+                              on-tap='toggleMarker'
+                              src='{{item.marker}}'>
+                        </paper-icon-button>
+                      </div>
+                    </div>
+                    <div class='collapsible' style='display: none;'>
+                      <div style='float: left; padding: 5px;'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.x}}'>
+                          <div prefix>x: </div>
+                        </paper-input>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.y}}'>
+                          <div prefix>y: </div>
+                        </paper-input>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.z}}'>
+                          <div prefix>z: </div>
+                        </paper-input>
+                      </div>
+                      <div style='float: right; padding: 5px;'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.r}}'>
+                          <div prefix>r: </div>
+                        </paper-input>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.p}}'>
+                          <div prefix>p: </div>
+                        </paper-input>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.y}}'>
+                          <div prefix>y: </div>
+                        </paper-input>
+                      </div>
+                    </div>
+                  </div>
 
-              </table>
+                </li>
+
+              </template>
+
+            </ul>
           </div>
         </div>
       </div>
+
       <div id='buttons' class='flexchild-vertical'>
         <paper-button raised id='execute_button' on-tap='execute'>
           <iron-icon icon='av:play-circle-filled'></iron-icon>
@@ -268,7 +317,11 @@
         dragSource : Object,
         dragSourceId : Number,
         dropTarget : Object,
-        dropTargetId : Number
+        dropTargetId : Number,
+        // editMode: {
+        //   type: Array,
+        //   value: [],
+        // },
       },
 
       behaviors: [Polymer.IronResizableBehavior],
@@ -396,27 +449,33 @@
         this.dragSource = evt.target;
         evt.dataTransfer.effectAllowed = 'move';
         this.dragSourceId = evt.model.item.number;
-
+        console.log('Starting drag');
+        // console.log(evt.model.item.number);
       },
 
       getDestination : function (evt) {
-        this.dropTarget = evt.target;
         this.dropTargetId = evt.model.item.number;
+        this.dropTarget = document.getElementsByTagName('li')[parseInt(this.dropTargetId)];
+        // console.log(evt.model.item.number);
+
       },
 
       dropPrimitive : function(evt) {
         var target = this.dropTarget;
+        console.log(target);
         var oldIndex = this.dragSourceId;
         var newIndex = this.dropTargetId;
+        console.log(oldIndex);
 
-        if (target.nodeName == 'TD') {
-          target = target.parentNode;
-        }
+        console.log(newIndex);
+
 
         if (this.isAbove(this.dragSource, target)) {
           target.parentNode.insertBefore(this.dragSource, target);
+          console.log('Above');
         } else {
           target.parentNode.insertBefore(this.dragSource, target.nextSibling);
+          console.log('Below');
         }
 
         var message = new ROSLIB.Message({
@@ -424,6 +483,20 @@
           list_params : [parseInt(oldIndex), parseInt(newIndex)]
         });
         this.inputPub.publish(message);
+        var primitives = this.primitives;
+        console.log(primitives);
+        var moved = primitives[parseInt(oldIndex)];
+        primitives.splice(parseInt(oldIndex),1);
+        primitives.splice(parseInt(newIndex), 0, moved);
+        for (i = 0; i < primitives.length; i++) {
+          console.log(i);
+
+          console.log(primitives[i]);
+
+          primitives[i].number = i + '';
+        }
+        this.primitives = primitives;
+
       },
 
       expCallback : function(that, message) {
@@ -441,7 +514,17 @@
           var primitive = {
             name : message.primitive_names[i],
             number: i + '',
-            marker: markerStatus
+            marker: markerStatus,
+            position: {
+              x: message.positions[i].x,
+              y: message.positions[i].y,
+              z: message.positions[i].z
+            },
+            orientation: {
+              r: message.orientations[i].r,
+              p: message.orientations[i].p,
+              y: message.orientations[i].y
+            }
           };
           that.push('primitives', primitive);
         }
@@ -538,7 +621,36 @@
       },
 
       onEdit : function(evt) {
-        var primitiveId = evt.model.item.primitive;//.action;
+        var number = parseInt(evt.model.item.number);
+        var target = document.getElementsByClassName('collapsible')[number];
+        if (target.style.display == 'table-row') {
+          target.style.display='none';
+        }
+        else {
+          target.style.display='table-row';
+        }
+      },
+
+      onPoseEdit : function(evt) {
+        var primitiveId = evt.model.item.number;//.action;
+        console.log(primitiveId);
+        var message = new ROSLIB.Message({
+          command : 'pose-edited',
+          param : primitiveId,
+          position : {
+            x : parseFloat(evt.model.item.position.x),
+            y : parseFloat(evt.model.item.position.y),
+            z : parseFloat(evt.model.item.position.z)
+          },
+          orientation : {
+            r : parseFloat(evt.model.item.orientation.r),
+            p : parseFloat(evt.model.item.orientation.p),
+            y : parseFloat(evt.model.item.orientation.y)
+          },
+
+        });
+        console.log(message);
+        this.inputPub.publish(message);
       },
 
       onCopy : function(evt) {

@@ -376,6 +376,21 @@ class ArmTrajectory(Primitive):
                 return False
         return True
 
+    def get_relative_pose(self, use_final=True):
+        '''Returns the absolute pose of the primitive.
+
+        Args:
+            use_final (bool, optional). For trajectories only. Whether to
+                get the final pose in the trajectory. Defaults to True.
+
+        Returns:
+            PoseStamped
+        '''
+        index = len(self._arm_states) - 1 if use_final else 0
+        arm_state = self._arm_states[index]
+
+        return arm_state
+
     def get_absolute_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive.
 
@@ -390,6 +405,10 @@ class ArmTrajectory(Primitive):
         arm_state = self._arm_states[index]
 
         try:
+            # self._tf_listener.waitForTransform(BASE_LINK,
+            #                  arm_state.ee_pose.header.frame_id,
+            #                  rospy.Time.now(),
+            #                  rospy.Duration(5.0))
             abs_pose = self._tf_listener.transformPose(BASE_LINK,
                                                    arm_state.ee_pose)
             return abs_pose
@@ -490,6 +509,14 @@ class ArmTrajectory(Primitive):
             int
         '''
         return self._number
+
+    def set_pose(self, pose):
+        '''CHanging pose of trajectory is currently not supported
+
+        Args:
+            pose (PoseStamped) : Unused
+        '''
+        rospy.logwarn("Changing pose of trajectory is not currently supported")
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -772,9 +799,9 @@ class ArmTrajectory(Primitive):
             self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
         # Update.
-        self._update_viz_core()
-        self._menu_handler.apply(self._im_server, self.get_name())
-        self._im_server.applyChanges()
+        if self._update_viz_core():
+            self._menu_handler.apply(self._im_server, self.get_name())
+            self._im_server.applyChanges()
 
     def _get_menu_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
@@ -883,13 +910,20 @@ class ArmTrajectory(Primitive):
         Returns:
             Pose
         '''
-        i = int(len(self._arm_states) / 2)
-        intermediate_pose = self._tf_listener.transformPose(
-                                                BASE_LINK,
-                                                self._arm_states[i].ee_pose)
-        offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
-        return self._tf_listener.transformPose(self.get_ref_frame_name(),
-                                                offset_pose)
+        try:
+            i = int(len(self._arm_states) / 2)
+            # self._tf_listener.waitForTransform(BASE_LINK,
+            #                      self._arm_states[i].ee_pose.header.frame_id,
+            #                      rospy.Time.now(),
+            #                      rospy.Duration(5.0))
+            intermediate_pose = self._tf_listener.transformPose(
+                                                    BASE_LINK,
+                                                    self._arm_states[i].ee_pose)
+            offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
+            return self._tf_listener.transformPose(self.get_ref_frame_name(),
+                                                    offset_pose)
+        except:
+            return None
 
     def _update_viz_core(self):
         '''Updates visualization after a change.'''
@@ -899,6 +933,8 @@ class ArmTrajectory(Primitive):
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
         pose = self._get_marker_pose()
+        if pose is None:
+            return False
 
         # Handle trajectories.
         # First, get all trajectory positions.
@@ -965,6 +1001,7 @@ class ArmTrajectory(Primitive):
         int_marker.controls.append(menu_control)
         self._im_server.insert(
             int_marker, self._marker_feedback_cb)
+        return True
 
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.

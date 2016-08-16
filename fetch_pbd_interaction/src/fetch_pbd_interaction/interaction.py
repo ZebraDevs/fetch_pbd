@@ -41,8 +41,8 @@ class Interaction:
     '''Interaction is the multiplexer of commands received into system
     actions.
 
-    Interaction receives speech commands (recognized_command) as well as
-    GUI commands (gui_command) and sends these off into the system to be
+    Interaction receives GUI input (gui_input) and sends
+    these off into the system to be
     processed. Interaction holds a small amount of state to support
     recording trajectories.
     '''
@@ -108,6 +108,7 @@ class Interaction:
             GuiInput.START_RECORDING_TRAJECTORY: \
                                 self._start_recording_trajectory,
             GuiInput.STOP_RECORDING_TRAJECTORY: self._stop_recording_trajectory,
+            GuiInput.POSE_EDITED: self._primitive_pose_edited,
             # Execution
             GuiInput.STOP_EXECUTION: self._stop_execution,
             GuiInput.EXECUTE_ACTION: self._execute_action,
@@ -553,6 +554,17 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+
+    def _primitive_pose_edited(self, gui_input):
+        '''Updates the primitive pose with input from the interface
+
+        Args:
+            gui_input (GuiInput) : contains pose information
+        '''
+        primitive_number = int(gui_input.param)
+        self._session.update_primitive_pose(primitive_number,
+                                            gui_input.position,
+                                            gui_input.orientation)
 
     def _execute_action(self, gui_input):
         '''Starts the execution of the current action.

@@ -36,6 +36,7 @@ add_message_files(
   SessionState.msg
   GuiInput.msg
   WorldState.msg
+  OrientationRPY.msg
 )
 
 add_service_files(

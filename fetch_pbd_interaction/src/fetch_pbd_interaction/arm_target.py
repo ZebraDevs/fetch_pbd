@@ -378,13 +378,27 @@ class ArmTarget(Primitive):
             PoseStamped
         '''
         try:
-            abs_pose = self._tf_listener.transformPose('base_link',
+            # self._tf_listener.waitForTransform(BASE_LINK,
+            #                  self._arm_state.ee_pose.header.frame_id,
+            #                  rospy.Time.now(),
+            #                  rospy.Duration(5.0))
+            abs_pose = self._tf_listener.transformPose(BASE_LINK,
                                                self._arm_state.ee_pose)
             return abs_pose
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
+    def get_relative_pose(self, use_final=True):
+        '''Returns the relative pose of the primitive.
+
+        Args:
+            use_final (bool, optional) : Unused
+
+        Returns:
+            PoseStamped
+        '''
+        return self._arm_state.ee_pose
 
     def get_absolute_position(self, use_final=True):
         '''Returns the absolute position of the primitive.
@@ -430,6 +444,17 @@ class ArmTarget(Primitive):
             int
         '''
         return self._number
+
+    def set_pose(self, new_pose):
+        '''Changes the pose of the primitive to new_pose.
+
+        Args:
+            new_pose (PoseStamped)
+        '''
+        rospy.loginfo("Setting new ee_pose!!!")
+        self._arm_state.ee_pose = new_pose
+        self.update_viz()
+        self._action_change_cb()
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -666,9 +691,9 @@ class ArmTarget(Primitive):
             self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
         # Update.
-        self._update_viz_core()
-        self._menu_handler.apply(self._im_server, self.get_name())
-        self._im_server.applyChanges()
+        if self._update_viz_core():
+            self._menu_handler.apply(self._im_server, self.get_name())
+            self._im_server.applyChanges()
 
     def _get_menu_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
@@ -773,12 +798,19 @@ class ArmTarget(Primitive):
         Returns:
             Pose
         '''
-        intermediate_pose = self._tf_listener.transformPose(
-                                                    BASE_LINK,
-                                                    self._arm_state.ee_pose)
-        offset_pose = ArmTarget._offset_pose(intermediate_pose)
-        return self._tf_listener.transformPose(self.get_ref_frame_name(),
+        try:
+            # self._tf_listener.waitForTransform(BASE_LINK,
+            #                      self._arm_state.ee_pose.header.frame_id,
+            #                      rospy.Time.now(),
+            #                      rospy.Duration(5.0))
+            intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        self._arm_state.ee_pose)
+            offset_pose = ArmTarget._offset_pose(intermediate_pose)
+            return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                 offset_pose)
+        except:
+            return None
 
     def _update_viz_core(self):
         '''Updates visualization after a change.'''
@@ -788,6 +820,8 @@ class ArmTarget(Primitive):
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
         pose = self._get_marker_pose()
+        if pose is None:
+            return False
 
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
@@ -816,6 +850,7 @@ class ArmTarget(Primitive):
         int_marker.controls.append(menu_control)
         self._im_server.insert(
             int_marker, self._marker_feedback_cb)
+        return True
 
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.

@@ -28,6 +28,8 @@ string SAVE_TARGET = save-target
 string START_RECORDING_TRAJECTORY = start-recording-trajectory
 string STOP_RECORDING_TRAJECTORY = stop-recording-trajectory
 
+string POSE_EDITED = pose-edited
+
 # Execution
 string EXECUTE_ACTION = execute-action
 string STOP_EXECUTION = stop-execution
@@ -37,3 +39,5 @@ string EXECUTE_PRIMITIVE = execute-primitive
 string command
 string param
 uint16[] list_params
+geometry_msgs/Point position
+fetch_pbd_interaction/OrientationRPY orientation

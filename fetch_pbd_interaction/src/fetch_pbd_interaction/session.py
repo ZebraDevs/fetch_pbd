@@ -141,13 +141,10 @@ class Session:
         Returns:
             Action
         '''
-        self._lock.acquire()
         if self.n_actions() > 0 and not self._current_action_id is None:
             action = self._actions[self._current_action_id]
-            self._lock.release()
             return action
         else:
-            self._lock.release()
             return None
 
     def clear_current_action(self):
@@ -439,6 +436,7 @@ class Session:
         action = self._actions[self._current_action_id]
         action.switch_primitive_order(old_index, new_index)
         self._lock.release()
+        # self._update_session_state()
         self._update_db_with_current_action()
 
     def delete_primitive(self, primitive_number):
@@ -450,8 +448,9 @@ class Session:
         self._lock.acquire()
         action = self._actions[self._current_action_id]
         action.delete_primitive(primitive_number)
+        rospy.loginfo("GOt here")
         self._lock.release()
-        self._update_db_with_current_action()
+        # self._update_db_with_current_action()
 
     def hide_primitive_marker(self, primitive_number):
         '''Hide marker with primitive_number
@@ -498,6 +497,17 @@ class Session:
             self._lock.release()
             for primitive in primitives:
                 self._publish_primitive_tf(primitive)
+
+    def update_primitive_pose(self, primitive_number, position, orientation):
+        '''Update pose of primitive given by primitive_number
+
+        Args:
+            primitive_number (int)
+            position (Point)
+            orientation (OrientationRPY)
+        '''
+        action = self._actions[self._current_action_id]
+        action.update_primitive_pose(primitive_number, position, orientation)
 
     # def update_viz(self):
     #     '''Updates visualization, specifically links between markerks'''
@@ -562,7 +572,9 @@ class Session:
         '''Updates the db when primitive deleted.
         '''
         self._update_db_with_current_action()
+        rospy.loginfo("Db updated")
         self._async_update_session_state()
+        rospy.loginfo("Session state updates")
 
     def _get_session_state_cb(self, req):
         '''Response to the experiment state service call.
@@ -598,6 +610,8 @@ class Session:
 
         # Should the GUI retrieve this information itself?
         object_list = self._get_object_list_srv().object_list
+        positions, orientations = self._get_primitive_positions_orientations()
+
 
         return SessionState(
             self.n_actions(),
@@ -609,7 +623,9 @@ class Session:
             self._get_primitive_names(),
             self._get_marker_visibility(),
             [],
-            object_list)
+            object_list,
+            positions,
+            orientations)
 
     def _get_action_names(self):
         '''Return the names of all of the actions in the session
@@ -636,6 +652,18 @@ class Session:
         # Once we've got an action, we can query / return things.
         action = self._actions[self._current_action_id]
         return action.get_ref_frame_names()
+
+    def _get_primitive_positions_orientations(self):
+        '''Returns positions and orientations of primitives
+
+        Returns:
+            Point[], OrientationRPY[]
+        '''
+        if self.n_actions() < 1 or self._current_action_id is None:
+            return [], []
+        # Once we've got an action, we can query / return things.
+        action = self._actions[self._current_action_id]
+        return action.get_primitive_positions_orientations()
 
     def _get_primitive_names(self):
         '''Returns a list of the names of the
