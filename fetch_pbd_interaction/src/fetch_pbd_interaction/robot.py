@@ -335,15 +335,14 @@ class Robot:
         '''Point head down at table'''
         # TODO(sarah): maybe actually scan for table instead of
         # looking at static point
-        if self._social_gaze:
-            goal = GazeGoal()
-            goal.action = GazeGoal.LOOK_DOWN
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
-            while (self.gaze_client.get_state() == GoalStatus.PENDING or
-                   self.gaze_client.get_state() == GoalStatus.ACTIVE):
-                rospy.sleep(0.2)
+        goal = GazeGoal()
+        goal.action = GazeGoal.LOOK_DOWN
+        current_goal = self.current_gaze_goal_srv().gaze_goal
+        if goal.action != current_goal:
+            self.gaze_client.send_goal(goal)
+        while (self.gaze_client.get_state() == GoalStatus.PENDING or
+               self.gaze_client.get_state() == GoalStatus.ACTIVE):
+            rospy.sleep(0.2)
 
     # Sound stuff
 

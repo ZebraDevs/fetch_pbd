@@ -5,10 +5,8 @@
 	The purpose of splitting the launch files this way is for testing,
 	both manual and automated. If the interaction node goes down, it can
 	be brought up separately from all of its prerequisites.
-
-	Note that this DOES NOT include the simulated robot. This (and
-	pbd_backend in general) work on both the real and simulated robot.
 	-->
+
 	<arg name="social_gaze" default="true" />
 	<param name="social_gaze" value="$(arg social_gaze)" />
 	<arg name="play_sound" default="true" />
@@ -16,11 +14,8 @@
     <arg name="camera_frame_prefix" default="/head_camera" />
     <arg name="camera_name" default="head_camera" />
 
-	<!-- These arguments can be passed in. -->
-	<arg name="sim" default="false" />
-
 	<!-- This makes the robot look around appropriately -->
-	<include file="$(find fetch_social_gaze)/launch/gaze.launch" if="$(arg social_gaze)"/>
+	<include file="$(find fetch_social_gaze)/launch/gaze.launch"/>
 
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
 

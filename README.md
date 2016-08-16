@@ -33,7 +33,11 @@ bower install
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd_backend.launch
 ```
-
+You can run the backend without the "social gaze" head movements or without the sounds by passing arguments to the launch file:
+```bash
+source ~/catkin_ws/devel/setup.bash
+roslaunch fetch_pbd_interaction pbd_backend.launch social_gaze:=false play_sound:=false
+```
 ### Desktop
 Make sure to set your ROS_MASTER_URI to the robot.
 #### Terminal #1
