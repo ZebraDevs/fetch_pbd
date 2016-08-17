@@ -411,7 +411,7 @@ class ArmTrajectory(Primitive):
             #                  rospy.Duration(5.0))
             abs_pose = self._tf_listener.transformPose(BASE_LINK,
                                                    arm_state.ee_pose)
-            return abs_pose
+            return ArmTrajectory._offset_pose(abs_pose)
         except:
             frame_id = arm_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
@@ -428,7 +428,7 @@ class ArmTrajectory(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self._get_absolute_pose(use_final)
+        abs_pose = self.get_absolute_pose(use_final)
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -931,6 +931,7 @@ class ArmTrajectory(Primitive):
             return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                     offset_pose)
         except:
+            rospy.logwarn("Frame not available yet.")
             return None
 
     def _update_viz_core(self):
@@ -950,6 +951,11 @@ class ArmTrajectory(Primitive):
         point_list = []
         for j in range(len(self._timing)):
             point_list.append(self._get_traj_pose(j).pose.position)
+
+        rospy.loginfo("last pose: {}".format(self._arm_states[0].ee_pose))
+
+        last_point = self._tf_listener.transformPose('base_link', self._get_traj_pose(0))
+        rospy.loginfo("last point: {}".format(last_point))
 
         # Add a main maker for all points in the trajectory (sphere
         # list).
@@ -1107,11 +1113,11 @@ class ArmTrajectory(Primitive):
             intermediate_pose = self._tf_listener.transformPose(
                                         BASE_LINK,
                                         self._arm_states[index].ee_pose)
-            # offset_pose = ArmTrajectory._offset_pose(intermediate_pose, -1)
+            offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
 
             new_pose = self._tf_listener.transformPose(
                                                 "primitive_" + str(self._number),
-                                                intermediate_pose)
+                                                offset_pose)
             return new_pose
 
         except Exception, e:
@@ -1186,25 +1192,3 @@ class ArmTrajectory(Primitive):
         ref_type = ref_dict[dominant_ref_obj.name]
         # Find the frame number (int) and return with the object.
         return ref_type, dominant_ref_obj
-
-    def _get_absolute_pose(self, use_final=True):
-        '''Returns the absolute pose of the primitive.
-
-        Args:
-            use_final (bool, optional). For trajectories only. Whether to
-                get the final pose in the trajectory. Defaults to True.
-
-        Returns:
-            PoseStamped
-        '''
-        index = len(self._arm_states) - 1 if use_final else 0
-        arm_state = self._arm_states[index]
-
-        try:
-            abs_pose = self._tf_listener.transformPose(BASE_LINK,
-                                                   arm_state.ee_pose)
-            return ArmTrajectory._offset_pose(abs_pose)
-        except:
-            frame_id = arm_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
-            return None

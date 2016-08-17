@@ -620,6 +620,7 @@ class Action:
         '''
         start = primitive0.get_absolute_position(use_final=True)
         end = primitive1.get_absolute_position(use_final=False)
+        rospy.loginfo("start: {}".format(start))
         if start == end:
             return None
         elif not start is None and not end is None:

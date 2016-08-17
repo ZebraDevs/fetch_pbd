@@ -368,27 +368,6 @@ class ArmTarget(Primitive):
         '''Check if robot can physically reach target'''
         return self._robot.can_reach(self._arm_state)
 
-    def get_absolute_pose(self, use_final=True):
-        '''Returns the absolute pose of the primitive.
-
-        Args:
-            use_final (bool, optional). Unused
-
-        Returns:
-            PoseStamped
-        '''
-        try:
-            # self._tf_listener.waitForTransform(BASE_LINK,
-            #                  self._arm_state.ee_pose.header.frame_id,
-            #                  rospy.Time.now(),
-            #                  rospy.Duration(5.0))
-            abs_pose = self._tf_listener.transformPose(BASE_LINK,
-                                               self._arm_state.ee_pose)
-            return abs_pose
-        except:
-            frame_id = self._arm_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
-            return None
     def get_relative_pose(self, use_final=True):
         '''Returns the relative pose of the primitive.
 
@@ -400,6 +379,24 @@ class ArmTarget(Primitive):
         '''
         return self._arm_state.ee_pose
 
+    def get_absolute_pose(self, use_final=True):
+        '''Returns the absolute pose of the primitive.
+
+        Args:
+            use_final (bool, optional). Unused
+
+        Returns:
+            PoseStamped
+        '''
+        try:
+            abs_pose = self._tf_listener.transformPose('base_link',
+                                               self._arm_state.ee_pose)
+            return ArmTarget._offset_pose(abs_pose)
+        except:
+            frame_id = self._arm_state.ee_pose.header.frame_id
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            return None
+
     def get_absolute_position(self, use_final=True):
         '''Returns the absolute position of the primitive.
 
@@ -410,7 +407,7 @@ class ArmTarget(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self._get_absolute_pose()
+        abs_pose = self.get_absolute_pose()
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -1081,20 +1078,3 @@ class ArmTarget(Primitive):
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
-    def _get_absolute_pose(self, use_final=True):
-        '''Returns the absolute pose of the primitive.
-
-        Args:
-            use_final (bool, optional). Unused
-
-        Returns:
-            PoseStamped
-        '''
-        try:
-            abs_pose = self._tf_listener.transformPose('base_link',
-                                               self._arm_state.ee_pose)
-            return ArmTarget._offset_pose(abs_pose)
-        except:
-            frame_id = self._arm_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
-            return None

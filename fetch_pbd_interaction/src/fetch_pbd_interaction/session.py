@@ -393,6 +393,7 @@ class Session:
                 if action_id_str in self._db:
                     self._db.delete(self._db[action_id_str])
                 self._lock.release()
+                self._update_session_state()
                 return
 
         action_id_str = str(action_id)
