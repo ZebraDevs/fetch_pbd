@@ -32,9 +32,12 @@ from fetch_pbd_interaction.srv import GetObjectList, \
 # Marker options
 # --------------
 # Colors
-COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
+# COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
 COLOR_MESH_REACHABLE = ColorRGBA(1.0, 0.5, 0.0, 0.6)
+COLOR_MESH_REACHABLE_SELECTED = ColorRGBA(0.0, 1.0, 0.0, 1.0)
+
 COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
+COLOR_MESH_UNREACHABLE_SELECTED = ColorRGBA(0.0, 1.0, 0.0, 0.5)
 
 # Scales
 SCALE_TRAJ_STEP_SPHERES = Vector3(0.02, 0.02, 0.02)
@@ -111,7 +114,11 @@ class ArmTarget(Primitive):
         self._gripper_state = gripper_state
         self._number = number
         self._is_control_visible = False
+        self._selected = False
         self._tf_listener = tf_listener
+        self._marker_visible = False
+        self._color_mesh_reachable = COLOR_MESH_REACHABLE
+        self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
 
         # self._ref_names = []
         # self._im_server = InteractiveMarkerServer("programmed_actions")
@@ -207,23 +214,41 @@ class ArmTarget(Primitive):
 
         return None
 
-    def make_marker(self, click_cb, delete_cb, pose_change_cb,
+    def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
         '''Adds marker to world'''
 
-        rospy.loginfo("Making marker")
+        # rospy.loginfo("Making marker")
         self._marker_click_cb = click_cb
         self._marker_delete_cb = delete_cb
         self._pose_change_cb = pose_change_cb
         self._action_change_cb = action_change_cb
-        self.update_ref_frames()
+        # self.update_ref_frames()
 
-    def delete_marker(self):
+    def show_marker(self):
+        '''Adds marker for primitive'''
+        if self.update_ref_frames():
+            self._update_menu()
+            self._update_viz_core()
+            self._menu_handler.reApply(self._im_server)
+            self._im_server.applyChanges()
+        self._marker_visible = True
+
+    def hide_marker(self):
         '''Removes marker from the world.'''
 
         rospy.loginfo("Deleting marker for: {}".format(self.get_name()))
         self._im_server.erase(self.get_name())
         self._im_server.applyChanges()
+        self._marker_visible = False
+
+    def marker_visible(self):
+        '''Return whether or not marker is visible
+
+        Returns:
+            bool
+        '''
+        return self._marker_visible
 
     def update_ref_frames(self):
         '''Updates and re-assigns coordinate frames when the world changes.'''
@@ -234,13 +259,14 @@ class ArmTarget(Primitive):
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
+                return True
 
-                self._update_menu()
             else:
                 rospy.logwarn("Not showing primitive markers because " +
                               "no objects present")
+                return False
         else:
-            self._update_menu()
+            return True
 
     def change_ref_frame(self, ref_type, landmark):
         '''Sets new reference frame for primitive
@@ -284,6 +310,29 @@ class ArmTarget(Primitive):
 
         return ref_name
 
+    def select(self, is_selected):
+        '''Set whether primitive is selected or not
+
+        Args:
+            is_selected (bool)
+        '''
+        self._selected = is_selected
+        self.set_control_visible(is_selected)
+        if is_selected:
+            self._color_mesh_reachable = COLOR_MESH_REACHABLE_SELECTED
+            self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE_SELECTED
+        else:
+            self._color_mesh_reachable = COLOR_MESH_REACHABLE
+            self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
+
+    def is_selected(self):
+        '''Return whether or not primitive is selected
+
+        Returns
+            bool
+        '''
+        return self._selected
+
     def is_control_visible(self):
         '''Check if the marker control is visible
 
@@ -310,7 +359,8 @@ class ArmTarget(Primitive):
             if not resp.has_object:
                 draw_markers = False
 
-        if draw_markers:
+        if draw_markers and self._marker_visible:
+            self._update_menu()
             self._update_viz_core()
             self._menu_handler.reApply(self._im_server)
             self._im_server.applyChanges()
@@ -718,10 +768,7 @@ class ArmTarget(Primitive):
         # Update.
         rospy.loginfo("Viz core")
 
-        if self._update_viz_core():
-
-            self._menu_handler.apply(self._im_server, self.get_name())
-            self._im_server.applyChanges()
+        self._update_viz_core()
 
     def _get_menu_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
@@ -851,7 +898,7 @@ class ArmTarget(Primitive):
         frame_id = self.get_ref_frame_name()
         pose = self._get_marker_pose()
         if pose is None:
-            return False
+            return
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
 
@@ -879,7 +926,6 @@ class ArmTarget(Primitive):
         int_marker.controls.append(menu_control)
         self._im_server.insert(
             int_marker, self._marker_feedback_cb)
-        return True
 
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.
@@ -964,9 +1010,9 @@ class ArmTarget(Primitive):
             ColorRGBA: The color for the gripper mesh for this arm target.
         '''
         if self.is_reachable():
-            return COLOR_MESH_REACHABLE
+            return self._color_mesh_reachable
         else:
-            return COLOR_MESH_UNREACHABLE
+            return self._color_mesh_unreachable
 
     def _make_gripper_marker(self, control, gripper_state=GripperState.CLOSED):
         '''Makes a gripper marker, adds it to control, returns control.

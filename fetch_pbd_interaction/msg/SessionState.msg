@@ -1,7 +1,7 @@
 uint8 n_actions
-uint8 current_action
+int8 current_action
 uint8 n_primitives
-uint8 current_primitive
+int8 current_primitive
 string[] action_names
 string[] ref_frames
 string[] primitive_names

@@ -155,7 +155,7 @@
             </table>
             <ul style='list-style: none; padding: 5px;''>
               <template is='dom-repeat' items='{{primitives}}'>
-                <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination'>
+                <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination' on-click='selectPrimitive'>
                   <div class='listDiv'>
                     <div style='display: flex;'>
                       <div style='flex:auto; line-height: 36px; vertical-align: middle; display: inline-block; '>{{item.name}}</div>
@@ -490,14 +490,18 @@
         primitives.splice(parseInt(oldIndex),1);
         primitives.splice(parseInt(newIndex), 0, moved);
         for (i = 0; i < primitives.length; i++) {
-          console.log(i);
-
-          console.log(primitives[i]);
-
           primitives[i].number = i + '';
         }
         this.primitives = primitives;
 
+      },
+
+      selectPrimitive : function(evt) {
+        var message = new ROSLIB.Message({
+          command : 'select-primitive',
+          param : evt.model.item.number
+        });
+        this.inputPub.publish(message);
       },
 
       expCallback : function(that, message) {

@@ -76,7 +76,7 @@ class Action:
         self._z_offset = 0.0
         self._tf_listener = tf_listener
         self._primitive_counter = 0
-        self._marker_visibility = []
+        # self._marker_visibility = []
 
         # Markers to connect consecutive primitives together
         self._link_markers = {}
@@ -243,24 +243,29 @@ class Action:
         if add_name:
             primitive.set_name("primitive_" + str(self._primitive_counter))
             self._primitive_counter += 1
-        self._seq.append(primitive)
-        if add_marker:
-            primitive.make_marker(
-                self.marker_click_cb,  # marker_click_cb
+        primitive.add_marker_callbacks(
+                self.select_primitive,  # marker_click_cb
                 self.delete_primitive,
                 self._primitive_pose_change,
                 self._action_change_cb
             )
-            self._marker_visibility.append(True)
+        self._seq.append(primitive)
+
+        if add_marker:
+
+            # self._marker_visibility.append(True)
+            primitive.show_marker()
+
             self._update_links()
 
             self._update_markers()
             self._lock.release()
             self.update_viz()
         else:
-            self._marker_visibility.append(False)
+            # self._marker_visibility.append(False)
+            primitive.hide_marker()
             self._lock.release()
-        rospy.loginfo("marker viz: {}".format(self._marker_visibility))
+        # rospy.loginfo("marker viz: {}".format(self._marker_visibility))
 
     def update_objects(self):
         '''For each primitive, updates the reference frames based on
@@ -287,7 +292,7 @@ class Action:
         # Destroy the primitive markers.
         for primitive in self._seq:
             rospy.loginfo("Deleting marker")
-            primitive.delete_marker()
+            primitive.hide_marker()
         self._im_server.clear()
         # Mark the links for destruction.
         for i in self._link_markers.keys():
@@ -309,9 +314,10 @@ class Action:
         Args:
             primitive_number (int)
         '''
-        self._marker_visibility[primitive_number] = False
-        primitive = self._seq[primitive_number]
-        primitive.delete_marker()
+        # self._marker_visibility[primitive_number] = False
+        if self.n_primitives() > 0:
+            primitive = self._seq[primitive_number]
+            primitive.hide_marker()
 
     def make_primitive_marker(self, primitive_number):
         '''Delete marker with certain index
@@ -319,14 +325,9 @@ class Action:
         Args:
             primitive_number (int)
         '''
-        self._marker_visibility[primitive_number] = True
+        # self._marker_visibility[primitive_number] = True
         primitive = self._seq[primitive_number]
-        primitive.make_marker(
-                self.marker_click_cb,  # marker_click_cb
-                self.delete_primitive,
-                self._primitive_pose_change,
-                self._action_change_cb
-        )
+        primitive.show_marker()
 
     def get_marker_visibility(self):
         '''Returns visibility status of primitive markers
@@ -334,9 +335,12 @@ class Action:
         Returns:
             [bool]
         '''
-        return self._marker_visibility
+        marker_visibility = []
+        for primitive in self._seq:
+            marker_visibility += [primitive.marker_visible()]
+        return marker_visibility
 
-    def marker_click_cb(self, primitive_number, is_selected):
+    def select_primitive(self, primitive_number, is_selected):
         '''Callback for when one of the markers is clicked.
         Selects clicked marker and unselects others.
 
@@ -350,45 +354,33 @@ class Action:
         for primitive in self._seq:
             # If we match the one we've clicked on, select it.
             if primitive.get_primitive_number() == primitive_number:
-                primitive.set_control_visible(is_selected)
+                primitive.select(is_selected)
                 primitive.update_viz()
             else:
                 # Otherwise, deselect it.
                 if primitive.is_control_visible():
-                    primitive.set_control_visible(False)
+                    primitive.select(False)
                     primitive.update_viz()
 
         # If we selected it, really click on it.
         if is_selected:
             self._primitive_click_cb(primitive_number)
+        else:
+            self._primitive_click_cb(-1)
         self._lock.release()
         self.update_viz()
-
-    def select_primitive(self, primitive_number):
-        '''Makes the interactive marker for the indicated primitive
-        selected by showing the 6D controls.
-
-        Args:
-            primitive_number (int)
-        '''
-        self.marker_click_cb(primitive_number, True)
 
     def initialize_viz(self):
         '''Initialize visualization.'''
 
         rospy.loginfo("Initialising viz for: {}".format(self.get_action_id()))
         # self._lock.acquire()
-        self._marker_visibility = [True] * len(self._seq)
+        # self._marker_visibility = [True] * len(self._seq)
         for i in range(len(self._seq)):
             primitive = self._seq[i]
 
             # Construct the markers.
-            primitive.make_marker(
-                self.marker_click_cb,  # marker_click_cb
-                self.delete_primitive,
-                self._primitive_pose_change,
-                self._action_change_cb
-            )
+            primitive.show_marker()
 
             self._update_links()
 
@@ -588,7 +580,7 @@ class Action:
         self._lock.acquire()
         if (to_delete + 1) < self.n_primitives():
             rospy.loginfo("Abs pose: {}".format(self._seq[to_delete + 1].get_absolute_pose()))
-        self._seq[to_delete].delete_marker()
+        self._seq[to_delete].hide_marker()
         for i in range(to_delete + 1, self.n_primitives()):
             rospy.loginfo("Frame name: {}, {}, {}".format(i, self._seq[i].get_ref_frame_name(), self._seq[i]._number))
 
@@ -613,7 +605,7 @@ class Action:
                     next_primitive.set_pose(new_pose)
                     rospy.loginfo("Got here 2")
         self._seq.pop(to_delete)
-        self._marker_visibility.pop(to_delete)
+        # self._marker_visibility.pop(to_delete)
         self._update_links()
         self._lock.release()
         self.update_viz()
@@ -670,13 +662,7 @@ class Action:
         '''Update links when primitive pose changes'''
         # self._lock.acquire()
         for idx, primitive in enumerate(self._seq):
-            if self._marker_visibility[idx]:
-                primitive.make_marker(
-                    self.marker_click_cb,  # marker_click_cb
-                    self.delete_primitive,
-                    self._primitive_pose_change,
-                    self._action_change_cb
-                )
+            primitive.update_viz()
         # self._lock.release()
         self.update_viz()
 
@@ -792,8 +778,7 @@ class Action:
     def _update_markers(self):
         '''Updates the markers after a change.'''
         for idx, primitive in enumerate(self._seq):
-            if self._marker_visibility[idx]:
-                primitive.update_viz()
+            primitive.update_viz()
 
     def _update_links(self):
         '''Updates the visualized links b/w action primitives.'''

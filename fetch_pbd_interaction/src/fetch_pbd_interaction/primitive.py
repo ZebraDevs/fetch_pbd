@@ -28,14 +28,22 @@ class Primitive:
         pass
 
     @abstractmethod
-    def make_marker(self, click_cb,
+    def add_marker_callbacks(self, click_cb,
                     delete_cb,
                     pose_change_cb,
                     action_change_cb):
         pass
 
     @abstractmethod
-    def delete_marker(self):
+    def show_marker(self):
+        pass
+
+    @abstractmethod
+    def hide_marker(self):
+        pass
+
+    @abstractmethod
+    def marker_visible(self):
         pass
 
     @abstractmethod
@@ -48,6 +56,14 @@ class Primitive:
 
     @abstractmethod
     def get_ref_frame_name(self):
+        pass
+
+    @abstractmethod
+    def select(self, is_selected):
+        pass
+
+    @abstractmethod
+    def is_selected(self):
         pass
 
     @abstractmethod

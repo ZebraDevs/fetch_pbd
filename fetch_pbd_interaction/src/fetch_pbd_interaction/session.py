@@ -62,7 +62,8 @@ class Session:
         # Sorted list of action ids
         self._action_ids = []
         self._current_action_id = None
-        self._selected_primitive = 0
+        # -1 means None selected, used because SessionState.msg uses int8
+        self._selected_primitive = -1
         self._current_arm_trajectory = None
         self._marker_visibility = []
 
@@ -95,8 +96,14 @@ class Session:
         Args:
             primitive_id (int): ID of the primitive to select.
         '''
-        self._actions[self._current_action_id].select_primitive(primitive_id)
-        self._selected_primitive = primitive_id
+        # If already selected, un-select, else select
+        rospy.loginfo("new: {}, selected: {}".format(primitive_id, self._selected_primitive))
+        if primitive_id == self._selected_primitive:
+            is_selected = False
+        else:
+            is_selected = True
+        self._actions[self._current_action_id].select_primitive(primitive_id, is_selected)
+        # self._selected_primitive = primitive_id
 
 
     def new_action(self, name=None):
@@ -568,18 +575,13 @@ class Session:
         Args:
             selected_primitive (int): ID of the primitive selected.
         '''
+        rospy.loginfo("Setting primitive to {}".format(selected_primitive))
         self._selected_primitive = selected_primitive
         self._async_update_session_state()
 
     def _action_change_cb(self):
         '''Updates the db when primitive deleted.
         '''
-        rospy.loginfo("Trying to update")
-
-        # self._lock.acquire()
-        # self._update_db_with_current_action()
-        # rospy.loginfo("Db updated")
-        # self._lock.release()
         self._async_update_session_state()
         rospy.loginfo("Session state updates")
 
