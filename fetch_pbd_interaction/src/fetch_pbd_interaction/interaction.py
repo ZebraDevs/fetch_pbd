@@ -27,7 +27,6 @@ from std_srvs.srv import Empty
 # Module level constants
 # ######################################################################
 
-EXECUTION_Z_OFFSET = -0.00
 BASE_LINK = 'base_link'
 TOPIC_IM_SERVER = 'programmed_actions'
 
@@ -67,10 +66,7 @@ class Interaction:
 
         self._clear_world_objects_srv = \
                         rospy.ServiceProxy('clear_world_objects', Empty)
-        self._update_world_srv = rospy.ServiceProxy('update_world',
-                                                    GetObjectList)
         rospy.wait_for_service('clear_world_objects')
-        rospy.wait_for_service('update_world')
 
         # Initialize trajectory recording state.
         self._is_recording_motion = False
@@ -78,7 +74,7 @@ class Interaction:
         # Keep track of head state
         # TODO(sarah): Is this necessary or does the fact that the
         # "LOOK_DOWN" action is not interruptable cover this?
-        self._looking_down = False
+        # self._looking_down = False
 
         # Command/callback pairs for input
         self._responses = {
@@ -144,7 +140,7 @@ class Interaction:
 
         arm_moving = self._robot.is_arm_moving()
 
-        if not arm_moving and not self._looking_down:
+        if not arm_moving and not self._session.head_busy():
             # rospy.loginfo("Arm moving")
             self._robot.look_forward()
         else:
@@ -154,9 +150,9 @@ class Interaction:
                 action_status = current_action.get_status()
 
                 if (action_status != ExecutionStatus.EXECUTING and
-                        not self._looking_down):
+                        not self._session.head_busy()):
                     self._robot.look_at_ee()
-            elif not self._looking_down:
+            elif not self._session.head_busy():
                 self._robot.look_at_ee()
 
         # Update the current action if there is one.
@@ -491,19 +487,12 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
-        self._looking_down = True
-        self._robot.look_down()
-        resp = self._update_world_srv()
-        if resp.object_list:
-            if self._session.n_actions() > 0:
-                self._session.get_current_action().update_objects()
+        if self._session.record_objects():
             self._robot.play_sound(RobotSound.SUCCESS)
             self._robot.nod_head()
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
-
-        self._looking_down = False
 
     def _save_target(self, gui_input):
         '''Saves current arm state as an action primitive (ArmTarget).
@@ -573,74 +562,11 @@ class Interaction:
             gui_input (GuiInput) : unused
         '''
         # We must have a current action.
-        if self._session.n_actions() > 0:
-            # We must have also recorded primitives (/poses/frames) in it.
-            if self._session.n_primitives() > 0:
-                # Save curent action and retrieve it.
-                # self._session.save_current_action()
-
-                # Now, see if we can execute.
-                if self._session.get_current_action().is_object_required():
-                    # We need an object; check if we have one.
-                    self._looking_down = True
-
-                    self._robot.look_down()
-                    resp = self._update_world_srv()
-                    self._looking_down = False
-
-                    # objects = resp.objects
-                    if resp.object_list:
-                        # An object is required, and we got one. Execute.
-                        self._session.get_current_action().update_objects()
-                        self._session.get_current_action().start_execution(
-                            EXECUTION_Z_OFFSET)
-                        # Wait a certain max time for execution to finish
-                        for i in range(1000):
-                            action = self._session.get_current_action()
-                            status = action.get_status()
-                            if status != ExecutionStatus.EXECUTING:
-                                break
-                            rospy.sleep(0.1)
-                        if status == ExecutionStatus.SUCCEEDED:
-                            self._robot.play_sound(RobotSound.SUCCESS)
-                            self._robot.nod_head()
-                        else:
-                            self._robot.play_sound(RobotSound.ERROR)
-                            self._robot.shake_head()
-
-                    else:
-                        # An object is required, but we didn't get it.
-                        self._robot.play_sound(RobotSound.ERROR)
-                        self._robot.shake_head()
-                else:
-                    # No object is required: start execution now.
-                    self._session.get_current_action().start_execution(
-                            EXECUTION_Z_OFFSET)
-
-                    for i in range(1000):
-                        action = self._session.get_current_action()
-                        status = action.get_status()
-                        if status != ExecutionStatus.EXECUTING:
-                            break
-                        rospy.sleep(0.1)
-                    if status == ExecutionStatus.SUCCEEDED:
-                        self._robot.play_sound(RobotSound.SUCCESS)
-                        self._robot.nod_head()
-                    else:
-                        self._robot.play_sound(RobotSound.ERROR)
-                        self._robot.shake_head()
-
-                # Reply: starting execution.
-                self._robot.play_sound(RobotSound.STARTING_EXECUTION)
-            else:
-                # No primitives / poses / frames recorded.
-                rospy.loginfo("No primitives recorded")
-                self._robot.play_sound(RobotSound.ERROR)
-                self._robot.shake_head()
+        self._robot.play_sound(RobotSound.STARTING_EXECUTION)
+        if self._session.execute_current_action():
+            self._robot.play_sound(RobotSound.SUCCESS)
+            self._robot.nod_head()
         else:
-            # No actions.
-            rospy.loginfo("No actions recorded")
-
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
 

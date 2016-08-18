@@ -21,11 +21,10 @@ from tf import TransformBroadcaster
 from fetch_pbd_interaction.action import Action
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory  import ArmTrajectory
-from fetch_pbd_interaction.msg import SessionState
+from fetch_pbd_interaction.msg import SessionState, ExecutionStatus
 from fetch_pbd_interaction.srv import GetSessionState, \
                                      GetSessionStateResponse, \
                                      GetObjectList
-
 
 # ######################################################################
 # Classes
@@ -66,6 +65,7 @@ class Session:
         self._selected_primitive = -1
         self._current_arm_trajectory = None
         self._marker_visibility = []
+        self._head_busy = False
 
         # Publishers & Services
         self._state_publisher = rospy.Publisher('session_state',
@@ -75,6 +75,9 @@ class Session:
                       self._get_session_state_cb)
         self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
                                                        GetObjectList)
+        self._update_world_srv = rospy.ServiceProxy('update_world',
+                                                    GetObjectList)
+        rospy.wait_for_service('update_world')
 
         # Load saved actions
         self._load_session_state()
@@ -496,7 +499,105 @@ class Session:
         '''
         action = self._actions[self._current_action_id]
         primitive = action.get_primitive(primitive_number)
-        primitive.execute()
+        if primitive.is_object_required():
+            # We need an object; check if we have one.
+            self._head_busy = True
+
+            self._robot.look_down()
+            resp = self._update_world_srv()
+            self._head_busy = False
+            if resp.object_list:
+                # An object is required, and we got one. Execute.
+                self.get_current_action().update_objects()
+                primitive.execute()
+        else:
+            primitive.execute()
+
+    def record_objects(self):
+        '''Records poses of objects
+        '''
+        self._head_busy = True
+        self._robot.look_down()
+        resp = self._update_world_srv()
+        self._head_busy = False
+        if resp.object_list:
+            if self.n_actions() > 0:
+                self.get_current_action().update_objects()
+            return  True
+        else:
+            return False
+
+    def execute_current_action(self):
+        '''Executes current action
+
+        Returns:
+            bool
+        '''
+        if self.n_actions() > 0 and not self._current_action_id is None:
+            # We must have also recorded primitives (/poses/frames) in it.
+            if self.n_primitives() > 0:
+                # Save curent action and retrieve it.
+                # self._session.save_current_action()
+
+                # Now, see if we can execute.
+                if self.get_current_action().is_object_required():
+                    # We need an object; check if we have one.
+                    self._head_busy = True
+
+                    self._robot.look_down()
+                    resp = self._update_world_srv()
+                    self._head_busy = False
+
+                    # objects = resp.objects
+                    if resp.object_list:
+                        # An object is required, and we got one. Execute.
+                        self.get_current_action().update_objects()
+                        self.get_current_action().start_execution()
+                        # Wait a certain max time for execution to finish
+                        for i in range(1000):
+                            action = self.get_current_action()
+                            status = action.get_status()
+                            if status != ExecutionStatus.EXECUTING:
+                                break
+                            rospy.sleep(0.1)
+                        if status == ExecutionStatus.SUCCEEDED:
+                            return True
+                        else:
+                            return False
+
+                    else:
+                        # An object is required, but we didn't get it.
+                        return False
+                else:
+                    # No object is required: start execution now.
+                    self.get_current_action().start_execution()
+
+                    for i in range(1000):
+                        action = self.get_current_action()
+                        status = action.get_status()
+                        if status != ExecutionStatus.EXECUTING:
+                            break
+                        rospy.sleep(0.1)
+                    if status == ExecutionStatus.SUCCEEDED:
+                        return True
+                    else:
+                        return False
+            else:
+                # No primitives / poses / frames recorded.
+                rospy.loginfo("No primitives recorded")
+                return False
+        else:
+            # No actions.
+            rospy.loginfo("No current action")
+            return False
+
+    def head_busy(self):
+        '''Returns whether head is busy (looking at table usually)
+
+        Returns:
+            bool
+        '''
+        return self._head_busy
 
     def publish_primitive_tf(self):
         '''Publish tf frame for each primitive of current action'''

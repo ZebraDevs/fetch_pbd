@@ -119,6 +119,7 @@ class ArmTarget(Primitive):
         self._marker_visible = False
         self._color_mesh_reachable = COLOR_MESH_REACHABLE
         self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
+        self._reachable = True
 
         # self._ref_names = []
         # self._im_server = InteractiveMarkerServer("programmed_actions")
@@ -230,7 +231,7 @@ class ArmTarget(Primitive):
         if self.update_ref_frames():
             self._update_menu()
             self._update_viz_core()
-            self._menu_handler.reApply(self._im_server)
+            self._menu_handler.apply(self._im_server, self.get_name())
             self._im_server.applyChanges()
         self._marker_visible = True
 
@@ -283,7 +284,7 @@ class ArmTarget(Primitive):
             self.get_name())
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
-        self.update_viz()
+        self.update_viz(False)
         self._action_change_cb()
 
     def get_ref_frame_name(self):
@@ -325,6 +326,8 @@ class ArmTarget(Primitive):
             self._color_mesh_reachable = COLOR_MESH_REACHABLE
             self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
 
+        self.update_viz(False)
+
     def is_selected(self):
         '''Return whether or not primitive is selected
 
@@ -349,8 +352,13 @@ class ArmTarget(Primitive):
         '''
         self._is_control_visible = visible
 
-    def update_viz(self):
-        '''Updates visualization fully.'''
+    def update_viz(self, check_reachable=True):
+        '''Updates visualization fully.
+
+        Args:
+            check_reachable (bool) : whether to evaluate reachability
+                                    before drawing marker
+        '''
         rospy.loginfo("Updating viz for: {}".format(self.get_name()))
         draw_markers = True
         if self._arm_state.ref_type == ArmState.OBJECT:
@@ -361,8 +369,8 @@ class ArmTarget(Primitive):
 
         if draw_markers and self._marker_visible:
             self._update_menu()
-            self._update_viz_core()
-            self._menu_handler.reApply(self._im_server)
+            self._update_viz_core(check_reachable)
+            self._menu_handler.apply(self._im_server, self.get_name())
             self._im_server.applyChanges()
 
     def get_primitive_number(self):
@@ -410,7 +418,8 @@ class ArmTarget(Primitive):
 
     def is_reachable(self):
         '''Check if robot can physically reach target'''
-        return self._robot.can_reach(self._arm_state)
+        self._reachable = self._robot.can_reach(self._arm_state)
+        return self._reachable
 
     def get_relative_pose(self, use_final=True):
         '''Returns the relative pose of the primitive.
@@ -768,8 +777,6 @@ class ArmTarget(Primitive):
         # Update.
         rospy.loginfo("Viz core")
 
-        self._update_viz_core()
-
     def _get_menu_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
         object is not found.
@@ -889,8 +896,12 @@ class ArmTarget(Primitive):
             rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
             return None
 
-    def _update_viz_core(self):
-        '''Updates visualization after a change.'''
+    def _update_viz_core(self, check_reachable=True):
+        '''Updates visualization after a change.
+
+        Args:
+            check_reachable (bool) : Check reachability of pose before drawing marker
+        '''
         # Create a new IM control.
         menu_control = InteractiveMarkerControl()
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
@@ -899,22 +910,12 @@ class ArmTarget(Primitive):
         pose = self._get_marker_pose()
         if pose is None:
             return
+
+        if check_reachable:
+            self.is_reachable()
+
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
-
-        # Add an arrow to the relative object, if there is one.
-        # if not self._arm_state.ref_type == ArmState.ROBOT_BASE:
-        #     menu_control.markers.append(
-        #         Marker(
-        #             type=Marker.ARROW,
-        #             id=(ID_OFFSET_REF_ARROW + self._number),
-        #             lifetime=TRAJ_MARKER_LIFETIME,
-        #             scale=SCALE_OBJ_REF_ARROW,
-        #             header=Header(frame_id=frame_id),
-        #             color=COLOR_OBJ_REF_ARROW,
-        #             points=[pose.pose.position, Point(0, 0, 0)]
-        #         )
-        #     )
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
@@ -1009,7 +1010,7 @@ class ArmTarget(Primitive):
         Returns:
             ColorRGBA: The color for the gripper mesh for this arm target.
         '''
-        if self.is_reachable():
+        if self._reachable:
             return self._color_mesh_reachable
         else:
             return self._color_mesh_unreachable
@@ -1119,7 +1120,7 @@ class ArmTarget(Primitive):
             self.get_name())
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
-        self.update_viz()
+        self.update_viz(False)
         self._action_change_cb()
 
     def _marker_feedback_cb(self, feedback):

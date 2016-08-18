@@ -228,7 +228,7 @@ class ArmTrajectory(Primitive):
         if self.update_ref_frames():
             self._update_menu()
             self._update_viz_core()
-            self._menu_handler.reApply(self._im_server)
+            self._menu_handler.apply(self._im_server, self.get_name())
             self._im_server.applyChanges()
 
         self._marker_visible = True
@@ -252,15 +252,9 @@ class ArmTrajectory(Primitive):
     def update_ref_frames(self):
         '''Updates and re-assigns coordinate frames when the world changes.'''
 
-        if self._ref_type == ArmState.OBJECT:
-            resp = self._get_most_similar_obj_srv(self._ref_landmark)
-            if resp.has_similar:
-                self._ref_landmark = resp.similar_object
-                return True
-            else:
-                rospy.logwarn("Not showing primitive markers because " +
-                              "no objects present")
-                return False
+        if self._ref_type != ArmState.ROBOT_BASE:
+            rospy.logwarn("Trajectories can only be relative to the robot's base")
+            return False
         else:
             return True
 
@@ -321,6 +315,7 @@ class ArmTrajectory(Primitive):
         else:
             self._color_traj_line = COLOR_TRAJ_LINE
             self._color_traj_endpoint_spheres = COLOR_TRAJ_ENDPOINT_SPHERES
+        self.update_viz()
 
     def is_selected(self):
         '''Return whether or not primitive is selected
@@ -346,8 +341,12 @@ class ArmTrajectory(Primitive):
         '''
         self._is_control_visible = visible
 
-    def update_viz(self):
-        '''Updates visualization fully.'''
+    def update_viz(self, check_reachable=True):
+        '''Updates visualization fully.
+
+        Args:
+            check_reachable (bool) : Unused
+        '''
         draw_markers = True
         if self._ref_type == ArmState.OBJECT:
             resp = self._get_object_from_name_srv(self._ref_landmark.name)
@@ -356,7 +355,7 @@ class ArmTrajectory(Primitive):
         if draw_markers and self._marker_visible:
             self._update_menu()
             self._update_viz_core()
-            self._menu_handler.reApply(self._im_server)
+            self._menu_handler.apply(self._im_server, self.get_name())
             self._im_server.applyChanges()
 
     def get_primitive_number(self):
@@ -534,15 +533,11 @@ class ArmTrajectory(Primitive):
         '''Makes the reference frame of continuous trajectories
         uniform.
 
-        This means finding the dominant reference frame of the
-        trajectory (for right and left arms separately), and then
-        altering all steps in the trajctory to be relative to the same
-        reference frame (again, separate for right and left arms).
+        For trajectories, always use BASE_LINK
         '''
-        # Find the dominant reference frame (e.g. robot base,
-        # an object).
 
-        ref_type, ref_obj = self._find_dominant_ref(self._arm_states)
+        ref_type = ArmState.ROBOT_BASE
+        ref_obj = Landmark(name=BASE_LINK)
 
         # Next, alter all trajectory steps (ArmState's) so that they use
         # the dominant reference frame as their reference frame.
@@ -1226,50 +1221,6 @@ class ArmTrajectory(Primitive):
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
-
-    def _find_dominant_ref(self, arm_traj):
-        '''Finds the most dominant reference frame in a continuous
-        trajectory.
-
-        Args:
-            arm_traj (ArmState[]): List of arm states that form the arm
-                trajectory.
-            frame_list ([Landmark]): List of Landmark (as defined by
-                Landmark.msg), the current reference frames.
-
-        Returns:
-            (int, Landmark): Tuple of the dominant reference frame's
-                number (as one of the constants available in ArmState to
-                be set as ArmState.ref_frame) and Landmark (as in
-                Landmark.msg).
-        '''
-        # Cycle through all arm states and check their reference frames.
-        # Whichever one is most frequent becomes the dominant one.
-        robot_base = Landmark(name=BASE_LINK)
-        ref_counts = Counter()
-        ref_dict = {}
-        ref_dict[robot_base.name] = ArmState.ROBOT_BASE
-        for arm_state in arm_traj:
-            # We only track objects that
-            ref_dict[arm_state.ref_landmark.name] = arm_state.ref_type
-            if arm_state.ref_type == ArmState.ROBOT_BASE:
-                ref_counts[robot_base] += 1
-            else:
-                landmark_name = arm_state.ref_landmark.name
-                resp = self._get_object_from_name_srv(landmark_name)
-                has_landmark = resp.has_landmark
-                if has_landmark:
-                    ref_counts[arm_state.ref_landmark] += 1
-                else:
-                    rospy.logwarn('Ignoring object with reference frame ' +
-                                  arm_state.ref_landmark.name +
-                                  ' because world does not have this object.')
-
-        # Get most common obj.
-        dominant_ref_obj = ref_counts.most_common(1)[0][0]
-        ref_type = ref_dict[dominant_ref_obj.name]
-        # Find the frame number (int) and return with the object.
-        return ref_type, dominant_ref_obj
 
     def _get_menu_ref(self):
         '''Returns the name string for the reference frame object of the

@@ -73,7 +73,6 @@ class Action:
         self._action_change_cb = action_change_cb
         self._status = ExecutionStatus.NOT_EXECUTING
         self._preempt = False
-        self._z_offset = 0.0
         self._tf_listener = tf_listener
         self._primitive_counter = 0
         # self._marker_visibility = []
@@ -184,7 +183,7 @@ class Action:
 
         self.reset_viz()
 
-    def start_execution(self, z_offset=0.0):
+    def start_execution(self):
         ''' Starts execution of action.
 
         This method spawns a new thread.
@@ -195,7 +194,6 @@ class Action:
         '''
         # This will take long; create a thread.
         self._preempt = False
-        self._z_offset = z_offset
         thread = threading.Thread(
             group=None,
             target=self._execute_action,
@@ -355,12 +353,10 @@ class Action:
             # If we match the one we've clicked on, select it.
             if primitive.get_primitive_number() == primitive_number:
                 primitive.select(is_selected)
-                primitive.update_viz()
             else:
                 # Otherwise, deselect it.
                 if primitive.is_control_visible():
                     primitive.select(False)
-                    primitive.update_viz()
 
         # If we selected it, really click on it.
         if is_selected:

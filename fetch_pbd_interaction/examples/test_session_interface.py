@@ -54,10 +54,32 @@ if __name__ == '__main__':
                             im_server)
 
     if session.n_actions() > 0:
+        rospy.loginfo("There are {} actions.".format(session.n_actions()))
+
+        # Select first action
         session.switch_to_action(0)
-        action = session.get_current_action()
-        # Continuously executes the first action
-        while(True):
-            action.start_execution()
-            rospy.sleep(3)
+        # Execute first action
+        rospy.loginfo("Executing action 0, with {} primitives.".format(session.n_primitives()))
+        session.execute_current_action()
+
+        # You can specify pauses between actions
+        rospy.sleep(3)
+
+        # You can also execute individual primitives
+        if session.n_primitives() > 0:
+            rospy.loginfo("Executing first primitive of first action")
+            session.execute_primitive(0)
+        else:
+            rospy.loginfo("Action 0 has no primitives.")
+
+        # You can add logic
+        action_num = raw_input('Which action should we execute next? Enter 1 or 2:')
+        action_num = int(action_num)
+
+        rospy.loginfo("Executing action {}.".format(action_num))
+        session.switch_to_action(action_num)
+        session.execute_current_action()
+
+    else:
+        rospy.logwarn("No actions available!")
 
