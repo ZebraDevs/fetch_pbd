@@ -156,7 +156,7 @@
             <ul style='list-style: none; padding: 5px;''>
               <template is='dom-repeat' items='{{primitives}}'>
                 <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination' on-click='selectPrimitive'>
-                  <div class='listDiv'>
+                  <div class='listDiv' style='{{item.backgroundColor}}'>
                     <div style='display: flex;'>
                       <div style='flex:auto; line-height: 36px; vertical-align: middle; display: inline-block; '>{{item.name}}</div>
                       <div style='flex:none;'>
@@ -516,6 +516,13 @@
           else {
             markerStatus = that.hideMarkerIcon;
           }
+          var backgroundColor;
+          if (i == message.current_primitive){
+            backgroundColor = 'background-color: #A5D6A7;';
+          }
+          else{
+            backgroundColor = 'background-color: #FFFFFF;';
+          }
           var primitive = {
             name : message.primitive_names[i],
             number: i + '',
@@ -530,7 +537,8 @@
               r: message.orientations[i].r,
               p: message.orientations[i].p,
               y: message.orientations[i].y
-            }
+            },
+            backgroundColor : backgroundColor
           };
           that.push('primitives', primitive);
         }
