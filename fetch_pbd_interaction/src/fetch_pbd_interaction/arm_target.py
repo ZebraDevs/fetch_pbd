@@ -242,29 +242,23 @@ class ArmTarget(Primitive):
         else:
             self._update_menu()
 
-    def get_ref_name(self):
-        '''Returns the name string for the reference frame object of the
-        primitive.
+    def change_ref_frame(self, ref_type, landmark):
+        '''Sets new reference frame for primitive
 
-        Returns:
-            str|None: Under all normal circumstances, returns the str
-                reference frame name. Returns None in error.
+        Args:
+
         '''
-        # "Normal" step (saved pose).
-        ref_type = self._arm_state.ref_type
-        ref_name = self._arm_state.ref_landmark.name
-
-
-        # Update ref frame name if it's absolute.
-        if ref_type == ArmState.ROBOT_BASE:
-            ref_name = BASE_LINK
-        elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = PREVIOUS_PRIMITIVE
-        elif ref_name == '':
-            ref_name = BASE_LINK
-            rospy.loginfo("Empty frame: {}".format(self._number))
-
-        return ref_name
+        self._arm_state.ref_type = ref_type
+        self._arm_state.ref_landmark = landmark
+        new_ref = self.get_ref_frame_name()
+        self._set_ref(new_ref)
+        rospy.loginfo(
+            'Switching reference frame to ' + new_ref + ' for primitive ' +
+            self.get_name())
+        self._menu_handler.reApply(self._im_server)
+        self._im_server.applyChanges()
+        self.update_viz()
+        self._action_change_cb()
 
     def get_ref_frame_name(self):
         '''Returns the name string for the reference frame object of the
@@ -391,14 +385,32 @@ class ArmTarget(Primitive):
         try:
             abs_pose = self._tf_listener.transformPose('base_link',
                                                self._arm_state.ee_pose)
+            return abs_pose
+        except:
+            frame_id = self._arm_state.ee_pose.header.frame_id
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            return None
+
+    def get_absolute_marker_pose(self, use_final=True):
+        '''Returns the absolute pose of the primitive marker.
+
+        Args:
+            use_final (bool, optional). Unused
+
+        Returns:
+            PoseStamped
+        '''
+        try:
+            abs_pose = self._tf_listener.transformPose('base_link',
+                                               self._arm_state.ee_pose)
             return ArmTarget._offset_pose(abs_pose)
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
-    def get_absolute_position(self, use_final=True):
-        '''Returns the absolute position of the primitive.
+    def get_absolute_marker_position(self, use_final=True):
+        '''Returns the absolute position of the primitive marker.
 
         Args:
             use_final (bool, optional) : Unused
@@ -407,7 +419,7 @@ class ArmTarget(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self.get_absolute_pose()
+        abs_pose = self.get_absolute_marker_pose()
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -416,7 +428,6 @@ class ArmTarget(Primitive):
     def decrease_id(self):
         '''Reduces the number of the primitive.'''
         self._number -= 1
-        self._update_menu()
 
     def set_name(self, name):
         '''Sets the display name for the primitive.
@@ -460,6 +471,14 @@ class ArmTarget(Primitive):
             bool : True
         '''
         return True
+
+    def get_ref_type(self):
+        '''Return reference type of primitive
+
+        Returns:
+            ArmState.ROBOT_BASE, etc
+        '''
+        return self._arm_state.ref_type
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -678,6 +697,7 @@ class ArmTarget(Primitive):
             self._sub_entries += [subent]
 
         # Inset main menu entries.
+
         self._menu_handler.insert(
             MENU_OPTIONS['move_here'], callback=self._move_to_cb)
         self._menu_handler.insert(
@@ -690,13 +710,16 @@ class ArmTarget(Primitive):
             self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
 
         # Check if necessary.
-        menu_id = self._get_menu_id(self.get_ref_name())
+        menu_id = self._get_menu_id(self._get_menu_ref())
         if not menu_id is None:
             # self.has_object = False
             self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
         # Update.
+        rospy.loginfo("Viz core")
+
         if self._update_viz_core():
+
             self._menu_handler.apply(self._im_server, self.get_name())
             self._im_server.applyChanges()
 
@@ -804,17 +827,19 @@ class ArmTarget(Primitive):
             Pose
         '''
         try:
-            # self._tf_listener.waitForTransform(BASE_LINK,
-            #                      self._arm_state.ee_pose.header.frame_id,
-            #                      rospy.Time.now(),
-            #                      rospy.Duration(5.0))
+            self._tf_listener.waitForTransform(BASE_LINK,
+                                 self._arm_state.ee_pose.header.frame_id,
+                                 rospy.Time(0),
+                                 rospy.Duration(4.0))
             intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
                                                         self._arm_state.ee_pose)
             offset_pose = ArmTarget._offset_pose(intermediate_pose)
             return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                 offset_pose)
-        except:
+        except Exception, e:
+            rospy.logwarn(e)
+            rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
             return None
 
     def _update_viz_core(self):
@@ -824,11 +849,9 @@ class ArmTarget(Primitive):
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
-        pose = None
-        while pose is None:
-            pose = self._get_marker_pose()
-            rospy.sleep(0.1)
-
+        pose = self._get_marker_pose()
+        if pose is None:
+            return False
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
 
@@ -958,7 +981,7 @@ class ArmTarget(Primitive):
         '''
 
         mesh_color = self._get_mesh_marker_color()
-        # frame_id = self.get_ref_name()
+        # frame_id = self._get_menu_ref()
 
         # Create mesh 1 (palm).
         mesh1 = ArmTarget._make_mesh_marker(mesh_color)
@@ -1040,7 +1063,7 @@ class ArmTarget(Primitive):
             feedback (InteractiveMarkerFeedback (?))
         '''
         self._menu_handler.setCheckState(
-            self._get_menu_id(self.get_ref_name()), MenuHandler.UNCHECKED)
+            self._get_menu_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
         self._menu_handler.setCheckState(
             feedback.menu_entry_id, MenuHandler.CHECKED)
         new_ref = self._get_menu_name(feedback.menu_entry_id)
@@ -1077,4 +1100,28 @@ class ArmTarget(Primitive):
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
+
+    def _get_menu_ref(self):
+        '''Returns the name string for the reference frame object of the
+        primitive. This is specifically for
+
+        Returns:
+            str|None: Under all normal circumstances, returns the str
+                reference frame name. Returns None in error.
+        '''
+        # "Normal" step (saved pose).
+        ref_type = self._arm_state.ref_type
+        ref_name = self._arm_state.ref_landmark.name
+
+
+        # Update ref frame name if it's absolute.
+        if ref_type == ArmState.ROBOT_BASE:
+            ref_name = BASE_LINK
+        elif ref_type == ArmState.PREVIOUS_TARGET:
+            ref_name = PREVIOUS_PRIMITIVE
+        elif ref_name == '':
+            ref_name = BASE_LINK
+            rospy.loginfo("Empty frame: {}".format(self._number))
+
+        return ref_name
 

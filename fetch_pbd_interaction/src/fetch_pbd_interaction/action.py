@@ -19,7 +19,8 @@ import tf
 # Local
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory import ArmTrajectory
-from fetch_pbd_interaction.msg import ExecutionStatus, OrientationRPY
+from fetch_pbd_interaction.msg import ExecutionStatus, OrientationRPY, \
+                                      ArmState, Landmark
 
 # ######################################################################
 # Module level constants
@@ -259,6 +260,7 @@ class Action:
         else:
             self._marker_visibility.append(False)
             self._lock.release()
+        rospy.loginfo("marker viz: {}".format(self._marker_visibility))
 
     def update_objects(self):
         '''For each primitive, updates the reference frames based on
@@ -425,7 +427,7 @@ class Action:
         self._lock.acquire()
         ref_frame_names = []
         for primitive in self._seq:
-            ref_frame_names += [primitive.get_ref_name()]
+            ref_frame_names += [primitive.get_ref_frame_name()]
         self._lock.release()
         return ref_frame_names
 
@@ -510,7 +512,10 @@ class Action:
         Returns:
             [Primitive]
         '''
-        return self._seq
+        self._lock.acquire()
+        primitives = self._seq
+        self._lock.release()
+        return primitives
 
     def get_primitive(self, index):
         '''Returns primitive of the action based on index.
@@ -581,10 +586,34 @@ class Action:
             to_delete (int): The index of the primitive to delete.
         '''
         self._lock.acquire()
+        if (to_delete + 1) < self.n_primitives():
+            rospy.loginfo("Abs pose: {}".format(self._seq[to_delete + 1].get_absolute_pose()))
         self._seq[to_delete].delete_marker()
         for i in range(to_delete + 1, self.n_primitives()):
+            rospy.loginfo("Frame name: {}, {}, {}".format(i, self._seq[i].get_ref_frame_name(), self._seq[i]._number))
+
             self._seq[i].decrease_id()
+        rospy.loginfo("Got here 1")
+
+        if self.n_primitives() > (to_delete + 1):
+            next_primitive = self._seq[to_delete + 1]
+            if next_primitive.get_ref_type() == ArmState.PREVIOUS_TARGET:
+                if to_delete == 0:
+                    next_primitive.change_ref_frame(ArmState.ROBOT_BASE,
+                                                    Landmark())
+                else:
+                    pose = next_primitive.get_absolute_pose()
+                    rospy.loginfo("Abs pose: {}".format(pose))
+                    rospy.loginfo("Frame name: {}, {}".format(next_primitive.get_ref_frame_name(), next_primitive._number))
+
+
+                    new_pose = self._tf_listener.transformPose(
+                        next_primitive.get_ref_frame_name(),
+                        pose)
+                    next_primitive.set_pose(new_pose)
+                    rospy.loginfo("Got here 2")
         self._seq.pop(to_delete)
+        self._marker_visibility.pop(to_delete)
         self._update_links()
         self._lock.release()
         self.update_viz()
@@ -618,9 +647,8 @@ class Action:
         Returns:
             Marker|None
         '''
-        start = primitive0.get_absolute_position(use_final=True)
-        end = primitive1.get_absolute_position(use_final=False)
-        rospy.loginfo("start: {}".format(start))
+        start = primitive0.get_absolute_marker_position(use_final=True)
+        end = primitive1.get_absolute_marker_position(use_final=False)
         if start == end:
             return None
         elif not start is None and not end is None:
@@ -640,7 +668,7 @@ class Action:
 
     def _primitive_pose_change(self):
         '''Update links when primitive pose changes'''
-        self._lock.acquire()
+        # self._lock.acquire()
         for idx, primitive in enumerate(self._seq):
             if self._marker_visibility[idx]:
                 primitive.make_marker(
@@ -649,7 +677,7 @@ class Action:
                     self._primitive_pose_change,
                     self._action_change_cb
                 )
-        self._lock.release()
+        # self._lock.release()
         self.update_viz()
 
     def _is_condition_met(self, condition):

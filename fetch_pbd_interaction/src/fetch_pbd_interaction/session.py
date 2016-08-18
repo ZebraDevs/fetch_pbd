@@ -381,49 +381,50 @@ class Session:
         Args:
             action_id (string|int)
         '''
-        self._lock.acquire()
-        rospy.loginfo("actions: {}".format(self._actions))
+        if self.n_actions > 0:
+            self._lock.acquire()
+            rospy.loginfo("actions: {}".format(self._actions))
 
-        if int(action_id) == self._current_action_id:
-            if len(self._action_ids) == 1:
-                self._current_action_id = None
-                self._actions = {}
-                self._action_ids = []
-                action_id_str = str(action_id)
-                if action_id_str in self._db:
-                    self._db.delete(self._db[action_id_str])
-                self._lock.release()
-                self._update_session_state()
-                return
+            if int(action_id) == self._current_action_id:
+                if len(self._action_ids) == 1:
+                    self._current_action_id = None
+                    self._actions = {}
+                    self._action_ids = []
+                    action_id_str = str(action_id)
+                    if action_id_str in self._db:
+                        self._db.delete(self._db[action_id_str])
+                    self._lock.release()
+                    self._update_session_state()
+                    return
 
-        action_id_str = str(action_id)
-        rospy.loginfo("actions: {}".format(self._actions))
-        del self._actions[int(action_id)]
-        if action_id_str in self._db:
-            self._db.delete(self._db[action_id_str])
+            action_id_str = str(action_id)
+            rospy.loginfo("actions: {}".format(self._actions))
+            del self._actions[int(action_id)]
+            if action_id_str in self._db:
+                self._db.delete(self._db[action_id_str])
 
-        # new_actions = {}
-        for a_id in range(int(action_id) + 1, len(self._action_ids)):
-            action = self._actions[a_id]
-            action.decrease_id()
-            del self._actions[a_id]
-            rospy.loginfo("id: {}".format(action.get_action_id()))
-            self._actions[action.get_action_id()] = action
+            # new_actions = {}
+            for a_id in range(int(action_id) + 1, len(self._action_ids)):
+                action = self._actions[a_id]
+                action.decrease_id()
+                del self._actions[a_id]
+                rospy.loginfo("id: {}".format(action.get_action_id()))
+                self._actions[action.get_action_id()] = action
 
-            if str(a_id) in self._db:
-                self._db.delete(self._db[str(a_id)])
+                if str(a_id) in self._db:
+                    self._db.delete(self._db[str(a_id)])
 
-            self._update_db_with_action(action)
+                self._update_db_with_action(action)
 
-        self._action_ids.pop()
-        if int(action_id) == self._current_action_id:
-            self._current_action_id = self._action_ids[-1]
-        elif int(action_id) < self._current_action_id:
-            self._current_action_id = self._current_action_id - 1
-        self._lock.release()
+            self._action_ids.pop()
+            if int(action_id) == self._current_action_id:
+                self._current_action_id = self._action_ids[-1]
+            elif int(action_id) < self._current_action_id:
+                self._current_action_id = self._current_action_id - 1
+            self._lock.release()
 
-        rospy.loginfo("actions: {}".format(self._actions))
-        self._update_session_state()
+            rospy.loginfo("actions: {}".format(self._actions))
+            self._update_session_state()
 
     def switch_primitive_order(self, old_index, new_index):
         '''Change the order of primitives in action
@@ -432,12 +433,14 @@ class Session:
             old_index (int)
             new_index (int)
         '''
+        rospy.loginfo("Switching primitive order")
+
         self._lock.acquire()
         action = self._actions[self._current_action_id]
         action.switch_primitive_order(old_index, new_index)
+        self._update_db_with_current_action()
         self._lock.release()
         # self._update_session_state()
-        self._update_db_with_current_action()
 
     def delete_primitive(self, primitive_number):
         '''Delete specified primitive
@@ -445,11 +448,11 @@ class Session:
         Args:
             primitive_number (int) : Number of primitive to be deleted
         '''
-        self._lock.acquire()
+        # self._lock.acquire()
         action = self._actions[self._current_action_id]
         action.delete_primitive(primitive_number)
         rospy.loginfo("GOt here")
-        self._lock.release()
+        # self._lock.release()
         # self._update_db_with_current_action()
 
     def hide_primitive_marker(self, primitive_number):
@@ -571,8 +574,12 @@ class Session:
     def _action_change_cb(self):
         '''Updates the db when primitive deleted.
         '''
-        self._update_db_with_current_action()
-        rospy.loginfo("Db updated")
+        rospy.loginfo("Trying to update")
+
+        # self._lock.acquire()
+        # self._update_db_with_current_action()
+        # rospy.loginfo("Db updated")
+        # self._lock.release()
         self._async_update_session_state()
         rospy.loginfo("Session state updates")
 
@@ -595,8 +602,11 @@ class Session:
 
     def _update_session_state(self):
         '''Publishes a message with the latest state.'''
+        rospy.loginfo("Session state update")
         if len(self._actions) > 0:
+            self._lock.acquire()
             self._update_db_with_current_action()
+            self._lock.release()
         state = self._get_session_state()
         self._state_publisher.publish(state)
 
@@ -724,7 +734,7 @@ class Session:
             parent (str): The parent reference frame.
         '''
         try:
-            marker_pose = primitive.get_absolute_pose()
+            marker_pose = primitive.get_absolute_marker_pose()
             # rospy.loginfo("Pose")
             pose = self._tf_listener.transformPose('base_link', marker_pose)
             position = pose.pose.position

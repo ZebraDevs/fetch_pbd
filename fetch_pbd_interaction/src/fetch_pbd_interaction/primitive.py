@@ -43,7 +43,7 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_ref_name(self):
+    def change_ref_frame(self, ref_type, landmark):
         pass
 
     @abstractmethod
@@ -91,7 +91,11 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_absolute_position(self, use_final=True):
+    def get_absolute_marker_pose(self, use_final=True):
+        pass
+
+    @abstractmethod
+    def get_absolute_marker_position(self, use_final=True):
         pass
 
     @abstractmethod
@@ -118,6 +122,9 @@ class Primitive:
     def pose_editable(self):
         pass
 
+    @abstractmethod
+    def get_ref_type(self):
+        pass
 
 
 
