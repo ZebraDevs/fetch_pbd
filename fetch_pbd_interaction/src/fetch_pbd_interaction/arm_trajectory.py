@@ -824,31 +824,6 @@ class ArmTrajectory(Primitive):
             Quaternion(rot[0], rot[1], rot[2], rot[3])
         )
 
-    @staticmethod
-    def _make_sphere_marker(uid, pose, frame_id, radius):
-        '''Creates and returns a sphere marker.
-
-        Args:
-            uid (int): The id to use for the marker.
-            pose (Pose): The pose of the marker.
-            frame_id (str): Frame the marker is associated with. (See
-                std_msgs/Header.msg for more info.)
-            radius (float): Amount to scale the marker by. Scales in all
-                directions (x, y, and z).
-
-        Returns:
-            Marker
-        '''
-        return Marker(
-            type=Marker.SPHERE,
-            id=uid,
-            lifetime=rospy.Duration(2),
-            scale=Vector3(radius, radius, radius),
-            pose=pose,
-            header=Header(frame_id=frame_id),
-            color=self._color_traj_endpoint_spheres
-        )
-
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
@@ -1052,7 +1027,7 @@ class ArmTrajectory(Primitive):
 
         # Add a marker for the first step in the trajectory.
         menu_control.markers.append(
-            ArmTrajectory._make_sphere_marker(
+            self._make_sphere_marker(
                 self._number + ID_OFFSET_TRAJ_FIRST,
                 self._get_traj_pose(0).pose,
                 '',
@@ -1063,7 +1038,7 @@ class ArmTrajectory(Primitive):
         # Add a marker for the last step in the trajectory.
         last_index = len(self._timing) - 1
         menu_control.markers.append(
-            ArmTrajectory._make_sphere_marker(
+            self._make_sphere_marker(
                 self._number + ID_OFFSET_TRAJ_LAST,
                 self._get_traj_pose(last_index).pose,
                 '',
@@ -1169,6 +1144,30 @@ class ArmTrajectory(Primitive):
         self._im_server.applyChanges()
         self.update_viz()
         self._action_change_cb()
+
+    def _make_sphere_marker(self, uid, pose, frame_id, radius):
+        '''Creates and returns a sphere marker.
+
+        Args:
+            uid (int): The id to use for the marker.
+            pose (Pose): The pose of the marker.
+            frame_id (str): Frame the marker is associated with. (See
+                std_msgs/Header.msg for more info.)
+            radius (float): Amount to scale the marker by. Scales in all
+                directions (x, y, and z).
+
+        Returns:
+            Marker
+        '''
+        return Marker(
+            type=Marker.SPHERE,
+            id=uid,
+            lifetime=rospy.Duration(2),
+            scale=Vector3(radius, radius, radius),
+            pose=pose,
+            header=Header(frame_id=frame_id),
+            color=self._color_traj_endpoint_spheres
+        )
 
     def _delete_primitive_cb(self, feedback):
         '''Callback for when delete is requested.
