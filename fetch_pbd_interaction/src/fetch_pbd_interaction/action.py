@@ -353,10 +353,12 @@ class Action:
             # If we match the one we've clicked on, select it.
             if primitive.get_primitive_number() == primitive_number:
                 primitive.select(is_selected)
+                primitive.update_viz()
             else:
                 # Otherwise, deselect it.
                 if primitive.is_control_visible():
                     primitive.select(False)
+                    primitive.update_viz()
 
         # If we selected it, really click on it.
         if is_selected:
@@ -561,8 +563,14 @@ class Action:
         self._lock.acquire()
         primitive = self._seq.pop(old_index)
         self._seq.insert(new_index, primitive)
+        for i in range(self.n_primitives()):
+            primitive = self._seq[i]
+            primitive.set_primitive_number(i)
         self._lock.release()
+        for i in range(self.n_primitives()):
+            self.select_primitive(i, False)    
         self.update_viz()
+        self._action_change_cb()
 
     def delete_primitive(self, to_delete):
         '''Deletes a primitive from the action.
@@ -579,9 +587,7 @@ class Action:
         self._seq[to_delete].hide_marker()
         for i in range(to_delete + 1, self.n_primitives()):
             rospy.loginfo("Frame name: {}, {}, {}".format(i, self._seq[i].get_ref_frame_name(), self._seq[i]._number))
-
             self._seq[i].decrease_id()
-        rospy.loginfo("Got here 1")
 
         if self.n_primitives() > (to_delete + 1):
             next_primitive = self._seq[to_delete + 1]
@@ -599,13 +605,11 @@ class Action:
                         next_primitive.get_ref_frame_name(),
                         pose)
                     next_primitive.set_pose(new_pose)
-                    rospy.loginfo("Got here 2")
         self._seq.pop(to_delete)
         # self._marker_visibility.pop(to_delete)
         self._update_links()
         self._lock.release()
         self.update_viz()
-        rospy.loginfo("Got here first")
 
         self._action_change_cb()
 

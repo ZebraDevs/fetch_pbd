@@ -45,14 +45,22 @@
   <build_depend>fetch_arm_control</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>rospy</build_depend>
+  <build_depend>rosbridge_server</build_depend>
   <build_depend>rospy_message_converter</build_depend>
+  <build_depend>interactive_marker_proxy</build_depend>
+  <build_depend>interactive_markers</build_depend>
+  <build_depend>tf2_web_republisher</build_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>message_runtime</run_depend>
   <run_depend>fetch_arm_control</run_depend>
   <run_depend>rospy</run_depend>
+  <run_depend>rosbridge_server</run_depend>
   <run_depend>rospy_message_converter</run_depend>
   <run_depend>std_msgs</run_depend>
   <run_depend>tf</run_depend>
+  <run_depend>interactive_marker_proxy</run_depend>
+  <run_depend>interactive_markers</run_depend>
+  <run_depend>tf2_web_republisher</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
