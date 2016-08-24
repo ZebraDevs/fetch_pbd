@@ -44,7 +44,10 @@ DURATION_MIN_THRESHOLD = 0.5  # seconds
 # ######################################################################
 
 class Arm:
-    ''' Interface for controlling arm '''
+    ''' Interface for controlling mid-level operations of the arm.
+    Interfaces with MoveIt and joint trajectory controllers to move the
+    arm to locations using different planning strategies.
+    '''
     def __init__(self, tf_listener):
         '''
         Args:
@@ -66,8 +69,9 @@ class Arm:
                             'wrist_flex_joint',
                             'wrist_roll_joint']
 
-        self._all_joint_names = [] # what are these for?
-        self._all_joint_poses = [] # what are these for?
+        # names/poses for joints we have received information about
+        self._received_joint_names = []
+        self._received_joint_poses = []
 
         self._last_ee_pose = None
         self._movement_buffer_size = 40
@@ -109,9 +113,6 @@ class Arm:
         # Define ground plane
         # This creates objects in the planning scene that mimic the ground
         # If these were not in place gripper could hit the ground
-        # For some reason that defies logic, it's best to add and remove
-        # planning scene objects in a loop.
-        # It sometimes doesn't work the first time.
         self._planning_scene = moveit_commander.PlanningSceneInterface()
         self._planning_scene.remove_world_object("ground_plane")
 
@@ -122,6 +123,9 @@ class Arm:
         ground_pose.pose.position.z = -0.012
         ground_pose.pose.orientation.w = 1.0
 
+        # For some reason that defies logic, it's best to add and remove
+        # planning scene objects in a loop.
+        # It sometimes doesn't work the first time.
         for i in range(5):
             self._planning_scene.add_box("ground_plane", ground_pose,
                                         (1.5, 1.5, 0.02))
@@ -141,7 +145,7 @@ class Arm:
         ''' Periodical update for one arm'''
         ee_pose = self.get_ee_state()
         if ee_pose != None and self._last_ee_pose != None:
-            self._record_arm_movement(Arm.get_distance_bw_poses(ee_pose,
+            self._record_arm_movement(Arm._get_distance_bw_poses(ee_pose,
                                                         self._last_ee_pose))
         self._last_ee_pose = ee_pose
 
@@ -227,16 +231,16 @@ class Arm:
         if joint_names is None:
             joint_names = self._joint_names
 
-        if self._all_joint_names == []:
+        if self._received_joint_names == []:
             rospy.logerr("No robot_state messages received!\n")
             return []
 
         positions = []
         self._lock.acquire()
         for joint_name in joint_names:
-            if joint_name in self._all_joint_names:
-                index = self._all_joint_names.index(joint_name)
-                position = self._all_joint_poses[index]
+            if joint_name in self._received_joint_names:
+                index = self._received_joint_names.index(joint_name)
+                position = self._received_joint_poses[index]
                 positions.append(position)
             else:
                 rospy.logerr("Joint %s not found!", joint_name)
@@ -338,37 +342,12 @@ class Arm:
             joints ([float])
         '''
 
-        # joint_dict = {}
-        # for i in range(len(joints)):
-        #     joint_dict[self._joint_names[i]] = joints[i]
-
-        # try:
-        #     self._move_group.set_joint_value_target(joint_dict)
-        # except Exception as e:
-        #     rospy.logerr("Moveit Error: {}".format(e))
-        #     return False
-
-        # self._move_group.set_planning_time(1.0)
-
-        # plan = self._move_group.plan()
-
-        # if not plan.joint_trajectory.points:
-        #     return False
-        # else:
-
-        #     self._is_executing = True
-        #     go = self._move_group.go(wait=True)
-        #     self._is_executing = False
-        #     rospy.loginfo("Go: {}".format(go))
-        #     return True
         joint_state = JointState()
         joint_state.position = joints
         joint_state.name = self._joint_names
         if velocities is None:
             velocities = [0] * len(joints)
         joint_state.velocity = velocities
-        # for i in range(len(joints)):
-        #     joint_dict[self._joint_names[i]] = joints[i]
 
         try:
             self._move_group.set_joint_value_target(joint_state)
@@ -400,13 +379,11 @@ class Arm:
         '''
         self.un_relax_arm()
 
-
         trajectory = JointTrajectory()
         trajectory.header.stamp = (rospy.Time.now() +
                                              rospy.Duration(0.1))
         trajectory.joint_names = self._joint_names
-        # if velocities is None:
-        #     velocities = [0] * len(joints)
+
         for i in range(len(joints)):
             trajectory.points.append(JointTrajectoryPoint(
                             positions=joints[i],
@@ -493,14 +470,14 @@ class Arm:
             float: How long (in seconds) to allow for moving between
                 pose0 and pose1 and velocity.
         '''
-        dist = Arm.get_distance_bw_poses(pose0, pose1)
+        dist = Arm._get_distance_bw_poses(pose0, pose1)
         duration = dist / velocity
         return (
             DURATION_MIN_THRESHOLD if duration < DURATION_MIN_THRESHOLD
             else duration)
 
     @staticmethod
-    def get_distance_bw_poses(pose0, pose1):
+    def _get_distance_bw_poses(pose0, pose1):
         '''Returns the dissimilarity between two end-effector poses
 
         Args:
@@ -543,12 +520,12 @@ class Arm:
         self._lock.acquire()
 
         for i, joint_name in enumerate(msg.name):
-            if joint_name in self._all_joint_names:
-                idx = self._all_joint_names.index(joint_name)
-                self._all_joint_poses[idx] = msg.position[i]
+            if joint_name in self._received_joint_names:
+                idx = self._received_joint_names.index(joint_name)
+                self._received_joint_poses[idx] = msg.position[i]
             else:
-                self._all_joint_names.append(joint_name)
-                self._all_joint_poses.append(msg.position[i])
+                self._received_joint_names.append(joint_name)
+                self._received_joint_poses.append(msg.position[i])
 
         self._lock.release()
 

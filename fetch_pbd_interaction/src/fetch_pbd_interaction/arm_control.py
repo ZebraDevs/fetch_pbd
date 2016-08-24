@@ -54,7 +54,9 @@ GRIPPER_FINISH_SLEEP_INTERVAL = 0.01  # seconds
 # ######################################################################
 
 class ArmControl:
-    ''''Control of the arm for action execution.'''
+    '''Higher-level interface that exposes capabilities from
+    fetch_arm_control/Arm.py class as services.
+    '''
 
     def __init__(self):
 

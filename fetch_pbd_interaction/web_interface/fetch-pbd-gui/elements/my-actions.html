@@ -196,9 +196,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       },
 
       attached: function () {
+        var hostname = window.location.hostname;
         var that = this;
         this.ros = new ROSLIB.Ros({
-          url : 'ws://localhost:9090'
+          url : 'ws://' + hostname + ':9090'
         });
 
         this.expListener = new ROSLIB.Topic({

@@ -19,16 +19,17 @@ catkin_make
 ```
 Note: The above may not work if other things in the sandbox are broken. Just clone the sandbox somewhere else and copy the fetch_pbd repo ONLY into your workspace.
 
-You also need NodeJs, npm and bower installed. To install Nodejs and npm, go [here](https://nodejs.org/en/). npm is installed with Nodejs. Then:
+You also need NodeJs, npm, bower and Polymer installed. To install Nodejs and npm, go [here](https://nodejs.org/en/). npm is installed with Nodejs. Then:
 ```bash
 npm install -g bower
+npm install -g polymer-cli
 cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
 bower install
 ```
 
 ## Running
-### Fetch
-#### Commands on Fetch
+### Commands on Fetch Robot
+#### Terminal #1
 ```bash
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd_backend.launch
@@ -38,18 +39,17 @@ You can run the backend without the "social gaze" head movements or without the 
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd_backend.launch social_gaze:=false play_sound:=false
 ```
-### Desktop
-Make sure to set your ROS_MASTER_URI to the robot.
-#### Terminal #1
+
+#### Terminal #2
 ```bash
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd_web_frontend.launch
 ```
-#### Terminal #2
+#### Terminal #3
 This will open the web interface.
 ```bash
 cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
-polymer server --open
+polymer serve --hostname 0.0.0.0
 ```
 
 ### Code Interface

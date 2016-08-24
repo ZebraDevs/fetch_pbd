@@ -25,6 +25,3 @@ if __name__ == '__main__':
     arm = Arm(tf_listener)
     marker = ArmControlMarker(arm)
     rospy.spin()
-    # while(not rospy.is_shutdown()):
-    #     marker.update()
-    #     rospy.sleep(0.05)

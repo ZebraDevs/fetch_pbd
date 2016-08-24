@@ -340,10 +340,10 @@
 
       attached: function() {
 
+        var hostname = window.location.hostname;
         var that = this;
-
         this.ros = new ROSLIB.Ros({
-          url : 'ws://localhost:9090'
+          url : 'ws://' + hostname + ':9090'
         });
 
         var width = this.$.viewer.offsetWidth;
