@@ -242,6 +242,7 @@
           <iron-icon icon='av:play-circle-filled'></iron-icon>
           Run
         </paper-button>
+        <paper-button raised id='stop_execution_button' on-tap='stopExecution'>Stop Execution</paper-button>
         <paper-button raised id='save_pose_button' on-tap='savePose'>Save Pose</paper-button>
         <paper-button raised id='record_objects_button' on-tap='recordObjects'>Record Objects</paper-button>
         <paper-button raised id='start_recording_button' on-tap='startRecording'>Start Recording Trajectory</paper-button>
@@ -570,6 +571,14 @@
         this.inputPub.publish(message);
       },
 
+      stopExecution : function() {
+        var message = new ROSLIB.Message({
+          command : 'stop-execution'
+        });
+
+        this.inputPub.publish(message);
+      },
+
       savePose : function() {
         var message = new ROSLIB.Message({
           command : 'save-target'
@@ -607,7 +616,7 @@
           command : 'close-hand'
         });
 
-        this.spinputPub.publish(message);
+        this.inputPub.publish(message);
       },
 
       deleteLast : function() {

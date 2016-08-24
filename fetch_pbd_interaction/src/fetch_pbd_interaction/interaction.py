@@ -8,6 +8,9 @@ sends events out to the system.'''
 # Core ROS imports come first.
 import rospy
 
+# System builtins
+import threading
+
 # ROS builtins
 from visualization_msgs.msg import MarkerArray
 from interactive_markers.interactive_marker_server import \
@@ -246,11 +249,18 @@ class Interaction:
             response = self._responses[cmd]
 
             if not self._session.n_actions() > 0:
+                threading.Thread(group=None,
+                    target=response,
+                    args=(gui_input,),
+                    name='gui_response_thread').start()
                 response(gui_input)
             elif ((self._session.get_current_action().get_status() !=
                     ExecutionStatus.EXECUTING) or
                     cmd == GuiInput.STOP_EXECUTION):
-                response(gui_input)
+                threading.Thread(group=None,
+                    target=response,
+                    args=(gui_input,),
+                    name='gui_response_thread').start()
             else:
                 rospy.logwarn(
                     'Ignoring speech command during execution: ' + cmd)
