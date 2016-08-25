@@ -66,7 +66,6 @@ class Session:
         self._selected_primitive = -1
         self._current_arm_trajectory = None
         self._marker_visibility = []
-        self._head_busy = False
 
         # Publishers & Services
         self._state_publisher = rospy.Publisher('session_state',
@@ -244,7 +243,7 @@ class Session:
         Returns:
             bool: Whether successfully switched to index action.
         '''
-        self._clear_world_objects_srv()
+        self._lock.acquire()
 
         if index < 0 or index >= len(self._actions):
             rospy.logwarn("Index out of bounds: {}".format(index))
@@ -260,9 +259,11 @@ class Session:
             return False
 
         self._current_action_id = index
-
+        self._clear_world_objects_srv()
+        self._lock.release()
         self.get_current_action().initialize_viz()
         self._update_session_state()
+
         return True
 
     def next_action(self):
@@ -511,11 +512,8 @@ class Session:
         primitive = action.get_primitive(primitive_number)
         if primitive.is_object_required():
             # We need an object; check if we have one.
-            self._head_busy = True
-
             self._robot.look_down()
             resp = self._update_world_srv()
-            self._head_busy = False
             if resp.object_list:
                 # An object is required, and we got one. Execute.
                 self.get_current_action().update_objects()
@@ -526,10 +524,8 @@ class Session:
     def record_objects(self):
         '''Records poses of objects
         '''
-        self._head_busy = True
         self._robot.look_down()
         resp = self._update_world_srv()
-        self._head_busy = False
         if resp.object_list:
             if self.n_actions() > 0:
                 self.get_current_action().update_objects()
@@ -552,11 +548,8 @@ class Session:
                 # Now, see if we can execute.
                 if self.get_current_action().is_object_required():
                     # We need an object; check if we have one.
-                    self._head_busy = True
-
                     self._robot.look_down()
                     resp = self._update_world_srv()
-                    self._head_busy = False
 
                     # objects = resp.objects
                     if resp.object_list:
@@ -600,14 +593,6 @@ class Session:
             # No actions.
             rospy.loginfo("No current action")
             return False
-
-    def head_busy(self):
-        '''Returns whether head is busy (looking at table usually)
-
-        Returns:
-            bool
-        '''
-        return self._head_busy
 
     def publish_primitive_tf(self):
         '''Publish tf frame for each primitive of current action'''
@@ -735,7 +720,6 @@ class Session:
         object_list = self._get_object_list_srv().object_list
         positions, orientations = self._get_primitive_positions_orientations()
 
-
         return SessionState(
             self.n_actions(),
             index,
@@ -833,11 +817,11 @@ class Session:
             self._action_ids.append(int(result.value['id']))
         rospy.loginfo("DONE LOADING EVERYTHING")
 
-        if len(self._actions) > 0:
-            # Select the starting action as the action with the largest id
-            self._current_action_id = self._action_ids[-1]
+        # if len(self._actions) > 0:
+        #     # Select the starting action as the action with the largest id
+        #     self._current_action_id = self._action_ids[-1]
 
-            # self._actions[self._current_action_id].initialize_viz()
+        #     # self._actions[self._current_action_id].initialize_viz()
 
     def _publish_primitive_tf(self, primitive, parent="base_link"):
         ''' Publishes a TF for primitive

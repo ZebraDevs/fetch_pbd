@@ -11,7 +11,7 @@ import rospy
 
 # ROS builtins
 import tf
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, String
 from geometry_msgs.msg import Vector3, Point, Pose, Quaternion, PoseStamped
 from visualization_msgs.msg import Marker, InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
@@ -139,6 +139,10 @@ class ArmTarget(Primitive):
                                          GetMostSimilarObject)
         self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
                                                        GetObjectList)
+        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+                                                String,
+                                                queue_size=10,
+                                                latch=True)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -265,6 +269,9 @@ class ArmTarget(Primitive):
             else:
                 rospy.logwarn("Not showing primitive markers because " +
                               "no objects present")
+                self._status_publisher.publish(
+                    String("Not showing primitive markers because " +
+                              "no objects present"))
                 return False
         else:
             return True
@@ -447,7 +454,7 @@ class ArmTarget(Primitive):
             return abs_pose
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            # rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
     def get_absolute_marker_pose(self, use_final=True):
@@ -465,7 +472,7 @@ class ArmTarget(Primitive):
             return ArmTarget._offset_pose(abs_pose)
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            # rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
     def get_absolute_marker_position(self, use_final=True):

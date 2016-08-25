@@ -26,7 +26,8 @@
     "app-route": "PolymerElements/app-route#^0.9.2",
     "app-layout": "^0.10.2",
     "paper-icon-button": "^1.1.2",
-    "iron-pages": "^1.0.8"
+    "iron-pages": "^1.0.8",
+    "paper-dialog": "^1.1.0"
   },
   "devDependencies": {
     "web-component-tester": "^4.0.0"

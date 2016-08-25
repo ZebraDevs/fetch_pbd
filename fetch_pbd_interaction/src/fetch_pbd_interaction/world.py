@@ -113,9 +113,6 @@ class World:
 
         self._clear_all_objects()
 
-        for i in range(5):
-            self._planning_scene.remove_world_object("surface")
-            rospy.sleep(0.1)
     # ##################################################################
     # Instance methods: Public (API)
     # ##################################################################
@@ -272,6 +269,7 @@ class World:
         Returns:
             GetMostSimilarObjectResponse : bool has_similar, Landmark object
         '''
+        self._lock.acquire()
         resp = GetMostSimilarObjectResponse()
         best_dist = 10000  # Not a constant; an absurdly high number.
         ref_object = req.original_object
@@ -298,6 +296,7 @@ class World:
                 resp.similar_object = chosen_obj
 
         # Regardless, return the "closest object," which may be None.
+        self._lock.release()
         return resp
 
     def _get_obj_list(self):
@@ -320,6 +319,7 @@ class World:
                 (as defined by Landmark.msg), the
                 current reference frames.
         '''
+        self.update()
         return GetObjectListResponse(self._get_obj_list())
 
     def _update_world(self, req):
@@ -372,11 +372,13 @@ class World:
 
         rospy.loginfo("waiting for segmentation service")
 
+
         try:
             resp = self._segmentation_service()
             rospy.loginfo("Adding landmarks")
 
             self._reset_objects()
+            self._lock.acquire()
 
             # add the table
             xmin = resp.table.x_min
@@ -397,16 +399,15 @@ class World:
             # For some reason that defies logic, it's best to add and remove
             # planning scene objects in a loop.
             # It sometimes doesn't work the first time.
-            for i in range(5):
-                self._planning_scene.add_box(
-                        "surface",
-                        PoseStamped(Header(frame_id=BASE_LINK), pose),
-                        (dimensions.x, dimensions.y, dimensions.z))
-                rospy.sleep(0.1)
+            threading.Thread(group=None,
+                         target=self._add_surface_to_planning_scene,
+                         args=(pose, dimensions),
+                         name='session_state_publish_thread').start()
 
             for cluster in resp.clusters:
                 points = cluster.points
                 if len(points) == 0:
+                    self._lock.release()
                     return Point(0, 0, 0)
                 [min_x, max_x, min_y, max_y, min_z, max_z] = [
                     points[0].x, points[0].x, points[0].y, points[0].y,
@@ -428,7 +429,7 @@ class World:
                 else:
                     rospy.loginfo("Object added?")
                     rospy.loginfo("World objects: {}".format(self._objects))
-
+            self._lock.release()
             self._world_changed()
             return True
 
@@ -452,9 +453,22 @@ class World:
         self._reset_objects()
         self._remove_surface()
         self._world_changed()
+        threading.Thread(group=None,
+                         target=self._remove_surface_from_planning_scene,
+                         name='session_state_publish_thread').start()
+
+    def _remove_surface_from_planning_scene(self):
         for i in range(5):
             self._planning_scene.remove_world_object("surface")
             rospy.sleep(0.1)
+
+    def _add_surface_to_planning_scene(self, pose, dimensions):
+        for i in range(5):
+                self._planning_scene.add_box(
+                    "surface",
+                    PoseStamped(Header(frame_id=BASE_LINK), pose),
+                    (dimensions.x, dimensions.y, dimensions.z))
+                rospy.sleep(0.1)
 
     def _get_nearest_object(self, req):
         '''Returns the nearest object, if one exists.

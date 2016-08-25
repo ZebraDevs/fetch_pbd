@@ -17,6 +17,7 @@
 <link rel='import' href='../bower_components/paper-toolbar/paper-toolbar.html'>
 <link rel='import' href='../bower_components/paper-tooltip/paper-tooltip.html'>
 <link rel='import' href='../bower_components/paper-input/paper-input.html'>
+<link rel='import' href='../bower_components/paper-dialog/paper-dialog.html'>
 <link rel='import' href='imports.html'>
 
 <dom-module id='current-action'>
@@ -253,6 +254,14 @@
         <paper-button raised id='delete_last_button' on-tap='deleteLast'>Delete Last Primitive</paper-button>
       </div>
     </div>
+
+    <paper-dialog id="statusDialog">
+      <h2>Status</h2>
+      <p>'{{statusMessage}}'</p>
+      <div class="buttons">
+        <paper-button dialog-confirm autofocus>OK</paper-button>
+      </div>
+    </paper-dialog>
   </template>
 
   <script>
@@ -320,10 +329,7 @@
         dragSourceId : Number,
         dropTarget : Object,
         dropTargetId : Number,
-        // editMode: {
-        //   type: Array,
-        //   value: [],
-        // },
+        statusMessage : String
       },
 
       behaviors: [Polymer.IronResizableBehavior],
@@ -434,6 +440,16 @@
         this.expListener.subscribe(function(message) {
           that.expCallback(that, message);
         });
+
+        this.statusListener = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/fetch_pbd_status',
+          messageType : 'std_msgs/String'
+        });
+
+        this.statusListener.subscribe(function(message) {
+          that.statusCallback(that, message);
+        });
       },
 
       isAbove : function(source, target) {
@@ -503,6 +519,14 @@
           param : evt.model.item.number
         });
         this.inputPub.publish(message);
+      },
+
+      statusCallback : function(that, message) {
+        if (message.data != '') {
+          that.statusMessage = message.data;
+          var statusDialog = document.getElementById('statusDialog');
+          statusDialog.open();
+        }
       },
 
       expCallback : function(that, message) {

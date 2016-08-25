@@ -57,6 +57,7 @@ class Interaction:
         self._im_server = InteractiveMarkerServer(TOPIC_IM_SERVER)
         self._session = Session(self._robot, self._tf_listener,
                                 self._im_server)
+        self._head_busy = False
 
         # ROS publishers, subscribers, services
         self._viz_publisher = rospy.Publisher('visualization_marker_array',
@@ -139,19 +140,19 @@ class Interaction:
 
         arm_moving = self._robot.is_arm_moving()
 
-        if not arm_moving and not self._session.head_busy():
+        if not arm_moving and not self._head_busy:
             # rospy.loginfo("Arm moving")
             self._robot.look_forward()
         else:
             if self._session.n_actions() > 0:
                 current_action = self._session.get_current_action()
+                if not current_action is None:
+                    action_status = current_action.get_status()
 
-                action_status = current_action.get_status()
-
-                if (action_status != ExecutionStatus.EXECUTING and
-                        not self._session.head_busy()):
-                    self._robot.look_at_ee()
-            elif not self._session.head_busy():
+                    if (action_status != ExecutionStatus.EXECUTING and
+                            not self._head_busy):
+                        self._robot.look_at_ee()
+            elif not self._head_busy:
                 self._robot.look_at_ee()
 
         # Update the current action if there is one.
@@ -165,13 +166,13 @@ class Interaction:
             # If the objects in the world have changed, update the
             # action with them.
             current_action = self._session.get_current_action()
-
-            action_status = current_action.get_status()
-            current_action.update_viz()
-            # if action_status != ExecutionStatus.NOT_EXECUTING:
-            #     # self._arm_reset_publisher.publish(String(''))
-            #     if action_status != ExecutionStatus.EXECUTING:
-            #         self._end_execution()
+            if not current_action is None:
+                action_status = current_action.get_status()
+                current_action.update_viz()
+                # if action_status != ExecutionStatus.NOT_EXECUTING:
+                #     # self._arm_reset_publisher.publish(String(''))
+                #     if action_status != ExecutionStatus.EXECUTING:
+                #         self._end_execution()
 
 
     # ##################################################################
@@ -250,6 +251,13 @@ class Interaction:
                     args=(gui_input,),
                     name='gui_response_thread').start()
                 response(gui_input)
+            elif (self._session.get_current_action() is None and
+                    cmd == GuiInput.SWITCH_TO_ACTION):
+                threading.Thread(group=None,
+                    target=response,
+                    args=(gui_input,),
+                    name='gui_response_thread').start()
+
             elif ((self._session.get_current_action().get_status() !=
                     ExecutionStatus.EXECUTING) or
                     cmd == GuiInput.STOP_EXECUTION):
@@ -446,6 +454,7 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         # First, open the hand if it's closed.
         if self._robot.get_gripper_state() != GripperState.OPEN:
             # Hand was closed, now open.
@@ -462,6 +471,7 @@ class Interaction:
             # Hand was already open; complain.
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.look_at_ee(follow=False)
+        self._head_busy = False
 
     def _close_hand(self, gui_input):
         '''Closes gripper
@@ -470,6 +480,7 @@ class Interaction:
             gui_input (GuiInput) : unused
         '''
         # First, close the hand if it's open.
+        self._head_busy = True
         if self._robot.get_gripper_state() != GripperState.CLOSED:
             self._robot.set_gripper_state(GripperState.CLOSED)
             # Hand was open, now closed.
@@ -484,6 +495,7 @@ class Interaction:
             # Hand was already closed; complain.
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.look_at_ee(follow=False)
+        self._head_busy = False
 
     def _record_objects(self, gui_input):
         '''Makes the robot look for a table and objects.
@@ -491,12 +503,14 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         if self._session.record_objects():
             self._robot.play_sound(RobotSound.SUCCESS)
             self._robot.nod_head()
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _save_target(self, gui_input):
         '''Saves current arm state as an action primitive (ArmTarget).
@@ -504,6 +518,7 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         if self._session.n_actions() > 0:
             self._session.add_arm_target_to_action()
             self._robot.play_sound(RobotSound.POSE_SAVED)
@@ -511,6 +526,7 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _start_recording_trajectory(self, gui_input):
         '''Starts recording continuous motion.
@@ -518,6 +534,7 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         if self._session.n_actions() > 0:
             if not self._is_recording_motion:
                 self._is_recording_motion = True
@@ -530,6 +547,7 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _stop_recording_trajectory(self, gui_input):
         '''Stops recording continuous motion.
@@ -537,6 +555,7 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         if self._is_recording_motion:
             self._is_recording_motion = False
 
@@ -547,6 +566,7 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _primitive_pose_edited(self, gui_input):
         '''Updates the primitive pose with input from the interface
@@ -566,6 +586,7 @@ class Interaction:
             gui_input (GuiInput) : unused
         '''
         # We must have a current action.
+        self._head_busy = True
         self._robot.play_sound(RobotSound.STARTING_EXECUTION)
         if self._session.execute_current_action():
             self._robot.play_sound(RobotSound.SUCCESS)
@@ -573,6 +594,7 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _stop_execution(self, gui_input):
         '''Stops ongoing execution after current primitive is finished
@@ -580,6 +602,7 @@ class Interaction:
         Args:
             gui_input (GuiInput) : unused
         '''
+        self._head_busy = True
         status = self._session.get_current_action().get_status()
         if status == ExecutionStatus.EXECUTING:
             self._session.get_current_action().stop_execution()
@@ -588,6 +611,7 @@ class Interaction:
         else:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()
+        self._head_busy = False
 
     def _execute_primitive(self, gui_input):
         '''Execute primitive with certain index
