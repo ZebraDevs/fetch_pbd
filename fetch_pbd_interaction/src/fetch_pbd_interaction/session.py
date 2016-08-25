@@ -16,6 +16,7 @@ import couchdb
 
 # ROS builtins
 from tf import TransformBroadcaster
+from std_srvs.srv import Empty
 
 # Local
 from fetch_pbd_interaction.action import Action
@@ -79,6 +80,10 @@ class Session:
                                                     GetObjectList)
         rospy.wait_for_service('update_world')
 
+        self._clear_world_objects_srv = \
+                        rospy.ServiceProxy('clear_world_objects', Empty)
+        rospy.wait_for_service('clear_world_objects')
+
         # Load saved actions
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
@@ -111,6 +116,7 @@ class Session:
 
     def new_action(self, name=None):
         '''Creates new action.'''
+        self._clear_world_objects_srv()
         if self.n_actions() > 0 and not self._current_action_id is None:
             self.get_current_action().reset_viz()
             self._current_action_id = self.n_actions()
@@ -136,6 +142,7 @@ class Session:
         self._action_ids.append(self._current_action_id)
         self._marker_visibility = [True] * self.n_primitives()
         self._update_session_state()
+
 
     def n_actions(self):
         '''Returns the number of actions programmed so far.
@@ -237,6 +244,7 @@ class Session:
         Returns:
             bool: Whether successfully switched to index action.
         '''
+        self._clear_world_objects_srv()
 
         if index < 0 or index >= len(self._actions):
             rospy.logwarn("Index out of bounds: {}".format(index))
@@ -313,6 +321,8 @@ class Session:
         Args:
             action_id (int)
         '''
+        self._clear_world_objects_srv()
+
         new_id = self.n_actions()
 
         map_fun = '''function(doc) {

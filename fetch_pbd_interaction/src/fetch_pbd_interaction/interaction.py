@@ -67,10 +67,6 @@ class Interaction:
 
         rospy.Subscriber('world_update', WorldState, self._world_update_cb)
 
-        self._clear_world_objects_srv = \
-                        rospy.ServiceProxy('clear_world_objects', Empty)
-        rospy.wait_for_service('clear_world_objects')
-
         # Initialize trajectory recording state.
         self._is_recording_motion = False
 
@@ -274,7 +270,6 @@ class Interaction:
             gui_input (GuiInput) : unused
         '''
         self._session.new_action()
-        self._clear_world_objects_srv()
         self._robot.play_sound(RobotSound.CREATED_ACTION)
         self._robot.nod_head()
 
@@ -354,7 +349,6 @@ class Interaction:
             gui_input (GuiInput) : contains index of action to copy
         '''
         self._session.copy_action(int(gui_input.param))
-        self._clear_world_objects_srv()
         self._robot.play_sound(RobotSound.CREATED_ACTION)
         self._robot.nod_head()
 

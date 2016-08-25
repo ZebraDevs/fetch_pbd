@@ -14,7 +14,7 @@ from numpy import array
 
 # ROS builtins
 from tf import TransformListener, TransformBroadcaster
-from geometry_msgs.msg import Quaternion, Vector3, Point, Pose
+from geometry_msgs.msg import Quaternion, Vector3, Point, Pose, PoseStamped
 from std_msgs.msg import ColorRGBA, Header
 from std_srvs.srv import Empty, EmptyResponse
 from visualization_msgs.msg import Marker, InteractiveMarker
@@ -22,6 +22,7 @@ from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.interactive_marker_server import \
     InteractiveMarkerServer
+import moveit_commander
 
 # Local
 from tabletop_object_detector.srv import TabletopSegmentation
@@ -80,14 +81,13 @@ class World:
 
 
     def __init__(self):
-        # Public attributes
+
         self._tf_listener = TransformListener()
         self._surface = None
-
-        # Private attributes
         self._lock = threading.Lock()
         self._tf_broadcaster = TransformBroadcaster()
         self._im_server = InteractiveMarkerServer('world_objects')
+        self._planning_scene = moveit_commander.PlanningSceneInterface()
         # Type: [WorldLandmark]
         self._objects = []
 
@@ -113,6 +113,9 @@ class World:
 
         self._clear_all_objects()
 
+        for i in range(5):
+            self._planning_scene.remove_world_object("surface")
+            rospy.sleep(0.1)
     # ##################################################################
     # Instance methods: Public (API)
     # ##################################################################
@@ -391,6 +394,15 @@ class World:
             self._im_server.insert(self._surface,
                                    self._marker_feedback_cb)
             self._im_server.applyChanges()
+            # For some reason that defies logic, it's best to add and remove
+            # planning scene objects in a loop.
+            # It sometimes doesn't work the first time.
+            for i in range(5):
+                self._planning_scene.add_box(
+                        "surface",
+                        PoseStamped(Header(frame_id=BASE_LINK), pose),
+                        (dimensions.x, dimensions.y, dimensions.z))
+                rospy.sleep(0.1)
 
             for cluster in resp.clusters:
                 points = cluster.points
@@ -440,6 +452,9 @@ class World:
         self._reset_objects()
         self._remove_surface()
         self._world_changed()
+        for i in range(5):
+            self._planning_scene.remove_world_object("surface")
+            rospy.sleep(0.1)
 
     def _get_nearest_object(self, req):
         '''Returns the nearest object, if one exists.
