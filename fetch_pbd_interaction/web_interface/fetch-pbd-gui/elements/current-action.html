@@ -32,6 +32,11 @@
       .flexchild-vertical {
         @apply(--layout-flex);
       }
+      .flex-container {
+        display: flex;
+        flex-direction: column;
+        max-height: 510px;
+      }
       #primitiveListContainer {
         width: 500px;
         float: right;
@@ -145,16 +150,16 @@
         <div id='viewer' class='flex'></div>
         <div id='primitiveListContainer' >
           <div class='title'>Primitive List</div>
-          <div style='overflow:auto; height:550px;'>
-            <table id='primitiveList' class='primitiveList'>
-            <thead>
-              <tr>
-                <th>Primitives</th>
-                <th>Options</th>
-              </tr>
-            </thead>
-            </table>
-            <ul style='list-style: none; padding: 5px;''>
+          <table id='primitiveList' class='primitiveList'>
+          <thead>
+            <tr>
+              <th>Primitives</th>
+              <th>Options</th>
+            </tr>
+          </thead>
+          </table>
+          <div class='flex-container' style='overflow:auto;'>
+            <ul style='list-style: none; padding: 5px; margin: 0px;'>
               <template is='dom-repeat' items='{{primitives}}'>
                 <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination' on-click='selectPrimitive'>
                   <div class='listDiv' style='{{item.backgroundColor}}'>
@@ -172,17 +177,17 @@
                         <paper-icon-button
                             noink
                             data-primitive$='{{item.number}}'
-                            on-tap='onEdit'
-                            icon='image:edit'
-                            disabled='{{item.editDisabled}}'>
+                            on-tap='onCopy'
+                            icon='content-copy'>
                         </paper-icon-button>
                       </div>
                       <div style='flex:none;'>
                         <paper-icon-button
                             noink
                             data-primitive$='{{item.number}}'
-                            on-tap='onCopy'
-                            icon='content-copy'>
+                            on-tap='onEdit'
+                            icon='image:edit'
+                            disabled='{{item.editDisabled}}'>
                         </paper-icon-button>
                       </div>
                       <div style='flex:none;'>
@@ -346,6 +351,11 @@
       },
 
       attached: function() {
+
+        if (screen.width <= 500) {
+            var viewer = document.getElementById('viewer');
+            viewer.style.display='none';
+        }
 
         var hostname = window.location.hostname;
         var that = this;
@@ -522,7 +532,7 @@
       },
 
       statusCallback : function(that, message) {
-        if (message.data != '') {
+        if (message.data != '' && screen.width > 500 ) {
           that.statusMessage = message.data;
           var statusDialog = document.getElementById('statusDialog');
           statusDialog.open();
