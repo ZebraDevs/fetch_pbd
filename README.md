@@ -51,6 +51,30 @@ This will open the web interface.
 cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
 polymer serve --hostname 0.0.0.0
 ```
+### Using the GUI
+In your browser go to ROBOT_NAME:8080 in your browser to use the GUI.
+
+The main page lists all the available actions.
+![Main page](https://cloud.githubusercontent.com/assets/1470402/17989388/c71a3da2-6ae1-11e6-9d2f-894a67e508ca.png)
+You can directly run/copy/delete actions from the main page. Or hit the "Edit" button to see more information on that action.
+
+On the "Current Action" screen, most of the buttons are pretty self-explanatory. You can execute the entire action using the "Run" button at the bottom of the screen. This will execute all of the primitives in the order they appear in the Primitive List. You can click on a specific primitive (either the marker or the list item), to highlight the primitive.
+![](https://cloud.githubusercontent.com/assets/1470402/17989398/d0602b2e-6ae1-11e6-8add-edcedf6285b6.png)
+
+You can show/hide the markers for each primitive by clicking the marker icon for the primitive in the Primitive List.
+![](https://cloud.githubusercontent.com/assets/1470402/17989394/d05bf02c-6ae1-11e6-9446-9847bbd419ea.png)
+
+You can change the order of the primitives by dragging them to a new position in the list. 
+![](https://cloud.githubusercontent.com/assets/1470402/17989397/d0608290-6ae1-11e6-98a4-bbb1049e1185.png)
+
+You can edit the position and orientation of certain primitives by clicking the edit icon or by moving the interactive marker.
+![](https://cloud.githubusercontent.com/assets/1470402/17989393/d05b87ea-6ae1-11e6-85d7-922c6dc4844a.png)
+
+You can change the frame that certain primitives are relative to by right-clicking the marker.
+![](https://cloud.githubusercontent.com/assets/1470402/17989395/d05d657e-6ae1-11e6-8236-459118a70b8a.png)
+
+You can also change the name of the action.
+![](https://cloud.githubusercontent.com/assets/1470402/17989396/d05f44d4-6ae1-11e6-9363-f242c5ea15b6.png)
 
 ### Code Interface
 You can also access the actions you've programmed through code. You still need to run pbd_backend.launch (and you can run the frontend stuff too if you want; it won't hurt). Check out the examples folder.
