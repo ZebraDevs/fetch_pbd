@@ -524,11 +524,14 @@
       },
 
       selectPrimitive : function(evt) {
-        var message = new ROSLIB.Message({
-          command : 'select-primitive',
-          param : evt.model.item.number
-        });
-        this.inputPub.publish(message);
+        // console.log(evt.target.tagName);
+        if (evt.target.tagName == "DIV") {
+          var message = new ROSLIB.Message({
+            command : 'select-primitive',
+            param : evt.model.item.number
+          });
+          this.inputPub.publish(message);
+        }
       },
 
       statusCallback : function(that, message) {

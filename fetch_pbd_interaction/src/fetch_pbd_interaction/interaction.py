@@ -71,11 +71,6 @@ class Interaction:
         # Initialize trajectory recording state.
         self._is_recording_motion = False
 
-        # Keep track of head state
-        # TODO(sarah): Is this necessary or does the fact that the
-        # "LOOK_DOWN" action is not interruptable cover this?
-        # self._looking_down = False
-
         # Command/callback pairs for input
         self._responses = {
             # Action Creation/Navigation
@@ -110,12 +105,6 @@ class Interaction:
             GuiInput.EXECUTE_ACTION: self._execute_action,
             GuiInput.EXECUTE_PRIMITIVE: self._execute_primitive,
         }
-
-        # Span off a thread to run the update loops.
-        # threading.Thread(group=None,
-        #                  target=self.update,
-        #                  name='interaction_update_thread').start()
-
 
         # The PbD backend is ready.
         # This basically exists for tests that aren't actually written yet
@@ -250,9 +239,12 @@ class Interaction:
                     target=response,
                     args=(gui_input,),
                     name='gui_response_thread').start()
-                response(gui_input)
+
             elif (self._session.get_current_action() is None and
-                    cmd == GuiInput.SWITCH_TO_ACTION):
+                    (cmd == GuiInput.CREATE_ACTION or
+                    cmd == GuiInput.COPY_ACTION or
+                    cmd == GuiInput.DELETE_ACTION or
+                    cmd == GuiInput.SWITCH_TO_ACTION)):
                 threading.Thread(group=None,
                     target=response,
                     args=(gui_input,),

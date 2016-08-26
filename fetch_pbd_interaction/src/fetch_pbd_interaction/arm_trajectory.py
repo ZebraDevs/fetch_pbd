@@ -84,7 +84,7 @@ TOPIC_IM_SERVER = 'programmed_actions'
 # We might want to refactor this even further, as it's used throughout
 # the code.
 BASE_LINK = 'base_link'
-PREVIOUS_PRIMITIVE = "previous primitive"
+FIXED_LINK = 'torso_lift_link'
 
 # ######################################################################
 # Classes
@@ -127,8 +127,8 @@ class ArmTrajectory(Primitive):
         self._arm_states = []
         self._gripper_states = []
         self._number = number
-        self._ref_type = None
-        self._ref_landmark = None
+        self._ref_type = ArmState.FIXED_LINK
+        self._ref_landmark = Landmark()
         self._sub_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
@@ -252,7 +252,7 @@ class ArmTrajectory(Primitive):
     def update_ref_frames(self):
         '''Updates and re-assigns coordinate frames when the world changes.'''
 
-        if self._ref_type != ArmState.ROBOT_BASE:
+        if self._ref_type != ArmState.FIXED_LINK:
             rospy.logwarn("Trajectories can only be relative to the robot's base")
             return False
         else:
@@ -264,17 +264,7 @@ class ArmTrajectory(Primitive):
         Args:
 
         '''
-        self._ref_type = ref_type
-        self._ref_landmark = landmark
-        new_ref = self.get_ref_frame_name()
-        self._set_ref(new_ref)
-        rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for primitive ' +
-            self.get_name())
-        self._menu_handler.reApply(self._im_server)
-        self._im_server.applyChanges()
-        self.update_viz()
-        self._action_change_cb()
+        rospy.logwarn("Trajectories are always relative to the robot's base")
 
     def get_ref_frame_name(self):
         '''Returns the name string for the reference frame object of the
@@ -285,20 +275,7 @@ class ArmTrajectory(Primitive):
                 reference frame name. Returns None in error.
         '''
         # "Normal" step (saved pose).
-        ref_type = self._ref_type
-        ref_name = self._ref_landmark.name
-
-
-        # Update ref frame name if it's absolute.
-        if ref_type == ArmState.ROBOT_BASE:
-            ref_name = BASE_LINK
-        elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = "primitive_" + str(self._number)
-        elif ref_name == '':
-            ref_name = BASE_LINK
-            rospy.loginfo("Empty frame: {}".format(self._number))
-
-        return ref_name
+        return FIXED_LINK
 
     def select(self, is_selected):
         '''Set whether primitive is selected or not
@@ -347,12 +324,7 @@ class ArmTrajectory(Primitive):
         Args:
             check_reachable (bool) : Unused
         '''
-        draw_markers = True
-        if self._ref_type == ArmState.OBJECT:
-            resp = self._get_object_from_name_srv(self._ref_landmark.name)
-            if not resp.has_object:
-                draw_markers = False
-        if draw_markers and self._marker_visible:
+        if self._marker_visible:
             self._update_menu()
             self._update_viz_core()
             self._menu_handler.apply(self._im_server, self.get_name())
@@ -376,14 +348,7 @@ class ArmTrajectory(Primitive):
         Returns:
             bool
         '''
-
-        is_required = False
-        ref = self._ref_type
-
-        if ref == ArmState.OBJECT:
-            is_required = True
-
-        return is_required
+        return False
 
     def execute(self):
         '''Execute this primitive
@@ -396,8 +361,12 @@ class ArmTrajectory(Primitive):
         velocities = [0.2] * len(first_arm_state.joint_pose)
 
         first_arm_state.velocities = velocities
-
-        first_state = self._robot.move_arm_to_joints_plan(first_arm_state)
+        # Sleep to let arm actually reach goal?
+        rospy.sleep(0.2)
+        self._robot.move_arm_to_pose(first_arm_state)
+        self._robot.move_arm_to_joints_plan(first_arm_state)
+        # Sleep to let arm actually reach goal?
+        rospy.sleep(0.2)
         all_states = self._robot.move_arm_to_joints(self._arm_states,
                                                   self._timing)
         last_arm_state = self._arm_states[-1]
@@ -405,13 +374,13 @@ class ArmTrajectory(Primitive):
         velocities = [0.0] * len(last_arm_state.joint_pose)
 
         last_arm_state.velocities = velocities
-        last_state = self._robot.move_arm_to_joints_plan(last_arm_state)
+        self._robot.move_arm_to_joints_plan(last_arm_state)
 
 
         gripper_state = self._gripper_states[-1]
 
         self._robot.set_gripper_state(gripper_state)
-        return first_state and all_states and last_state
+        return all_states
 
     def is_reachable(self):
         '''Check if robot can physically reach all steps in trajectory'''
@@ -526,31 +495,9 @@ class ArmTrajectory(Primitive):
             self._timing.append((rospy.Time.now() -
                                 self._start_time).to_sec() -
                                 self._time_offset)
+        arm_state = self._convert_ref_frame(arm_state)
         self._arm_states.append(arm_state)
         self._gripper_states.append(gripper_state)
-
-    def choose_dominant_ref_frame(self):
-        '''Makes the reference frame of continuous trajectories
-        uniform.
-
-        For trajectories, always use BASE_LINK
-        '''
-
-        ref_type = ArmState.ROBOT_BASE
-        ref_obj = Landmark(name=BASE_LINK)
-
-        # Next, alter all trajectory steps (ArmState's) so that they use
-        # the dominant reference frame as their reference frame.
-        for i in range(len(self._arm_states)):
-            self._arm_states[i] = self._convert_ref_frame(
-                self._arm_states[i],  # arm_frame (ArmState)
-                ref_obj  # ref_frame_obj (Objet)
-            )
-
-        # Save the dominant ref. frame no./name in the trajectory for
-        # reference.
-        self._ref_type = ref_type
-        self._ref_landmark = ref_obj
 
     def set_name(self, name):
         '''Sets the display name for the primitive.
@@ -860,72 +807,7 @@ class ArmTrajectory(Primitive):
         #     self._menu_handler.apply(self._im_server, self.get_name())
         #     self._im_server.applyChanges()
 
-    def _get_menu_id(self, ref_name):
-        '''Returns the unique menu id from its name or None if the
-        object is not found.
-
-        Args:
-            ref_name (str)
-        Returns:
-            int (?)|None
-        '''
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name for obj in object_list]
-        refs.append(PREVIOUS_PRIMITIVE)
-        refs.append(BASE_LINK)
-        if ref_name in refs:
-            index = refs.index(ref_name)
-            if index < len(self._sub_entries):
-                return self._sub_entries[index]
-            else:
-                return None
-        else:
-            return None
-
-    def _get_menu_name(self, menu_id):
-        '''Returns the menu name from its unique menu id.
-
-        Args:
-            menu_id (int)
-        Returns:
-            str
-        '''
-        index = self._sub_entries.index(menu_id)
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name for obj in object_list]
-        refs.append(PREVIOUS_PRIMITIVE)
-        refs.append(BASE_LINK)
-        return refs[index]
-
-    def _set_ref(self, new_ref):
-        '''Changes the reference frame of the primitive to
-        new_ref.
-
-        Args:
-            new_ref
-        '''
-        # Get the id of the new ref (an int).
-        new_ref_obj = Landmark()
-        if new_ref == PREVIOUS_PRIMITIVE:
-            self._ref_type = ArmState.PREVIOUS_TARGET
-        elif new_ref == BASE_LINK:
-            self._ref_type = ArmState.ROBOT_BASE
-        else:
-            self._ref_type = ArmState.OBJECT
-            new_ref_obj = self._get_object_from_name_srv(new_ref).obj
-
-        # Handle trajectory steps.
-        arm_states = self._arm_states
-        for i in range(len(arm_states)):
-            arm_old = arm_states[i]
-            arm_new = self._convert_ref_frame(
-                arm_old, new_ref_obj)
-            arm_states[i] = arm_new
-        # Fix up reference frames.
-        self._ref_landmark = new_ref_obj
-        # self._ref_type = new_ref
-
-    def _convert_ref_frame(self, arm_state, new_landmark):
+    def _convert_ref_frame(self, arm_state):
         '''Convert arm_state to be in a different reference frame
 
             Args:
@@ -934,31 +816,12 @@ class ArmTrajectory(Primitive):
             Returns:
                 ArmState
         '''
-        if self._ref_type == ArmState.OBJECT:
-            if arm_state.ref_landmark.name != new_landmark.name:
-                ee_pose = self._tf_listener.transformPose(
-                                    new_landmark.name,
-                                    arm_state.ee_pose
-                                )
-            arm_state.ref_landmark = new_landmark
-            arm_state.ee_pose = ee_pose
-        elif self._ref_type == ArmState.ROBOT_BASE:
-            ee_pose = self._tf_listener.transformPose(
-                                    BASE_LINK,
-                                    arm_state.ee_pose
-                                )
-            arm_state.ee_pose = ee_pose
-        elif self._ref_type == ArmState.PREVIOUS_TARGET:
-            prev_frame_name = 'primitive_' + str(self._number - 1)
-            ee_pose = self._tf_listener.transformPose(
-                                    prev_frame_name,
-                                    arm_state.ee_pose
-                                )
-            arm_state.ee_pose = ee_pose
-        # if new_landmark.name == 'base_link':
-        #     arm_state.ref_type = ArmState.ROBOT_BASE
-        # else:
-        #     arm_state.ref_type = ArmState.OBJECT
+        ee_pose = self._tf_listener.transformPose(
+                                FIXED_LINK,
+                                arm_state.ee_pose
+                            )
+        arm_state.ee_pose = ee_pose
+
         return arm_state
 
     def _get_marker_pose(self):
@@ -969,14 +832,14 @@ class ArmTrajectory(Primitive):
         '''
         try:
             i = int(len(self._arm_states) - 1)
-            self._tf_listener.waitForTransform(BASE_LINK,
-                                 self._arm_states[i].ee_pose.header.frame_id,
-                                 rospy.Time(0),
-                                 rospy.Duration(4.0))
-            intermediate_pose = self._tf_listener.transformPose(
-                                                    BASE_LINK,
-                                                    self._arm_states[i].ee_pose)
-            offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
+            # self._tf_listener.waitForTransform(BASE_LINK,
+            #                      self._arm_states[i].ee_pose.header.frame_id,
+            #                      rospy.Time(0),
+            #                      rospy.Duration(4.0))
+            # intermediate_pose = self._tf_listener.transformPose(
+            #                                         BASE_LINK,
+            #                                         self._arm_states[i].ee_pose)
+            offset_pose = ArmTrajectory._offset_pose(self._arm_states[i].ee_pose)
             return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                     offset_pose)
         except:
@@ -998,12 +861,29 @@ class ArmTrajectory(Primitive):
         # Handle trajectories.
         # First, get all trajectory positions.
         point_list = []
+        traj_pose = None
         for j in range(len(self._timing)):
-            point_list.append(self._get_traj_pose(j).pose.position)
+            traj_pose = self._get_traj_pose(j)
+            if not traj_pose is None:
+                point_list.append(traj_pose.pose.position)
+            else:
+                break
+
+        if traj_pose is None:
+            self._tf_listener.waitForTransform(FIXED_LINK,
+                                 "primitive_" + str(self._number),
+                                 rospy.Time(0),
+                                 rospy.Duration(4.0))
+            for j in range(len(self._timing)):
+                traj_pose = self._get_traj_pose(j)
+                if not traj_pose is None:
+                    point_list.append(traj_pose.pose.position)
+                else:
+                    return
 
         rospy.loginfo("last pose: {}".format(self._arm_states[0].ee_pose))
 
-        last_point = self._tf_listener.transformPose('base_link', self._get_traj_pose(0))
+        last_point = self._tf_listener.transformPose(FIXED_LINK, self._get_traj_pose(0))
         rospy.loginfo("last point: {}".format(last_point))
 
         # Add a main maker for all points in the trajectory (sphere
@@ -1120,26 +1000,6 @@ class ArmTrajectory(Primitive):
             control.orientation_mode = InteractiveMarkerControl.FIXED
         return control
 
-    def _change_ref_cb(self, feedback):
-        '''Callback for when a reference frame change is requested.
-
-        Args:
-            feedback (InteractiveMarkerFeedback (?))
-        '''
-        self._menu_handler.setCheckState(
-            self._get_menu_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
-        self._menu_handler.setCheckState(
-            feedback.menu_entry_id, MenuHandler.CHECKED)
-        new_ref = self._get_menu_name(feedback.menu_entry_id)
-        self._set_ref(new_ref)
-        rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for primitive ' +
-            self.get_name())
-        self._menu_handler.reApply(self._im_server)
-        self._im_server.applyChanges()
-        self.update_viz()
-        self._action_change_cb()
-
     def _make_sphere_marker(self, uid, pose, frame_id, radius):
         '''Creates and returns a sphere marker.
 
@@ -1183,19 +1043,22 @@ class ArmTrajectory(Primitive):
             Pose
         '''
         try:
-            intermediate_pose = self._tf_listener.transformPose(
-                                        BASE_LINK,
-                                        self._arm_states[index].ee_pose)
-            offset_pose = ArmTrajectory._offset_pose(intermediate_pose)
+            # intermediate_pose = self._tf_listener.transformPose(
+            #                             BASE_LINK,
+            #                             self._arm_states[index].ee_pose)
+            offset_pose = ArmTrajectory._offset_pose(
+                                            self._arm_states[index].ee_pose)
 
             new_pose = self._tf_listener.transformPose(
-                                                "primitive_" + str(self._number),
-                                                offset_pose)
+                                            "primitive_" + str(self._number),
+                                            offset_pose)
             return new_pose
 
         except Exception, e:
-            rospy.logwarn("Unable to transform marker to correct pose")
-            return self._arm_states[index].ee_pose
+            rospy.logwarn(e)
+            rospy.logwarn("Unable to transform marker to" +
+                    "correct frame: {}".format("primitive_" + str(self._number)))
+            return None
 
     def _marker_feedback_cb(self, feedback):
         '''Callback for when an event occurs on the marker.
@@ -1221,25 +1084,3 @@ class ArmTrajectory(Primitive):
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
-
-    def _get_menu_ref(self):
-        '''Returns the name string for the reference frame object of the
-        primitive.
-
-        Returns:
-            str|None: Under all normal circumstances, returns the str
-                reference frame name. Returns None in error.
-        '''
-        # "Trajectory" step.
-        ref_type = self._ref_type
-        ref_name = self._ref_landmark.name
-
-        # Update ref frame name if it's absolute.
-        if ref_type == ArmState.ROBOT_BASE:
-            ref_name = BASE_LINK
-        elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = PREVIOUS_PRIMITIVE
-        elif ref_name == '':
-            ref_name = BASE_LINK
-            rospy.loginfo("Empty frame: {}".format(self._number))
-        return ref_name

@@ -24,6 +24,7 @@ from fetch_pbd_interaction.srv import MoveArm, GetGripperState, \
                                       GetNearestObject, MoveArmTraj
 from fetch_social_gaze.msg import GazeGoal, GazeAction
 from fetch_pbd_interaction.msg import ArmState, Landmark
+from fetch_arm_control.msg import GripperState
 
 # ######################################################################
 # Module level constants
@@ -139,7 +140,11 @@ class Robot:
         Return:
             bool : success
         '''
-        return self.move_arm_to_pose_srv(arm_state).success
+        try:
+            result = self.move_arm_to_pose_srv(arm_state).success
+        except Exception, e:
+            result = False
+        return result
 
     def start_move_arm_to_pose(self, arm_state):
         '''Start thread to move robot's arm to pose
@@ -150,7 +155,11 @@ class Robot:
             bool : success
         '''
         # TODO(sarah): Is this really necessary? Investigate.
-        return self.start_move_arm_to_pose_srv(arm_state).success
+        try:
+            result = self.start_move_arm_to_pose_srv(arm_state).success
+        except Exception, e:
+            result = False
+        return result
 
     def move_arm_to_joints_plan(self, arm_state):
         '''Move robot's arm to joints positions from arm_state
@@ -161,8 +170,11 @@ class Robot:
         Return:
             bool : success
         '''
-        return self.move_arm_to_joints_plan_srv(arm_state).success
-
+        try:
+            result = self.move_arm_to_joints_plan_srv(arm_state).success
+        except Exception, e:
+            result = False
+        return result
     def move_arm_to_joints(self, arm_states, times):
         '''Move robot's arm to joints positions from arm_state
         without planning, just joint interpolation
@@ -172,7 +184,11 @@ class Robot:
         Return:
             bool : success
         '''
-        return self.move_arm_to_joints_srv(arm_states, times).success
+        try:
+            result = self.move_arm_to_joints_srv(arm_states, times).success
+        except Exception, e:
+            result = False
+        return result
 
     def can_reach(self, arm_state):
         '''Returns whether arm can reach pose
@@ -182,11 +198,19 @@ class Robot:
         Return:
             bool : success
         '''
-        return self.is_reachable_srv(arm_state).success
+        try:
+            result = self.is_reachable_srv(arm_state).success
+        except Exception, e:
+            result = False
+        return result
 
     def reset_arm_movement_history(self):
         '''Resets movement history of arm'''
-        self.reset_arm_movement_history_srv()
+        try:
+            self.reset_arm_movement_history_srv()
+        except Exception, e:
+            pass
+        return
 
     def get_gripper_state(self):
         '''Returns state of gripper
@@ -194,7 +218,12 @@ class Robot:
         Returns:
             GripperState.OPEN|GripperState.CLOSED
         '''
-        return self.get_gripper_state_srv().gripper_state
+        try:
+            result = self.get_gripper_state_srv().gripper_state
+        except Exception, e:
+            # defaults to closed, but maybe not a good idea
+            result = GripperState.CLOSED
+        return result
 
     def set_gripper_state(self, gripper_state):
         '''Sets state of gripper. Assumed to succeed
@@ -202,7 +231,11 @@ class Robot:
         Args:
             gripper_state (GripperState.OPEN|GripperState.CLOSED)
         '''
-        self.set_gripper_state_srv(gripper_state)
+        try:
+            self.set_gripper_state_srv(gripper_state)
+        except Exception, e:
+            pass
+        return
 
     def get_arm_state(self):
         '''Returns current state of arm
@@ -215,10 +248,13 @@ class Robot:
 
         state = None
         rel_ee_pose = None
+        try:
+            resp = self._get_nearest_object_srv(
+                abs_ee_pose)
+            has_nearest = resp.has_nearest
+        except Exception, e:
+            has_nearest = False
 
-        resp = self._get_nearest_object_srv(
-            abs_ee_pose)
-        has_nearest = resp.has_nearest
         if not has_nearest:
             # Arm state is absolute (relative to robot's base_link).
             state = ArmState(
@@ -250,7 +286,11 @@ class Robot:
         '''Make sure gravity compensation controller is on and other
         controllers are off
         '''
-        self.relax_arm_srv()
+        try:
+            self.relax_arm_srv()
+        except Exception, e:
+            pass
+        return
 
     def is_arm_moving(self):
         '''Check if arm is currently moving
@@ -258,7 +298,11 @@ class Robot:
         Returns:
             bool : True if arm is moving, else False
         '''
-        return self.is_arm_moving_srv().moving
+        try:
+            result = self.is_arm_moving_srv().moving
+        except Exception, e:
+            result = False
+        return result
 
     # Head stuff
 
@@ -269,12 +313,15 @@ class Robot:
             num (int) : number of times to perform action
         '''
         if self._social_gaze:
-            goal = GazeGoal()
-            goal.action = GazeGoal.SHAKE
-            goal.repeat = num
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
+            try:
+                goal = GazeGoal()
+                goal.action = GazeGoal.SHAKE
+                goal.repeat = num
+                current_goal = self.current_gaze_goal_srv().gaze_goal
+                if goal.action != current_goal:
+                    self.gaze_client.send_goal(goal)
+            except Exception, e:
+                pass
 
     def nod_head(self, num=5):
         '''Nods robot's head
@@ -283,12 +330,15 @@ class Robot:
             num (int) : number of times to perform action
         '''
         if self._social_gaze:
-            goal = GazeGoal()
-            goal.action = GazeGoal.NOD
-            goal.repeat = num
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
+            try:
+                goal = GazeGoal()
+                goal.action = GazeGoal.NOD
+                goal.repeat = num
+                current_goal = self.current_gaze_goal_srv().gaze_goal
+                if goal.action != current_goal:
+                    self.gaze_client.send_goal(goal)
+            except Exception, e:
+                pass
 
     def look_at_point(self, point):
         '''Points robot's head at point
@@ -297,12 +347,15 @@ class Robot:
             point (Point)
         '''
         if self._social_gaze:
-            goal = GazeGoal()
-            goal.action = GazeGoal.LOOK_AT_POINT
-            goal.point = point
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
+            try:
+                goal = GazeGoal()
+                goal.action = GazeGoal.LOOK_AT_POINT
+                goal.point = point
+                current_goal = self.current_gaze_goal_srv().gaze_goal
+                if goal.action != current_goal:
+                    self.gaze_client.send_goal(goal)
+            except Exception, e:
+                pass
 
     def look_at_ee(self, follow=True):
         '''Makes head look at (or follow) end effector position
@@ -313,36 +366,45 @@ class Robot:
         '''
         # rospy.loginfo("Look at ee")
         if self._social_gaze:
-            goal = GazeGoal()
-            if follow:
-                goal.action = GazeGoal.FOLLOW_EE
-            else:
-                goal.action = GazeGoal.GLANCE_EE
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
+            try:
+                goal = GazeGoal()
+                if follow:
+                    goal.action = GazeGoal.FOLLOW_EE
+                else:
+                    goal.action = GazeGoal.GLANCE_EE
+                current_goal = self.current_gaze_goal_srv().gaze_goal
+                if goal.action != current_goal:
+                    self.gaze_client.send_goal(goal)
+            except Exception, e:
+                pass
 
     def look_forward(self):
         '''Point head forward'''
         if self._social_gaze:
-            goal = GazeGoal()
-            goal.action = GazeGoal.LOOK_FORWARD
-            current_goal = self.current_gaze_goal_srv().gaze_goal
-            if goal.action != current_goal:
-                self.gaze_client.send_goal(goal)
+            try:
+                goal = GazeGoal()
+                goal.action = GazeGoal.LOOK_FORWARD
+                current_goal = self.current_gaze_goal_srv().gaze_goal
+                if goal.action != current_goal:
+                    self.gaze_client.send_goal(goal)
+            except Exception, e:
+                pass
 
     def look_down(self):
         '''Point head down at table'''
         # TODO(sarah): maybe actually scan for table instead of
         # looking at static point
-        goal = GazeGoal()
-        goal.action = GazeGoal.LOOK_DOWN
-        current_goal = self.current_gaze_goal_srv().gaze_goal
-        if goal.action != current_goal:
-            self.gaze_client.send_goal(goal)
-        while (self.gaze_client.get_state() == GoalStatus.PENDING or
-               self.gaze_client.get_state() == GoalStatus.ACTIVE):
-            rospy.sleep(0.2)
+        try:
+            goal = GazeGoal()
+            goal.action = GazeGoal.LOOK_DOWN
+            current_goal = self.current_gaze_goal_srv().gaze_goal
+            if goal.action != current_goal:
+                self.gaze_client.send_goal(goal)
+            while (self.gaze_client.get_state() == GoalStatus.PENDING or
+                   self.gaze_client.get_state() == GoalStatus.ACTIVE):
+                rospy.sleep(0.2)
+        except Exception, e:
+            pass
 
     # Sound stuff
 
@@ -352,6 +414,9 @@ class Robot:
         Args:
             requested_sound (RobotSound.ERROR|etc...) : see RobotSound.msg
         '''
-        if self._play_sound:
-            self._sound_client.playWave(
-                os.path.join(SOUNDS_DIR, requested_sound + SOUND_FILEFORMAT))
+        try:
+            if self._play_sound:
+                self._sound_client.playWave(
+                    os.path.join(SOUNDS_DIR, requested_sound + SOUND_FILEFORMAT))
+        except Exception, e:
+            pass

@@ -142,7 +142,6 @@ class Session:
         self._marker_visibility = [True] * self.n_primitives()
         self._update_session_state()
 
-
     def n_actions(self):
         '''Returns the number of actions programmed so far.
 
@@ -193,9 +192,6 @@ class Session:
         '''Finalises ArmTrajectory primitive.
         Updates the references frames and saves it to the db.
         '''
-
-        self._current_arm_trajectory.choose_dominant_ref_frame()
-
         if self.n_actions() > 0:
             current_action = self._actions[self._current_action_id]
             current_action.add_primitive(self._current_arm_trajectory, False)
@@ -244,6 +240,7 @@ class Session:
             bool: Whether successfully switched to index action.
         '''
         self._lock.acquire()
+        self._selected_primitive = -1
 
         if index < 0 or index >= len(self._actions):
             rospy.logwarn("Index out of bounds: {}".format(index))
@@ -404,7 +401,6 @@ class Session:
         '''
         if self.n_actions > 0:
             self._lock.acquire()
-            rospy.loginfo("actions: {}".format(self._actions))
 
             if int(action_id) == self._current_action_id:
                 if len(self._action_ids) == 1:
@@ -419,13 +415,12 @@ class Session:
                     return
 
             action_id_str = str(action_id)
-            rospy.loginfo("actions: {}".format(self._actions))
             del self._actions[int(action_id)]
             if action_id_str in self._db:
                 self._db.delete(self._db[action_id_str])
 
             # new_actions = {}
-            for a_id in range(int(action_id) + 1, len(self._action_ids)):
+            for a_id in range(int(action_id) + 1, len(self._actions)):
                 action = self._actions[a_id]
                 action.decrease_id()
                 del self._actions[a_id]
@@ -444,7 +439,6 @@ class Session:
                 self._current_action_id = self._current_action_id - 1
             self._lock.release()
 
-            rospy.loginfo("actions: {}".format(self._actions))
             self._update_session_state()
 
     def switch_primitive_order(self, old_index, new_index):
@@ -461,6 +455,11 @@ class Session:
         action.switch_primitive_order(old_index, new_index)
         self._update_db_with_current_action()
         self._lock.release()
+        self.publish_primitive_tf()
+        action = self._actions[self._current_action_id]
+        primitives = action.get_primitives()
+        for primitive in primitives:
+            primitive.update_viz(False)
         # self._update_session_state()
 
     def delete_primitive(self, primitive_number):
@@ -472,7 +471,6 @@ class Session:
         # self._lock.acquire()
         action = self._actions[self._current_action_id]
         action.delete_primitive(primitive_number)
-        rospy.loginfo("GOt here")
         # self._lock.release()
         # self._update_db_with_current_action()
 
@@ -673,7 +671,9 @@ class Session:
         '''
         rospy.loginfo("Setting primitive to {}".format(selected_primitive))
         self._selected_primitive = selected_primitive
+
         self._async_update_session_state()
+        rospy.loginfo("Done setting primitive to {}".format(selected_primitive))
 
     def _action_change_cb(self):
         '''Updates the db when primitive deleted.
@@ -743,6 +743,7 @@ class Session:
         '''
         name_list = []
         for action_id in self._action_ids:
+
             name_list.append(self._actions[action_id].get_name())
 
         return name_list
@@ -816,6 +817,8 @@ class Session:
             self._actions[result.value['id']] = action
             self._action_ids.append(int(result.value['id']))
         rospy.loginfo("DONE LOADING EVERYTHING")
+        rospy.loginfo("action_ids loaded: {}".format(self._action_ids))
+
 
         # if len(self._actions) > 0:
         #     # Select the starting action as the action with the largest id

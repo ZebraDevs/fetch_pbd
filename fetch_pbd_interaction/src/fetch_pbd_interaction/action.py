@@ -392,7 +392,8 @@ class Action:
 
     def delete_last_primitive(self):
         '''Deletes the last primitive of the action.'''
-        self.delete_primitive(len(self._seq) - 1)
+        if self.n_primitives() > 0:
+            self.delete_primitive(len(self._seq) - 1)
 
     def is_object_required(self):
         '''Returns whether this action has any primitives that are relative
@@ -506,9 +507,9 @@ class Action:
         Returns:
             [Primitive]
         '''
-        self._lock.acquire()
+        # self._lock.acquire()
         primitives = self._seq
-        self._lock.release()
+        # self._lock.release()
         return primitives
 
     def get_primitive(self, index):
@@ -585,9 +586,12 @@ class Action:
         Args:
             to_delete (int): The index of the primitive to delete.
         '''
+        if self.n_primitives() == 0:
+            rospy.logwarn("No primitives to delete")
+            return
         self._lock.acquire()
-        if (to_delete + 1) < self.n_primitives():
-            rospy.loginfo("Abs pose: {}".format(self._seq[to_delete + 1].get_absolute_pose()))
+        # if (to_delete + 1) < self.n_primitives():
+        #     rospy.loginfo("Abs pose: {}".format(self._seq[to_delete + 1].get_absolute_pose()))
         self._seq[to_delete].hide_marker()
         for i in range(to_delete + 1, self.n_primitives()):
             rospy.loginfo("Frame name: {}, {}, {}".format(i, self._seq[i].get_ref_frame_name(), self._seq[i]._number))
@@ -601,9 +605,6 @@ class Action:
                                                     Landmark())
                 else:
                     pose = next_primitive.get_absolute_pose()
-                    rospy.loginfo("Abs pose: {}".format(pose))
-                    rospy.loginfo("Frame name: {}, {}".format(next_primitive.get_ref_frame_name(), next_primitive._number))
-
 
                     new_pose = self._tf_listener.transformPose(
                         next_primitive.get_ref_frame_name(),

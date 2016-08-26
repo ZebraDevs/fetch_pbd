@@ -345,9 +345,9 @@ class Arm:
         joint_state = JointState()
         joint_state.position = joints
         joint_state.name = self._joint_names
-        if velocities is None:
-            velocities = [0] * len(joints)
-        joint_state.velocity = velocities
+        # if velocities is None:
+        #     velocities = [0] * len(joints)
+        # joint_state.velocity = velocities
 
         try:
             self._move_group.set_joint_value_target(joint_state)
