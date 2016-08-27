@@ -862,6 +862,13 @@ class ArmTrajectory(Primitive):
         # First, get all trajectory positions.
         point_list = []
         traj_pose = None
+        try:
+            self._tf_listener.waitForTransform(FIXED_LINK,
+                             "primitive_" + str(self._number),
+                             rospy.Time.now(),
+                             rospy.Duration(1.0))
+        except Exception, e:
+            pass
         for j in range(len(self._timing)):
             traj_pose = self._get_traj_pose(j)
             if not traj_pose is None:
@@ -870,10 +877,13 @@ class ArmTrajectory(Primitive):
                 break
 
         if traj_pose is None:
-            self._tf_listener.waitForTransform(FIXED_LINK,
+            try:
+                self._tf_listener.waitForTransform(FIXED_LINK,
                                  "primitive_" + str(self._number),
-                                 rospy.Time(0),
+                                 rospy.Time.now(),
                                  rospy.Duration(4.0))
+            except Exception, e:
+                pass
             for j in range(len(self._timing)):
                 traj_pose = self._get_traj_pose(j)
                 if not traj_pose is None:

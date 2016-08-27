@@ -260,6 +260,15 @@ class Session:
         self._lock.release()
         self.get_current_action().initialize_viz()
         self._update_session_state()
+        self.publish_primitive_tf()
+        action = self._actions[self._current_action_id]
+        for i in range(self.n_primitives()):
+            self._tf_listener.waitForTransform("base_link",
+                         "primitive_" + str(i),
+                         rospy.Time.now(),
+                         rospy.Duration(4.0))
+            action.get_primitive(i).update_viz(False)
+
 
         return True
 
@@ -401,7 +410,7 @@ class Session:
         '''
         if self.n_actions > 0:
             self._lock.acquire()
-
+            rospy.loginfo('Deleting action')
             if int(action_id) == self._current_action_id:
                 if len(self._action_ids) == 1:
                     self._current_action_id = None
@@ -415,7 +424,8 @@ class Session:
                     return
 
             action_id_str = str(action_id)
-            del self._actions[int(action_id)]
+            if action_id_str in self._actions:
+                del self._actions[int(action_id)]
             if action_id_str in self._db:
                 self._db.delete(self._db[action_id_str])
 
@@ -460,7 +470,7 @@ class Session:
         primitives = action.get_primitives()
         for primitive in primitives:
             primitive.update_viz(False)
-        # self._update_session_state()
+        self._update_session_state()
 
     def delete_primitive(self, primitive_number):
         '''Delete specified primitive
@@ -595,10 +605,10 @@ class Session:
     def publish_primitive_tf(self):
         '''Publish tf frame for each primitive of current action'''
         if not self._current_action_id is None:
-            self._lock.acquire()
+            # self._lock.acquire()
             action = self._actions[self._current_action_id]
             primitives = action.get_primitives()
-            self._lock.release()
+            # self._lock.release()
             for primitive in primitives:
                 self._publish_primitive_tf(primitive)
 
