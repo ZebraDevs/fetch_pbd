@@ -442,7 +442,8 @@ class Session:
 
                 self._update_db_with_action(action)
 
-            self._action_ids.pop()
+            if len(self._action_ids) > 0:
+                self._action_ids.pop()
             if int(action_id) == self._current_action_id:
                 self._current_action_id = self._action_ids[-1]
             elif int(action_id) < self._current_action_id:
@@ -688,6 +689,7 @@ class Session:
     def _action_change_cb(self):
         '''Updates the db when primitive deleted.
         '''
+        self.publish_primitive_tf()
         self._async_update_session_state()
         rospy.loginfo("Session state updates")
 

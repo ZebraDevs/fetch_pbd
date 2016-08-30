@@ -568,9 +568,29 @@ class Action:
         self._lock.acquire()
         primitive = self._seq.pop(old_index)
         self._seq.insert(new_index, primitive)
+        relative_primitives = {}
         for i in range(self.n_primitives()):
             primitive = self._seq[i]
+            if primitive.get_ref_type() == ArmState.PREVIOUS_TARGET:
+                relative_primitives[i] = primitive.get_absolute_pose()
             primitive.set_primitive_number(i)
+
+        for key in relative_primitives:
+            primitive = self._seq[key]
+            if primitive.get_ref_type() == ArmState.PREVIOUS_TARGET:
+                if key == 0:
+                    primitive.change_ref_frame(ArmState.ROBOT_BASE,
+                                                        Landmark())
+                else:
+                    pose = relative_primitives[key]
+
+                    new_pose = self._tf_listener.transformPose(
+                        primitive.get_ref_frame_name(),
+                        pose)
+                    primitive.set_pose(new_pose)
+
+        self._update_links()
+
         self._lock.release()
         for i in range(self.n_primitives()):
             self.select_primitive(i, False)

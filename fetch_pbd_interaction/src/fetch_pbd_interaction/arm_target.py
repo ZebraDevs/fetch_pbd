@@ -283,11 +283,12 @@ class ArmTarget(Primitive):
 
         '''
         self._arm_state.ref_type = ref_type
-        self._arm_state.ref_landmark = landmark
-        new_ref = self.get_ref_frame_name()
-        self._set_ref(new_ref)
+        # self._arm_state.ref_landmark = landmark
+
+        self._arm_state = self._convert_ref_frame(self._arm_state,
+                                                  landmark)
         rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for primitive ' +
+            'Switching reference frame for primitive ' +
             self.get_name())
         self._menu_handler.reApply(self._im_server)
         self._im_server.applyChanges()
@@ -838,7 +839,7 @@ class ArmTarget(Primitive):
         else:
             self._arm_state.ref_type = ArmState.OBJECT
             new_ref_obj = self._get_object_from_name_srv(new_ref).obj
-
+            rospy.loginfo("OBJECT!!!")
 
         self._arm_state = self._convert_ref_frame(self._arm_state, new_ref_obj)
 
@@ -852,19 +853,21 @@ class ArmTarget(Primitive):
                 ArmState
         '''
         if arm_state.ref_type == ArmState.OBJECT:
+            rospy.loginfo("Relative to object")
             if arm_state.ref_landmark.name != new_landmark.name:
                 ee_pose = self._tf_listener.transformPose(
                                     new_landmark.name,
                                     arm_state.ee_pose
                                 )
-            arm_state.ref_landmark = new_landmark
-            arm_state.ee_pose = ee_pose
+                arm_state.ref_landmark = new_landmark
+                arm_state.ee_pose = ee_pose
         elif arm_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
                                     BASE_LINK,
                                     arm_state.ee_pose
                                 )
             arm_state.ee_pose = ee_pose
+            arm_state.ref_landmark = Landmark()
         elif arm_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = 'primitive_' + str(self._number - 1)
             rospy.loginfo("Original pose: {}".format(arm_state.ee_pose))
@@ -875,6 +878,7 @@ class ArmTarget(Primitive):
             rospy.loginfo("New pose: {}".format(ee_pose))
 
             arm_state.ee_pose = ee_pose
+            arm_state.ref_landmark = Landmark()
         # if new_landmark.name == 'base_link':
         #     arm_state.ref_type = ArmState.ROBOT_BASE
         # else:
