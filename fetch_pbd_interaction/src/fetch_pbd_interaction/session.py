@@ -422,9 +422,12 @@ class Session:
                     self._lock.release()
                     self._update_session_state()
                     return
+                else:
+                    self._current_action_id-=1
 
             action_id_str = str(action_id)
-            if action_id_str in self._actions:
+            # rospy.loginfo(self._actions)
+            if action_id in self._actions:
                 del self._actions[int(action_id)]
             if action_id_str in self._db:
                 self._db.delete(self._db[action_id_str])
@@ -449,7 +452,6 @@ class Session:
             elif int(action_id) < self._current_action_id:
                 self._current_action_id = self._current_action_id - 1
             self._lock.release()
-
             self._update_session_state()
 
     def switch_primitive_order(self, old_index, new_index):
