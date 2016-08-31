@@ -139,6 +139,44 @@ include_directories(
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
+install(PROGRAMS
+  nodes/pbd_arm_control_node.py
+  nodes/pbd_interaction_node.py
+  nodes/pbd_world_node.py
+  nodes/serve_web_interface.sh
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(FILES
+  launch/pbd.launch
+  launch/pbd_prereqs.launch
+  launch/pbd_rviz_viewer.launch
+  launch/pbd_web_prereqs.launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
+
+install(FILES
+  config/fetch_pbd.rviz
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
+
+install(DIRECTORY
+  web_interface/fetch-pbd-gui
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/web_interface
+)
+
+install(DIRECTORY
+  sounds
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(PROGRAMS
+  install_web_dependencies.sh
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(CODE "execute_process(COMMAND ../install/share/fetch_pbd_interaction/./install_web_dependencies.sh )")
+
 #############
 ## Testing ##
 #############

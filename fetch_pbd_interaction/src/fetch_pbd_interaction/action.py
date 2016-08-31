@@ -592,9 +592,9 @@ class Action:
         self._update_links()
 
         self._lock.release()
+        self.update_viz()
         for i in range(self.n_primitives()):
             self.select_primitive(i, False)
-        self.update_viz()
         self._action_change_cb()
 
     def delete_primitive(self, to_delete):

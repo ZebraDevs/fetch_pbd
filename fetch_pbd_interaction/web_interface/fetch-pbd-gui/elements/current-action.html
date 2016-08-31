@@ -477,35 +477,17 @@
         this.dragSource = evt.target;
         evt.dataTransfer.effectAllowed = 'move';
         this.dragSourceId = evt.model.item.number;
-        console.log('Starting drag');
-        console.log(evt.target);
       },
 
       getDestination : function (evt) {
         this.dropTargetId = evt.model.item.number;
         this.dropTarget = document.getElementsByTagName('li')[parseInt(this.dropTargetId)];
-        // console.log(evt.model.item.number);
-
       },
 
       dropPrimitive : function(evt) {
         var target = this.dropTarget;
-        console.log(target);
         var oldIndex = this.dragSourceId;
         var newIndex = this.dropTargetId;
-        console.log(oldIndex);
-
-        console.log(newIndex);
-
-
-        // if (this.isAbove(this.dragSource, target)) {
-        //   target.parentNode.insertBefore(this.dragSource, target);
-        //   console.log('Above');
-        //   console.log(target.parentNode);
-        // } else {
-        //   target.parentNode.insertBefore(this.dragSource, target.nextSibling);
-        //   console.log('Below');
-        // }
 
         var message = new ROSLIB.Message({
           command : 'switch-primitive-order',
@@ -513,7 +495,6 @@
         });
         this.inputPub.publish(message);
         var primitives = this.primitives;
-        console.log(primitives);
         var moved = primitives[parseInt(oldIndex)];
         primitives.splice(parseInt(oldIndex),1);
         primitives.splice(parseInt(newIndex), 0, moved);
@@ -526,7 +507,6 @@
       },
 
       selectPrimitive : function(evt) {
-        // console.log(evt.target.tagName);
         if (evt.target.tagName == "DIV") {
           var message = new ROSLIB.Message({
             command : 'select-primitive',
@@ -545,7 +525,6 @@
       },
 
       expCallback : function(that, message) {
-        console.log("received update");
         that.action_name = message.action_names[message.current_action];
         for (i = 0; i < that.primitives.length; i++) {
           that.pop('primitives');
@@ -705,7 +684,6 @@
 
       onPoseEdit : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
-        console.log(primitiveId);
         var message = new ROSLIB.Message({
           command : 'pose-edited',
           param : primitiveId,
@@ -721,13 +699,11 @@
           },
 
         });
-        console.log(message);
         this.inputPub.publish(message);
       },
 
       onCopy : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
-        console.log(primitiveId);
         var message = new ROSLIB.Message({
           command : 'copy-primitive',
           param : primitiveId

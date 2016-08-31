@@ -55,3 +55,17 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+#############
+## Install ##
+#############
+
+install(PROGRAMS
+  nodes/interactive_arm_control.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(FILES
+  launch/arm_interaction_backend.launch
+  launch/arm_interaction_frontend.launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)

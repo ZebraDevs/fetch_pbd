@@ -419,4 +419,4 @@ class Robot:
                 self._sound_client.playWave(
                     os.path.join(SOUNDS_DIR, requested_sound + SOUND_FILEFORMAT))
         except Exception, e:
-            pass
+            rospy.loginfo(e)

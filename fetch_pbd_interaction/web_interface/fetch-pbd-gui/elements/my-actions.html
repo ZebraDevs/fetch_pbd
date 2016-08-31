@@ -277,7 +277,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onCopy : function(evt) {
         var actionId = evt.model.item.action;
-        console.log(actionId);
         var message = new ROSLIB.Message({
           command : 'copy-action',
           param : actionId
@@ -291,7 +290,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onRun : function(evt) {
         var actionId = evt.model.item.action;
-        console.log(actionId);
         var message = new ROSLIB.Message({
           command : 'switch-to-action',
           param : actionId
@@ -302,7 +300,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onDelete : function(evt) {
         var actionId = evt.model.item.action;
-        console.log('Delete ' + actionId);
         var message = new ROSLIB.Message({
           command : 'delete-action',
           param : actionId

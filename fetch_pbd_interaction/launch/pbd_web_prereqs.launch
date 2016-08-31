@@ -12,4 +12,5 @@
         <!-- <param name="target_frame" value="base_link" /> -->
     </node>
     <node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher" respawn="true" output="screen" />
+    <node name="serve_web_interface" pkg="fetch_pbd_interaction" type="serve_web_interface.sh" cwd="node"/>
 </launch>

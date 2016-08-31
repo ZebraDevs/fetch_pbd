@@ -17,6 +17,8 @@
 	<!-- This makes the robot look around appropriately -->
 	<include file="$(find fetch_social_gaze)/launch/gaze.launch"/>
 
+	<include file="$(find fetch_pbd_interaction)/launch/pbd_web_prereqs.launch"/>
+
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
 
 	<include file="$(find tabletop_object_detector)/launch/tabletop_segmentation.launch">

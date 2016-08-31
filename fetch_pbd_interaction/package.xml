@@ -50,6 +50,11 @@
   <build_depend>interactive_marker_proxy</build_depend>
   <build_depend>interactive_markers</build_depend>
   <build_depend>tf2_web_republisher</build_depend>
+  <build_depend>moveit_commander</build_depend>
+  <!-- <build_depend>npm</build_depend> -->
+  <!-- <build_depend>nodejs</build_depend> -->
+  <!-- <build_depend>nodejs-legacy</build_depend> -->
+  <build_depend>python-couchdb</build_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>message_runtime</run_depend>
   <run_depend>fetch_arm_control</run_depend>
@@ -61,6 +66,8 @@
   <run_depend>interactive_marker_proxy</run_depend>
   <run_depend>interactive_markers</run_depend>
   <run_depend>tf2_web_republisher</run_depend>
+  <run_depend>moveit_commander</run_depend>
+  <run_depend>python-couchdb</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

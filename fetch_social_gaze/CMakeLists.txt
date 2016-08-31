@@ -68,7 +68,7 @@ add_action_files(
 generate_messages(
   DEPENDENCIES
   actionlib_msgs
-  std_msgs 
+  std_msgs
   geometry_msgs # Or other packages containing msgs
 )
 
@@ -150,6 +150,16 @@ include_directories(
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+
+install(PROGRAMS
+  nodes/social_gaze_server.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(FILES
+  launch/gaze.launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
 
 #############
 ## Testing ##

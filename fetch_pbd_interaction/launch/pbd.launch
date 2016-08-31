@@ -9,7 +9,7 @@
 
 	<!-- This runs all of the prerequisite nodes for the PbD backend to
 	work, such as interactive manipulation backend and social gaze. -->
-	<include file="$(find fetch_pbd_interaction)/launch/pbd_backend_prereqs.launch">
+	<include file="$(find fetch_pbd_interaction)/launch/pbd_prereqs.launch">
 		<arg name="social_gaze" value="$(arg social_gaze)" />
 		<arg name="play_sound" value="$(arg play_sound)" />
 	</include>
