@@ -21,12 +21,13 @@
 
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
 
-	<include file="$(find tabletop_object_detector)/launch/tabletop_segmentation.launch">
-	    <arg name="tabletop_segmentation_points_in" value="$(arg camera_name)/depth_registered/points" />
-	</include>
+    <node name="rail_segmentation" pkg="rail_segmentation" type="rail_segmentation" respawn="true" output="screen">
+    	<param name="point_cloud_topic" value="$(arg camera_name)/depth_registered/points" />
+    	<param name="zones_config" value="$(find fetch_pbd_interaction)/config/zones.yaml" />
+    	<param name="max_cluster_size" value="50000" />
+    </node>
 
 	<node name="fetch_pbd_arm_control" pkg="fetch_pbd_interaction" type="pbd_arm_control_node.py" output="screen" />
 	<node name="pbd_world_node" pkg="fetch_pbd_interaction" type="pbd_world_node.py" output="screen" />
-
 
 </launch>

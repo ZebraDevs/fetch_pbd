@@ -157,6 +157,7 @@ install(FILES
 
 install(FILES
   config/fetch_pbd.rviz
+  config/zones.yaml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
 

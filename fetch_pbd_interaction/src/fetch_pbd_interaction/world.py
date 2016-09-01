@@ -23,6 +23,8 @@ from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.interactive_marker_server import \
     InteractiveMarkerServer
 import moveit_commander
+from rail_manipulation_msgs.msg import SegmentedObjectList, SegmentedObject
+import sensor_msgs.point_cloud2 as pc2
 
 # Local
 from tabletop_object_detector.srv import TabletopSegmentation
@@ -92,10 +94,13 @@ class World:
         self._objects = []
 
 
-        rospy.wait_for_service('tabletop_segmentation')
+        rospy.wait_for_service('rail_segmentation/segment')
         self._segmentation_service = rospy.ServiceProxy(
-            'tabletop_segmentation',
-            TabletopSegmentation)
+            'rail_segmentation/segment',
+            Empty)
+
+        rospy.Subscriber('rail_segmentation/segmented_objects', SegmentedObjectList, self._tabletop_update)
+        rospy.Subscriber('rail_segmentation/segmented_table', SegmentedObject, self._table_update)
 
         self._world_update_pub = rospy.Publisher('world_update', WorldState,
                                                  queue_size=1)
@@ -371,71 +376,97 @@ class World:
         '''
 
         rospy.loginfo("waiting for segmentation service")
-
-
         try:
             resp = self._segmentation_service()
-            rospy.loginfo("Adding landmarks")
-
-            self._reset_objects()
-            self._lock.acquire()
-
-            # add the table
-            xmin = resp.table.x_min
-            ymin = resp.table.y_min
-            xmax = resp.table.x_max
-            ymax = resp.table.y_max
-            depth = xmax - xmin
-            width = ymax - ymin
-
-            pose = resp.table.pose.pose
-            pose.position.x = pose.position.x + xmin + depth / 2
-            pose.position.y = pose.position.y + ymin + width / 2
-            dimensions = Vector3(depth, width, 0.01)
-            self._surface = World._get_surface_marker(pose, dimensions)
-            self._im_server.insert(self._surface,
-                                   self._marker_feedback_cb)
-            self._im_server.applyChanges()
-            # For some reason that defies logic, it's best to add and remove
-            # planning scene objects in a loop.
-            # It sometimes doesn't work the first time.
-            threading.Thread(group=None,
-                         target=self._add_surface_to_planning_scene,
-                         args=(pose, dimensions),
-                         name='session_state_publish_thread').start()
-
-            for cluster in resp.clusters:
-                points = cluster.points
-                if len(points) == 0:
-                    self._lock.release()
-                    return Point(0, 0, 0)
-                [min_x, max_x, min_y, max_y, min_z, max_z] = [
-                    points[0].x, points[0].x, points[0].y, points[0].y,
-                    points[0].z, points[0].z]
-                for point in points:
-                    min_x = min(min_x, point.x)
-                    min_y = min(min_y, point.y)
-                    min_z = min(min_z, point.z)
-                    max_x = max(max_x, point.x)
-                    max_y = max(max_y, point.y)
-                    max_z = max(max_z, point.z)
-                added = self._add_new_object(
-                            Pose(Point((min_x + max_x) / 2, (min_y + max_y) / 2,
-                            (min_z + max_z) / 2), Quaternion(0, 0, 0, 1)),
-                            Point(max_x - min_x, max_y - min_y, max_z - min_z),
-                            False)
-                if not added:
-                    rospy.loginfo("Failed to add object")
-                else:
-                    rospy.loginfo("Object added?")
-                    rospy.loginfo("World objects: {}".format(self._objects))
-            self._lock.release()
-            self._world_changed()
-            return True
-
         except rospy.ServiceException, e:
             print "Call to segmentation service failed: %s" % e
-            return False
+
+    def _tabletop_update(self, msg):
+        '''Callback for segmentation updates
+
+        Args:
+            msg : SegmentedObjectList
+        '''
+        self._reset_objects()
+        self._lock.acquire()
+
+
+        for obj in msg.objects:
+            if obj.point_cloud.height == 0 or obj.point_cloud.width == 0:
+                rospy.logwarn('Empty point cloud')
+                continue
+            pc = obj.point_cloud
+            points = pc2.read_points(pc, field_names=['x', 'y', 'z'],
+                                     skip_nans=True)
+            rospy.loginfo('point_cloud: {}'.format(points))
+
+            x, y, z = points.next()
+            [min_x, max_x, min_y, max_y, min_z, max_z] = [x, x, y, y, z, z]
+            for x, y, z in points:
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                min_z = min(min_z, z)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+                max_z = max(max_z, z)
+            added = self._add_new_object(
+                        Pose(Point((min_x + max_x) / 2, (min_y + max_y) / 2,
+                        (min_z + max_z) / 2), Quaternion(0, 0, 0, 1)),
+                        Point(max_x - min_x, max_y - min_y, max_z - min_z),
+                        False)
+            if not added:
+                rospy.loginfo("Failed to add object")
+            else:
+                rospy.loginfo("Object added?")
+                rospy.loginfo("World objects: {}".format(self._objects))
+        self._lock.release()
+        self._world_changed()
+
+    def _table_update(self, msg):
+        '''Callback for table position updates
+
+        Args:
+            msg: SegmentedObject
+        '''
+        # add the table
+        if msg.point_cloud.height == 0 or msg.point_cloud.width == 0:
+            rospy.logwarn('No table detected')
+            return
+
+        pc = msg.point_cloud
+        points = pc2.read_points(pc, field_names=['x', 'y', 'z'],
+                                 skip_nans=True)
+        rospy.loginfo('point_cloud: {}'.format(points))
+
+        x, y, z = points.next()
+        [min_x, max_x, min_y, max_y, min_z, max_z] = [x, x, y, y, z, z]
+        for x, y, z in points:
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            min_z = min(min_z, z)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+            max_z = max(max_z, z)
+        depth = max_x - min_x
+        width = max_y - min_y
+
+        position = msg.center
+        dimensions = Vector3(depth, width, 0.01)
+        pose = Pose()
+        pose.position = position
+        pose.orientation.w = 1.0
+        self._surface = World._get_surface_marker(pose, dimensions)
+        self._im_server.insert(self._surface,
+                               self._marker_feedback_cb)
+        self._im_server.applyChanges()
+        # For some reason that defies logic, it's best to add and remove
+        # planning scene objects in a loop.
+        # It sometimes doesn't work the first time.
+        threading.Thread(group=None,
+                     target=self._add_surface_to_planning_scene,
+                     args=(pose, dimensions),
+                     name='session_state_publish_thread').start()
+
 
     def _clear_objects(self, req):
         '''Responds to service call to clear objects
