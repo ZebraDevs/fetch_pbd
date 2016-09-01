@@ -67,7 +67,7 @@
   <run_depend>tf2_web_republisher</run_depend>
   <run_depend>moveit_commander</run_depend>
   <run_depend>python-couchdb</run_depend>
-  <run_depend>rail_segmentation</run_depend>
+  <run_depend version_gt="0.1.9-0">rail_segmentation</run_depend>
   <run_depend>rail_manipulation_msgs</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
