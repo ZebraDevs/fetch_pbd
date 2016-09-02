@@ -796,7 +796,8 @@ class ArmTarget(Primitive):
         '''
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
-        refs.append(PREVIOUS_PRIMITIVE)
+        if self._number > 0:
+            refs.append(PREVIOUS_PRIMITIVE)
         refs.append(BASE_LINK)
         if ref_name in refs:
             index = refs.index(ref_name)
@@ -818,7 +819,8 @@ class ArmTarget(Primitive):
         index = self._sub_entries.index(menu_id)
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
-        refs.append(PREVIOUS_PRIMITIVE)
+        if self._number > 0:
+            refs.append(PREVIOUS_PRIMITIVE)
         refs.append(BASE_LINK)
         return refs[index]
 

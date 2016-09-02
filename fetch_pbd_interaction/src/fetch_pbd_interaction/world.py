@@ -34,6 +34,7 @@ from fetch_pbd_interaction.srv import GetObjectList, GetObjectListResponse, \
                                       GetMostSimilarObjectResponse, \
                                       GetObjectFromName, \
                                       GetObjectFromNameResponse, \
+                                      GetObjectFromNameRequest, \
                                       GetNearestObject, \
                                       GetNearestObjectResponse
 from fetch_pbd_interaction.world_landmark import WorldLandmark
@@ -99,7 +100,7 @@ class World:
             'rail_segmentation/segment',
             Empty)
 
-        rospy.Subscriber('rail_segmentation/segmented_objects', SegmentedObjectList, self._tabletop_update)
+        # rospy.Subscriber('rail_segmentation/segmented_objects', SegmentedObjectList, self._tabletop_update)
         rospy.Subscriber('rail_segmentation/segmented_table', SegmentedObject, self._table_update)
 
         self._world_update_pub = rospy.Publisher('world_update', WorldState,
@@ -378,6 +379,8 @@ class World:
         rospy.loginfo("waiting for segmentation service")
         try:
             resp = self._segmentation_service()
+            msg = rospy.wait_for_message('rail_segmentation/segmented_objects', SegmentedObjectList)
+            self._tabletop_update(msg)
         except rospy.ServiceException, e:
             print "Call to segmentation service failed: %s" % e
 
@@ -660,11 +663,15 @@ class World:
                 self._objects.
         '''
 
-        obj = self._get_object_from_name(to_remove)
-        self._objects.remove(obj)
-        rospy.loginfo('Removing object ' + obj.int_marker.name)
-        self._im_server.erase(obj.int_marker.name)
-        self._im_server.applyChanges()
+        resp = self._get_object_from_name(GetObjectFromNameRequest(to_remove))
+        for obj in self._objects:
+            if obj.object == resp.obj:
+                self._objects.remove(obj)
+                rospy.loginfo('Removing object ' + obj.int_marker.name)
+                self._im_server.erase(obj.int_marker.name)
+                self._im_server.applyChanges()
+            break
+
         # TODO(mbforbes): Re-implement object recognition or remove
         # this dead code.
         # if (obj.is_recognized):

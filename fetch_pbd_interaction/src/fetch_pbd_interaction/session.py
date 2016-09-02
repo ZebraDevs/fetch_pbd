@@ -263,13 +263,15 @@ class Session:
         self.publish_primitive_tf()
         action = self._actions[self._current_action_id]
         for i in range(self.n_primitives()):
-            self._tf_listener.waitForTransform("base_link",
-                         "primitive_" + str(i),
-                         rospy.Time.now(),
-                         rospy.Duration(4.0))
-            action.get_primitive(i).update_viz(False)
-
-
+            try:
+                self._tf_listener.waitForTransform("base_link",
+                             "primitive_" + str(i),
+                             rospy.Time.now(),
+                             rospy.Duration(5.0))
+                action.get_primitive(i).update_viz(False)
+            except Exception, e:
+                rospy.loginfo("Frame primitive_" + str(i) +
+                              " is not available.")
         return True
 
     def next_action(self):

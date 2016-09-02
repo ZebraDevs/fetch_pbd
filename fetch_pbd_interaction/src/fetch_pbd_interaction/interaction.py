@@ -250,6 +250,9 @@ class Interaction:
                     args=(gui_input,),
                     name='gui_response_thread').start()
 
+            elif self._session.get_current_action() is None:
+                rospy.logwarn("No current action")
+
             elif ((self._session.get_current_action().get_status() !=
                     ExecutionStatus.EXECUTING) or
                     cmd == GuiInput.STOP_EXECUTION):
