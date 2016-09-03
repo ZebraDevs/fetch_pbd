@@ -160,15 +160,15 @@
           </table>
           <div class='flex-container' style='overflow:auto;'>
             <ul id="dragList" style='list-style: none; padding: 5px; margin: 0px;'>
-              <template is='dom-repeat' items='[[primitives]]'>
+              <template is='dom-repeat' items='{{primitives}}'>
                 <li draggable='true' on-dragstart='dragPrimitive' on-dragend='dropPrimitive' on-dragenter='getDestination' on-click='selectPrimitive'>
-                  <div class='listDiv' style='[[item.backgroundColor]]'>
+                  <div class='listDiv' style='{{item.backgroundColor}}'>
                     <div style='display: flex;'>
-                      <div style='flex:auto; line-height: 36px; vertical-align: middle; display: inline-block; '>[[item.name]]</div>
+                      <div style='flex:auto; line-height: 36px; vertical-align: middle; display: inline-block; '>{{item.name}}</div>
                       <div style='flex:none;'>
                         <paper-icon-button
                             noink
-                            data-primitive$='[[item.number]]'
+                            data-primitive$='{{item.number}}'
                             on-tap='onRun'
                             icon='av:play-circle-filled'>
                         </paper-icon-button>
@@ -176,7 +176,7 @@
                       <div style='flex:none;'>
                         <paper-icon-button
                             noink
-                            data-primitive$='[[item.number]]'
+                            data-primitive$='{{item.number}}'
                             on-tap='onCopy'
                             icon='content-copy'>
                         </paper-icon-button>
@@ -184,17 +184,17 @@
                       <div style='flex:none;'>
                         <paper-icon-button
                             noink
-                            data-primitive$='[[item.number]]'
+                            data-primitive$='{{item.number}}'
                             on-tap='onEdit'
                             icon='image:edit'
-                            disabled='[[item.editDisabled]]'>
+                            disabled='{{item.editDisabled}}'>
                         </paper-icon-button>
                       </div>
                       <div style='flex:none;'>
                         <paper-icon-button
                             class='delete'
                             noink
-                            data-primitive$='[[item.number]]'
+                            data-primitive$='{{item.number}}'
                             on-tap='onDelete'
                             icon='delete'>
                         </paper-icon-button>
@@ -202,32 +202,32 @@
                       <div style='flex:none;'>
                         <paper-icon-button
                               noink
-                              data-primitive$='[[item.number]]'
+                              data-primitive$='{{item.number}}'
                               on-tap='toggleMarker'
-                              src='[[item.marker]]'>
+                              src='{{item.marker}}'>
                         </paper-icon-button>
                       </div>
                     </div>
                     <div class='collapsible' style='display: none;'>
                       <div style='float: left; padding: 5px;'>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.position.x]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.x}}'>
                           <div prefix>x: </div>
                         </paper-input>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.position.y]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.y}}'>
                           <div prefix>y: </div>
                         </paper-input>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.position.z]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.position.z}}'>
                           <div prefix>z: </div>
                         </paper-input>
                       </div>
                       <div style='float: right; padding: 5px;'>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.orientation.r]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.r}}'>
                           <div prefix>r: </div>
                         </paper-input>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.orientation.p]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.p}}'>
                           <div prefix>p: </div>
                         </paper-input>
-                        <paper-input on-change='onPoseEdit' type='number' value='[[item.orientation.y]]'>
+                        <paper-input on-change='onPoseEdit' type='number' value='{{item.orientation.y}}'>
                           <div prefix>y: </div>
                         </paper-input>
                       </div>
