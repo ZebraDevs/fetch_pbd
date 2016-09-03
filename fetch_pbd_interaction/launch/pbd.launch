@@ -6,12 +6,16 @@
 
 	<arg name="social_gaze" default="true" />
 	<arg name="play_sound" default="true" />
+	<arg name="from_file" default="" />
+	<arg name="to_file" default="" />
 
 	<!-- This runs all of the prerequisite nodes for the PbD backend to
 	work, such as interactive manipulation backend and social gaze. -->
 	<include file="$(find fetch_pbd_interaction)/launch/pbd_prereqs.launch">
 		<arg name="social_gaze" value="$(arg social_gaze)" />
 		<arg name="play_sound" value="$(arg play_sound)" />
+		<arg name="from_file" value="$(arg from_file)" />
+		<arg name="to_file" value="$(arg to_file)" />
 	</include>
 
 	<!-- This runs the interaction node itself.	It is the main state

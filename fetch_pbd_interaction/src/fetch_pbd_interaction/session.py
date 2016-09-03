@@ -13,6 +13,7 @@ import rospy
 import datetime
 import threading
 import couchdb
+import json
 
 # ROS builtins
 from tf import TransformBroadcaster
@@ -44,7 +45,9 @@ class Session:
             im_server (InteractiveMarkerSerever)
         '''
         self._lock = threading.Lock()
-
+        self._from_file = rospy.get_param("/from_file")
+        self._to_file = rospy.get_param("/to_file")
+        self._json = {}
         self._robot = robot
         self._tf_listener = _tf_listener
         self._tf_broadcaster = TransformBroadcaster()
@@ -122,7 +125,6 @@ class Session:
         else:
             self._current_action_id = 0
 
-        time_str = datetime.datetime.now().strftime('%c')
         # action_id = self._db.insert_new(name)
         action = Action(self._robot,
                         self._tf_listener,
@@ -133,6 +135,7 @@ class Session:
         if not name is None:
             action.set_name(name)
         else:
+            time_str = datetime.datetime.now().strftime('%c')
             action.set_name('Untitled action {}'.format(time_str))
 
         self._actions.update({
@@ -230,7 +233,7 @@ class Session:
                           " No actions created yet.")
         self._update_session_state()
 
-    def switch_to_action(self, index):
+    def switch_to_action_by_index(self, index):
         '''Switches to action with index
 
         Args:
@@ -274,6 +277,22 @@ class Session:
                               " is not available.")
         return True
 
+    def switch_to_action_by_name(self, name):
+        '''Switches to action with name
+
+            Args:
+                name (str): The action name to switch to.
+
+            Returns:
+                bool: Whether successfully switched to index action.
+        '''
+        names = self._get_action_names()
+        if name in names:
+            index = names.index(name)
+            return self.switch_to_action_by_index(index)
+        else:
+            return False
+
     def next_action(self):
         '''Switches to the next action.
 
@@ -285,7 +304,7 @@ class Session:
             rospy.logerr('Already on the last action.')
             return False
         action_id = self._action_ids[index + 1]
-        return self.switch_to_action(action_id)
+        return self.switch_to_action_by_index(action_id)
 
     def previous_action(self):
         '''Switches to the previous action.
@@ -298,7 +317,7 @@ class Session:
             rospy.logerr('Already on the first action.')
             return False
         action_id = self._action_ids[index - 1]
-        return self.switch_to_action(action_id)
+        return self.switch_to_action_by_index(action_id)
 
     def n_primitives(self):
         '''Returns the number of primitives in the current action, or 0 if
@@ -650,7 +669,7 @@ class Session:
             return []
         return self._actions[self._current_action_id].get_marker_visibility()
 
-    def _update_db_with_action(self, action):
+    def _update_db_with_action(self, action, db_file=None):
         '''Adds action to db if it does not already exist.
         Or if it exists, delete the existing entry and replace with
         update version
@@ -658,14 +677,20 @@ class Session:
         Args:
             action (Action)
         '''
-        json = action.get_json()
+        if db_file is None:
+            db_file = self._to_file
+        action_json = action.get_json()
         # rospy.loginfo("json: {}".format(json))
         action_id_str = str(action.get_action_id())
         if action_id_str in self._db:
             self._db.delete(self._db[action_id_str])
-            self._db[action_id_str] = json
+            self._db[action_id_str] = action_json
         else:
-            self._db[action_id_str] = json
+            self._db[action_id_str] = action_json
+        if db_file:
+            self._json[action.get_action_id()] = action_json
+            with open(db_file, 'w') as to_file:
+                json.dump(self._json, to_file)
 
     def _update_db_with_current_action(self):
         '''Adds current action to db if it does not already exist.
@@ -758,9 +783,9 @@ class Session:
             [string]
         '''
         name_list = []
-        for action_id in self._action_ids:
+        for key in self._actions:
 
-            name_list.append(self._actions[action_id].get_name())
+            name_list.append(self._actions[key].get_name())
 
         return name_list
 
@@ -819,6 +844,7 @@ class Session:
     def _load_session_state(self):
         '''Loads the experiment state from couchdb database.'''
         # It retrieves actions from db sorted by their integer ids.
+
         map_fun = '''function(doc) {
                      emit(doc.id, doc);
                   }'''
@@ -830,11 +856,32 @@ class Session:
             action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb)
             action.build_from_json(result.value)
-            self._actions[result.value['id']] = action
+            self._actions[int(result.value['id'])] = action
             self._action_ids.append(int(result.value['id']))
-        rospy.loginfo("DONE LOADING EVERYTHING")
-        rospy.loginfo("action_ids loaded: {}".format(self._action_ids))
+            self._update_db_with_action(action)
 
+        if self._from_file:
+            time_str = datetime.datetime.now().strftime('%c')
+            for key in self._actions:
+                action = self._actions[key]
+                self._update_db_with_action(action, time_str + '.json')
+
+            del self._couch['fetch_pbd']
+            self._db = self._couch.create('fetch_pbd')
+            self._actions = {}
+            self._action_ids = []
+            with open(self._from_file) as json_file:
+                self._json = json.load(json_file)
+
+            keys = self._json.keys()
+            keys.sort()
+            for key in keys:
+                action = Action(self._robot, self._tf_listener, self._im_server,
+                           self._selected_primitive_cb, self._action_change_cb)
+                action.build_from_json(self._json[key])
+                self._actions[int(self._json[key]['id'])] = action
+                self._action_ids.append(int(self._json[key]['id']))
+                self._update_db_with_action(action)
 
         # if len(self._actions) > 0:
         #     # Select the starting action as the action with the largest id

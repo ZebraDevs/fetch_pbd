@@ -287,7 +287,7 @@ class Interaction:
                                    list to switch to.
         '''
         # Command: switch to a specified action.
-        success = self._session.switch_to_action(int(gui_input.param))
+        success = self._session.switch_to_action_by_index(int(gui_input.param))
         if not success:
             self._robot.play_sound(RobotSound.ERROR)
             self._robot.shake_head()

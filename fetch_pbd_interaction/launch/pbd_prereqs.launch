@@ -10,6 +10,10 @@
 	<arg name="social_gaze" default="true" />
 	<param name="social_gaze" value="$(arg social_gaze)" />
 	<arg name="play_sound" default="true" />
+	<arg name="from_file" default="true" />
+	<param name="from_file" value="$(arg from_file)" />
+	<arg name="to_file" default="true" />
+	<param name="to_file" value="$(arg to_file)" />
 	<param name="play_sound" value="$(arg play_sound)" />
     <arg name="camera_frame_prefix" default="/head_camera" />
     <arg name="camera_name" default="head_camera" />
