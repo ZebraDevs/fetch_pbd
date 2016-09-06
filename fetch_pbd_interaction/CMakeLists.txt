@@ -143,6 +143,7 @@ install(PROGRAMS
   nodes/pbd_arm_control_node.py
   nodes/pbd_interaction_node.py
   nodes/pbd_world_node.py
+  nodes/serve_web_interface.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
