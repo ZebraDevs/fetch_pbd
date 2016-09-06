@@ -143,7 +143,6 @@ install(PROGRAMS
   nodes/pbd_arm_control_node.py
   nodes/pbd_interaction_node.py
   nodes/pbd_world_node.py
-  nodes/serve_web_interface.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -158,12 +157,15 @@ install(FILES
 install(FILES
   config/fetch_pbd.rviz
   config/zones.yaml
+  config/detection.table.ros.ork
+  config/server.table.ros.ork
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
 
 install(DIRECTORY
   web_interface/fetch-pbd-gui
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/web_interface
+  USE_SOURCE_PERMISSIONS
 )
 
 install(DIRECTORY
@@ -172,11 +174,14 @@ install(DIRECTORY
 )
 
 install(PROGRAMS
-  install_web_dependencies.sh
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  web_interface/fetch-pbd-gui/install_web_dependencies.sh
+  web_interface/fetch-pbd-gui/serve_web_interface.sh
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/web_interface/fetch-pbd-gui
 )
 
-install(CODE "execute_process(COMMAND ../install/share/fetch_pbd_interaction/./install_web_dependencies.sh )")
+add_custom_target(install_web_dependencies ALL
+  COMMAND "./install_web_dependencies.sh"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/web_interface/fetch-pbd-gui)
 
 #############
 ## Testing ##

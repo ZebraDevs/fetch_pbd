@@ -526,7 +526,6 @@ class ArmTarget(Primitive):
         Args:
             new_pose (PoseStamped)
         '''
-        rospy.loginfo("Setting new ee_pose!!!")
         self._arm_state.ee_pose = new_pose
         self.update_viz()
         self._action_change_cb()

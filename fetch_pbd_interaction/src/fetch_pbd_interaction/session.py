@@ -119,8 +119,9 @@ class Session:
     def new_action(self, name=None):
         '''Creates new action.'''
         self._clear_world_objects_srv()
-        if self.n_actions() > 0 and not self._current_action_id is None:
-            self.get_current_action().reset_viz()
+        if self.n_actions() > 0:
+            if not self._current_action_id is None:
+                self.get_current_action().reset_viz()
             self._current_action_id = self.n_actions()
         else:
             self._current_action_id = 0
