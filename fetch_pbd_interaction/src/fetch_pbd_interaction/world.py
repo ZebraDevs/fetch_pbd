@@ -27,7 +27,6 @@ from rail_manipulation_msgs.msg import SegmentedObjectList, SegmentedObject
 import sensor_msgs.point_cloud2 as pc2
 
 # Local
-from tabletop_object_detector.srv import TabletopSegmentation
 from fetch_pbd_interaction.msg import WorldState
 from fetch_pbd_interaction.srv import GetObjectList, GetObjectListResponse, \
                                       GetMostSimilarObject, \

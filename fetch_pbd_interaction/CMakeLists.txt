@@ -34,7 +34,6 @@ add_message_files(
   ExecutionStatus.msg
   RobotSound.msg
   SessionState.msg
-  GuiInput.msg
   WorldState.msg
   OrientationRPY.msg
 )
@@ -56,6 +55,7 @@ add_service_files(
   GetObjectList.srv
   GetNearestObject.srv
   GetObjectFromName.srv
+  GuiInput.srv
 )
 
 ## Generate added messages and services with any dependencies listed here

@@ -20,8 +20,10 @@ from tf import TransformListener
 # Local
 from fetch_arm_control.msg import GripperState
 from fetch_pbd_interaction.session import Session
-from fetch_pbd_interaction.msg import ExecutionStatus, GuiInput
-from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList
+from fetch_pbd_interaction.msg import ExecutionStatus
+from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList, \
+                                      GuiInput, GuiInputRequest, \
+                                      GuiInputResponse
 from fetch_pbd_interaction.msg import RobotSound, WorldState
 from fetch_pbd_interaction.robot import Robot
 from std_srvs.srv import Empty
@@ -64,7 +66,8 @@ class Interaction:
                                               MarkerArray,
                                               queue_size=10)
 
-        rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
+        # rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
+        rospy.Service('gui_input', GuiInput, self._gui_input_cb )
 
         rospy.Subscriber('world_update', WorldState, self._world_update_cb)
 
@@ -74,36 +77,36 @@ class Interaction:
         # Command/callback pairs for input
         self._responses = {
             # Action Creation/Navigation
-            GuiInput.CREATE_ACTION: self._create_action,
-            GuiInput.SWITCH_TO_ACTION: self._switch_to_action,
-            GuiInput.NEXT_ACTION: self._next_action,
-            GuiInput.PREV_ACTION: self._previous_action,
-            GuiInput.UPDATE_ACTION_NAME: self._update_action_name,
-            # GuiInput.DELETE_CURRENT_ACTION: self._delete_current_action,
-            GuiInput.DELETE_ACTION: self._delete_action,
-            GuiInput.COPY_ACTION: self._copy_action,
+            GuiInputRequest.CREATE_ACTION: self._create_action,
+            GuiInputRequest.SWITCH_TO_ACTION: self._switch_to_action,
+            GuiInputRequest.NEXT_ACTION: self._next_action,
+            GuiInputRequest.PREV_ACTION: self._previous_action,
+            GuiInputRequest.UPDATE_ACTION_NAME: self._update_action_name,
+            # GuiInputRequest.DELETE_CURRENT_ACTION: self._delete_current_action,
+            GuiInputRequest.DELETE_ACTION: self._delete_action,
+            GuiInputRequest.COPY_ACTION: self._copy_action,
             # Primitive Creation Navigation
-            GuiInput.SWITCH_PRIMITIVE_ORDER: self._switch_primitive_order,
-            GuiInput.DELETE_PRIMITIVE: self._delete_primitive,
-            GuiInput.COPY_PRIMITIVE: self._copy_primitive,
-            GuiInput.SELECT_PRIMITIVE: self._select_primitive,
-            GuiInput.DELETE_ALL_PRIMITIVES: self._delete_all_primitives,
-            GuiInput.DELETE_LAST_PRIMITIVE: self._delete_last_primitive,
-            GuiInput.HIDE_PRIMITIVE_MARKER: self._hide_primitive_marker,
-            GuiInput.SHOW_PRIMITIVE_MARKER: self._show_primitive_marker,
+            GuiInputRequest.SWITCH_PRIMITIVE_ORDER: self._switch_primitive_order,
+            GuiInputRequest.DELETE_PRIMITIVE: self._delete_primitive,
+            GuiInputRequest.COPY_PRIMITIVE: self._copy_primitive,
+            GuiInputRequest.SELECT_PRIMITIVE: self._select_primitive,
+            GuiInputRequest.DELETE_ALL_PRIMITIVES: self._delete_all_primitives,
+            GuiInputRequest.DELETE_LAST_PRIMITIVE: self._delete_last_primitive,
+            GuiInputRequest.HIDE_PRIMITIVE_MARKER: self._hide_primitive_marker,
+            GuiInputRequest.SHOW_PRIMITIVE_MARKER: self._show_primitive_marker,
             # Programming
-            GuiInput.OPEN_HAND: self._open_hand,
-            GuiInput.CLOSE_HAND: self._close_hand,
-            GuiInput.RECORD_OBJECTS: self._record_objects,
-            GuiInput.SAVE_TARGET: self._save_target,
-            GuiInput.START_RECORDING_TRAJECTORY: \
+            GuiInputRequest.OPEN_HAND: self._open_hand,
+            GuiInputRequest.CLOSE_HAND: self._close_hand,
+            GuiInputRequest.RECORD_OBJECTS: self._record_objects,
+            GuiInputRequest.SAVE_TARGET: self._save_target,
+            GuiInputRequest.START_RECORDING_TRAJECTORY: \
                                 self._start_recording_trajectory,
-            GuiInput.STOP_RECORDING_TRAJECTORY: self._stop_recording_trajectory,
-            GuiInput.POSE_EDITED: self._primitive_pose_edited,
+            GuiInputRequest.STOP_RECORDING_TRAJECTORY: self._stop_recording_trajectory,
+            GuiInputRequest.POSE_EDITED: self._primitive_pose_edited,
             # Execution
-            GuiInput.STOP_EXECUTION: self._stop_execution,
-            GuiInput.EXECUTE_ACTION: self._execute_action,
-            GuiInput.EXECUTE_PRIMITIVE: self._execute_primitive,
+            GuiInputRequest.STOP_EXECUTION: self._stop_execution,
+            GuiInputRequest.EXECUTE_ACTION: self._execute_action,
+            GuiInputRequest.EXECUTE_PRIMITIVE: self._execute_primitive,
         }
 
         # The PbD backend is ready.
@@ -221,14 +224,14 @@ class Interaction:
     # The following methods receive commands from speech / GUI and
     # process them. These are the multiplexers.
 
-    def _gui_input_cb(self, gui_input):
+    def _gui_input_cb(self, req):
         '''Callback for when input is received from GUI
 
         Args:
-            input (GuiInput): The input received from GUI
+            req (GuiInputRequest): The input received from GUI
         '''
         # We extract the command string as we use it a lot.
-        cmd = gui_input.command
+        cmd = req.command
         if cmd in self._responses.keys():
             rospy.loginfo('\033[32m' + 'Calling response for command ' + cmd
                           + '\033[0m')
@@ -237,17 +240,17 @@ class Interaction:
             if not self._session.n_actions() > 0:
                 threading.Thread(group=None,
                     target=response,
-                    args=(gui_input,),
+                    args=(req,),
                     name='gui_response_thread').start()
 
             elif (self._session.get_current_action() is None and
-                    (cmd == GuiInput.CREATE_ACTION or
-                    cmd == GuiInput.COPY_ACTION or
-                    cmd == GuiInput.DELETE_ACTION or
-                    cmd == GuiInput.SWITCH_TO_ACTION)):
+                    (cmd == GuiInputRequest.CREATE_ACTION or
+                    cmd == GuiInputRequest.COPY_ACTION or
+                    cmd == GuiInputRequest.DELETE_ACTION or
+                    cmd == GuiInputRequest.SWITCH_TO_ACTION)):
                 threading.Thread(group=None,
                     target=response,
-                    args=(gui_input,),
+                    args=(req,),
                     name='gui_response_thread').start()
 
             elif self._session.get_current_action() is None:
@@ -255,10 +258,10 @@ class Interaction:
 
             elif ((self._session.get_current_action().get_status() !=
                     ExecutionStatus.EXECUTING) or
-                    cmd == GuiInput.STOP_EXECUTION):
+                    cmd == GuiInputRequest.STOP_EXECUTION):
                 threading.Thread(group=None,
                     target=response,
-                    args=(gui_input,),
+                    args=(req,),
                     name='gui_response_thread').start()
             else:
                 rospy.logwarn(
@@ -266,11 +269,13 @@ class Interaction:
         else:
             rospy.logwarn('This command (' + cmd + ') is unknown.')
 
+        return GuiInputResponse()
+
     def _create_action(self, gui_input):
         '''Creates a new empty action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._session.new_action()
         self._robot.play_sound(RobotSound.CREATED_ACTION)
@@ -283,7 +288,7 @@ class Interaction:
         The index is 0-based, so the first action is action 0.
 
         Args:
-            gui_input (GuiInput) : contains the index into the session's action
+            gui_input (GuiInputRequest) : contains the index into the session's action
                                    list to switch to.
         '''
         # Command: switch to a specified action.
@@ -299,7 +304,7 @@ class Interaction:
         '''Switches to next action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         if self._session.n_actions() > 0:
             if self._session.next_action():
@@ -316,7 +321,7 @@ class Interaction:
         '''Switches to previous action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         if self._session.n_actions() > 0:
             if self._session.previous_action():
@@ -333,7 +338,7 @@ class Interaction:
         '''Update name of action.
 
         Args:
-            gui_input (GuiInput) : contains new name of action
+            gui_input (GuiInputRequest) : contains new name of action
         '''
         self._session.update_action_name(gui_input.param)
 
@@ -341,7 +346,7 @@ class Interaction:
         '''Deletes action with certain index
 
         Args:
-            gui_input (GuiInput) : contains index of action to delete
+            gui_input (GuiInputRequest) : contains index of action to delete
         '''
         self._session.delete_action(int(gui_input.param))
 
@@ -349,7 +354,7 @@ class Interaction:
         '''Copies action with certain index
 
         Args:
-            gui_input (GuiInput) : contains index of action to copy
+            gui_input (GuiInputRequest) : contains index of action to copy
         '''
         self._session.copy_action(int(gui_input.param))
         self._robot.play_sound(RobotSound.CREATED_ACTION)
@@ -359,7 +364,7 @@ class Interaction:
         '''Changes the order of primitives
 
         Args:
-            gui_input (GuiInput) : contains the previous and current indices
+            gui_input (GuiInputRequest) : contains the previous and current indices
                                    of the moved primitive
         '''
         old_index = gui_input.list_params[0]
@@ -370,7 +375,7 @@ class Interaction:
         '''Deletes primitive with certain index from current action
 
         Args:
-            gui_input (GuiInput) : contains index of primitive to delete
+            gui_input (GuiInputRequest) : contains index of primitive to delete
         '''
         self._session.delete_primitive(int(gui_input.param))
 
@@ -378,7 +383,7 @@ class Interaction:
         '''Copies primitive with certain index from current action
 
         Args:
-            gui_input (GuiInput) : contains index of primitive to copy
+            gui_input (GuiInputRequest) : contains index of primitive to copy
         '''
         self._session.copy_primitive(int(gui_input.param))
 
@@ -386,7 +391,7 @@ class Interaction:
         '''Selects a primitive in the current action.
 
         Args:
-            gui_input (GuiInput) : contains index of primitive to select
+            gui_input (GuiInputRequest) : contains index of primitive to select
         '''
         primitive_number = int(gui_input.param)
         self._session.select_action_primitive(primitive_number)
@@ -395,7 +400,7 @@ class Interaction:
         '''Deletes all primitives in the current action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         if self._session.n_actions() > 0:
             if self._session.n_primitives() > 0:
@@ -413,7 +418,7 @@ class Interaction:
         '''Deletes last primitive of the current action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         if self._session.n_actions() > 0:
             if self._session.n_primitives() > 0:
@@ -431,7 +436,7 @@ class Interaction:
         '''Hide marker with certain index
 
         Args:
-            gui_input (GuiInput) : contains index of marker to hide
+            gui_input (GuiInputRequest) : contains index of marker to hide
         '''
         self._session.hide_primitive_marker(int(gui_input.param))
 
@@ -439,7 +444,7 @@ class Interaction:
         '''Show marker with certain index
 
         Args:
-            gui_input (GuiInput) : contains index of marker to show
+            gui_input (GuiInputRequest) : contains index of marker to show
         '''
         self._session.show_primitive_marker(int(gui_input.param))
 
@@ -447,7 +452,7 @@ class Interaction:
         '''Opens gripper
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         # First, open the hand if it's closed.
@@ -472,7 +477,7 @@ class Interaction:
         '''Closes gripper
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         # First, close the hand if it's open.
         self._head_busy = True
@@ -496,7 +501,7 @@ class Interaction:
         '''Makes the robot look for a table and objects.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         if self._session.record_objects():
@@ -511,7 +516,7 @@ class Interaction:
         '''Saves current arm state as an action primitive (ArmTarget).
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         if self._session.n_actions() > 0:
@@ -527,7 +532,7 @@ class Interaction:
         '''Starts recording continuous motion.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         if self._session.n_actions() > 0:
@@ -548,7 +553,7 @@ class Interaction:
         '''Stops recording continuous motion.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         if self._is_recording_motion:
@@ -567,7 +572,7 @@ class Interaction:
         '''Updates the primitive pose with input from the interface
 
         Args:
-            gui_input (GuiInput) : contains pose information
+            gui_input (GuiInputRequest) : contains pose information
         '''
         primitive_number = int(gui_input.param)
         self._session.update_primitive_pose(primitive_number,
@@ -578,7 +583,7 @@ class Interaction:
         '''Starts the execution of the current action.
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         # We must have a current action.
         self._head_busy = True
@@ -595,7 +600,7 @@ class Interaction:
         '''Stops ongoing execution after current primitive is finished
 
         Args:
-            gui_input (GuiInput) : unused
+            gui_input (GuiInputRequest) : unused
         '''
         self._head_busy = True
         status = self._session.get_current_action().get_status()
@@ -612,6 +617,6 @@ class Interaction:
         '''Execute primitive with certain index
 
         Args:
-            gui_input (GuiInput) : contains index of primitive to execute
+            gui_input (GuiInputRequest) : contains index of primitive to execute
         '''
         self._session.execute_primitive(int(gui_input.param))

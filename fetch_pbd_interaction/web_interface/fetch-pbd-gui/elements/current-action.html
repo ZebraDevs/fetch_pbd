@@ -318,8 +318,7 @@
         _grid: Object, // The ROS3D viewer
         _im: Object, // The ROS3D viewer
         expSrv: Object,
-        spinputPub: Object,
-        inputPub: Object,
+        inputSrv: Object,
         action_name : '',
         expListener : Object,
         showMarkerIcon : {
@@ -423,10 +422,10 @@
           that.resize();
         });
 
-        this.inputPub = new ROSLIB.Topic({
+        this.inputSrv = new ROSLIB.Service({
           ros : this.ros,
           name : '/gui_input',
-          messageType : 'fetch_pbd_interaction/GuiInput'
+          serviceType : 'fetch_pbd_interaction/GuiInput'
         });
 
         this.expSrv = new ROSLIB.Service({
@@ -489,11 +488,11 @@
         var oldIndex = this.dragSourceId;
         var newIndex = this.dropTargetId;
 
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'switch-primitive-order',
           list_params : [parseInt(oldIndex), parseInt(newIndex)]
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
         var primitives = this.primitives;
         var moved = primitives[parseInt(oldIndex)];
         primitives.splice(parseInt(oldIndex),1);
@@ -508,11 +507,11 @@
 
       selectPrimitive : function(evt) {
         if (evt.target.tagName == "DIV") {
-          var message = new ROSLIB.Message({
+          var request = new ROSLIB.ServiceRequest({
             command : 'select-primitive',
             param : evt.model.item.number
           });
-          this.inputPub.publish(message);
+          this.inputSrv.callService(request, function(result) {});
         }
       },
 
@@ -584,91 +583,91 @@
       onNameChange : function() {
         var that = this;
 
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'update-action-name',
           param : that.action_name
         });
-        that.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       execute : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'execute-action'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       stopExecution : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'stop-execution'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       savePose : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'save-target'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       startRecording : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'start-recording-trajectory'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       stopRecording : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'stop-recording-trajectory'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       openHand : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'open-hand'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       closeHand : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'close-hand'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       deleteLast : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'delete-last-primitive'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       deleteAll : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'delete-all-primitives'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       recordObjects : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'record-objects'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       onEdit : function(evt) {
@@ -684,8 +683,7 @@
 
       onPoseEdit : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
-        var message = new ROSLIB.Message({
-          command : 'pose-edited',
+        var request = new ROSLIB.ServiceRequest({
           param : primitiveId,
           position : {
             x : parseFloat(evt.model.item.position.x),
@@ -699,34 +697,34 @@
           },
 
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       onCopy : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'copy-primitive',
           param : primitiveId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       onRun : function(evt) {
         var primitiveId = evt.model.item.number;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'execute-primitive',
           param : primitiveId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       onDelete : function(evt) {
         var primitiveId = evt.model.item.number;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'delete-primitive',
           param : primitiveId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       toggleMarker : function(evt) {
@@ -738,11 +736,11 @@
         else {
           guiCommand = 'show-primitive-marker';
         }
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : guiCommand,
           param : primitiveId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
     });
   </script>

@@ -184,8 +184,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         _im: Object,
         action_buttons: [],
         expListener: Object,
-        inputPub: Object,
-        spinputPub: Object,
+        inputSrv: Object,
         expSrv: Object,
         // currentAction : '0',
         pagePub: Object
@@ -218,10 +217,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           messageType : 'std_msgs/String'
         });
 
-        this.inputPub = new ROSLIB.Topic({
+        this.inputSrv = new ROSLIB.Service({
           ros : this.ros,
           name : '/gui_input',
-          messageType : 'fetch_pbd_interaction/GuiInput'
+          serviceType : 'fetch_pbd_interaction/GuiInput'
         });
 
         this.expSrv = new ROSLIB.Service({
@@ -239,11 +238,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       },
 
       execute : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'execute-action'
         });
 
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       expCallback : function(that, message) {
@@ -256,19 +255,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       },
 
       onCreate : function() {
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'create-action'
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
 
       onEdit : function(evt) {
         var actionId = evt.model.item.action;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'switch-to-action',
           param : actionId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
         message = new ROSLIB.Message({
           data : 'current-action',
         });
@@ -277,11 +276,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onCopy : function(evt) {
         var actionId = evt.model.item.action;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'copy-action',
           param : actionId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
         message = new ROSLIB.Message({
           data : 'current-action',
         });
@@ -290,21 +289,21 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       onRun : function(evt) {
         var actionId = evt.model.item.action;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'switch-to-action',
           param : actionId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
         this.execute();
       },
 
       onDelete : function(evt) {
         var actionId = evt.model.item.action;
-        var message = new ROSLIB.Message({
+        var request = new ROSLIB.ServiceRequest({
           command : 'delete-action',
           param : actionId
         });
-        this.inputPub.publish(message);
+        this.inputSrv.callService(request, function(result) {});
       },
     });
   </script>
