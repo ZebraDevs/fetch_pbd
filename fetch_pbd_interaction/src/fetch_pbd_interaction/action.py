@@ -250,6 +250,8 @@ class Action:
                 self._primitive_pose_change,
                 self._action_change_cb
             )
+        if primitive.get_ref_type() ==  ArmState.PREVIOUS_TARGET:
+            primitive.change_ref_frame(ArmState.PREVIOUS_TARGET, Landmark())
         self._seq.append(primitive)
 
         if add_marker:
