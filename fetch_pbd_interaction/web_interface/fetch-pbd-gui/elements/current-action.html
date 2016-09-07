@@ -684,6 +684,7 @@
       onPoseEdit : function(evt) {
         var primitiveId = evt.model.item.number;//.action;
         var request = new ROSLIB.ServiceRequest({
+          command : 'pose-edited',
           param : primitiveId,
           position : {
             x : parseFloat(evt.model.item.position.x),
