@@ -143,6 +143,7 @@ install(PROGRAMS
   nodes/pbd_arm_control_node.py
   nodes/pbd_interaction_node.py
   nodes/pbd_world_node.py
+  nodes/demo.py
   scripts/serve_web_interface.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
@@ -164,6 +165,12 @@ install(FILES
 install(DIRECTORY
   web_interface/fetch-pbd-gui
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/web_interface
+  USE_SOURCE_PERMISSIONS
+)
+
+install(DIRECTORY
+  examples
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
   USE_SOURCE_PERMISSIONS
 )
 

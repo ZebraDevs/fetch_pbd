@@ -226,10 +226,13 @@ class ArmTrajectory(Primitive):
     def show_marker(self):
         '''Adds marker for primitive'''
         if self.update_ref_frames():
-            self._update_menu()
-            self._update_viz_core()
-            self._menu_handler.apply(self._im_server, self.get_name())
-            self._im_server.applyChanges()
+            try:
+                self._update_menu()
+                self._update_viz_core()
+                self._menu_handler.apply(self._im_server, self.get_name())
+                self._im_server.applyChanges()
+            except Exception, e:
+                rospy.logwarn(e)
 
         self._marker_visible = True
 
@@ -325,10 +328,13 @@ class ArmTrajectory(Primitive):
             check_reachable (bool) : Unused
         '''
         if self._marker_visible:
-            self._update_menu()
-            self._update_viz_core()
-            self._menu_handler.apply(self._im_server, self.get_name())
-            self._im_server.applyChanges()
+            try:
+                self._update_menu()
+                self._update_viz_core()
+                self._menu_handler.apply(self._im_server, self.get_name())
+                self._im_server.applyChanges()
+            except Exception, e:
+                rospy.logwarn(e)
 
     def get_primitive_number(self):
         '''Returns what number this primitive is in the sequence'''

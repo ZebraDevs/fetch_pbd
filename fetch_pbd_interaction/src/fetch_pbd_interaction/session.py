@@ -37,7 +37,7 @@ class Session:
     in the current session
     '''
 
-    def __init__(self, robot, _tf_listener, im_server):
+    def __init__(self, robot, _tf_listener, im_server, from_file=None, to_file=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -45,8 +45,14 @@ class Session:
             im_server (InteractiveMarkerSerever)
         '''
         self._lock = threading.Lock()
-        self._from_file = rospy.get_param("/from_file")
-        self._to_file = rospy.get_param("/to_file")
+        if from_file is None:
+            self._from_file = rospy.get_param("/from_file")
+        else:
+            self._from_file = from_file
+        if to_file is None:
+            self._to_file = rospy.get_param("/to_file")
+        else:
+            self._to_file = to_file
         self._json = {}
         self._robot = robot
         self._tf_listener = _tf_listener
@@ -843,7 +849,7 @@ class Session:
         return action.get_primitives_editable()
 
     def _load_session_state(self):
-        '''Loads the experiment state from couchdb database.'''
+        '''Loads the experiment state from couchdb database or json file.'''
         # It retrieves actions from db sorted by their integer ids.
 
         map_fun = '''function(doc) {
