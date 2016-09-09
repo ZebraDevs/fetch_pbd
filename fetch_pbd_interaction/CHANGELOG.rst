@@ -2,6 +2,11 @@
 Changelog for package fetch_pbd_interaction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.2 (2016-09-09)
+------------------
+* Dependencies
+* Contributors: Sarah Elliott
+
 0.0.1 (2016-09-09)
 ------------------
 * Update package.xml
