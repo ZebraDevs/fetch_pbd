@@ -4,7 +4,9 @@
   <version>0.0.0</version>
   <description>The fetch_pbd_interaction package</description>
 
+  <author email="sksellio@gmail.com">Sarah Elliott</author>
   <maintainer email="sksellio@gmail.com">Sarah Elliott</maintainer>
+  <maintainer email="rtoris@fetchrobotics.com">Russell Toris</maintainer>
 
   <license>BSD</license>
 
