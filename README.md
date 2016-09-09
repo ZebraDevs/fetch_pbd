@@ -10,7 +10,7 @@ The original [PR2 Programming by Demonstration](https://github.com/PR2/pr2_pbd) 
 This PbD is designed for Ubuntu 14.04 and ROS Indigo.
 
 ## Installing from Source
-Clone this repository and build on both your desktop machine and on the robot:
+Clone this repository and build on the robot:
 ```bash
 cd ~/catkin_ws/src
 git clone https://github.com/fetchrobotics/fetch_pbd.git
