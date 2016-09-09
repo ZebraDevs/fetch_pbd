@@ -42,7 +42,7 @@ roslaunch fetch_pbd_interaction pbd.launch from_file:=/full/path/from.json to_fi
 ```
 
 ### Using the GUI
-In your browser go to ROBOT_HOSTNAME:8080 in your browser to use the GUI. There is a "mobile" interface, which is the same but without the visualization. This can be useful for just saving/deleting poses. 
+In your browser go to ROBOT_HOSTNAME:8080 in your browser to use the GUI. There is a "mobile" interface, which is the same but without the visualization. This can be useful for just saving/deleting primitives. 
 
 The main page lists all the available actions.
 ![Main page](https://cloud.githubusercontent.com/assets/1470402/17989388/c71a3da2-6ae1-11e6-9d2f-894a67e508ca.png)
