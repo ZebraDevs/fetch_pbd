@@ -67,11 +67,11 @@ You can also change the name of the action.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989396/d05f44d4-6ae1-11e6-9363-f242c5ea15b6.png)
 
 ### Code Interface
-You can also access the actions you've programmed through code. You still need to run pbd_backend.launch (and you can run the frontend stuff too if you want; it won't hurt). Check out the examples folder.
+You can also access the actions you've programmed through code. You still need to run pbd_backend.launch. 
 #### Commands on Fetch
 ```bash
 source ~/catkin_ws/devel/setup.bash
-rosrun fetch_pbd_interaction test_session_interface.py
+rosrun fetch_pbd_interaction demo.py
 ```
 
 ## System Overview
