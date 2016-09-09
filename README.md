@@ -1,4 +1,4 @@
-# Fetch Programming by Demonstration
+# Fetch Programming by Demonstration [![Build Status](https://api.travis-ci.org/fetchrobotics/fetch_pbd.png)](https://travis-ci.org/fetchrobotics/fetch_pbd)
 
 TODO: Travis build status and coveralls testing?
 
