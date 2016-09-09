@@ -5,14 +5,6 @@
 
   <maintainer email="sksellio@gmail.com">Sarah Elliott</maintainer>
   <license>BSD</license>
-  <!--<depend package="actionlib"/>-->
-  <!--<depend package="geometry_msgs"/>-->
-  <!--<depend package="kinematics_msgs"/>-->
-  <!--<depend package="pr2_mechanism_controllers"/>-->
-  <!--<depend package="pr2_mechanism_msgs"/>-->
-  <!--<depend package="pr2_controllers_msgs"/>-->
-  <!--<depend package="rospy"/>-->
-  <!--<depend package="tf"/>-->
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>rospy</build_depend>
@@ -24,13 +16,7 @@
   <run_depend>std_msgs</run_depend>
   <run_depend>rospy</run_depend>
 
-  <!-- The export tag contains other, unspecified, tags -->
   <export>
-    <!-- You can specify that this package is a metapackage here: -->
-    <!-- <metapackage/> -->
-
-    <!-- Other tools can request additional information be placed here -->
-
   </export>
 
 </package>

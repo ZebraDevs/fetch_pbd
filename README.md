@@ -9,22 +9,13 @@ The original [PR2 Programming by Demonstration](https://github.com/PR2/pr2_pbd) 
 ## System Requirements
 This PbD is designed for Ubuntu 14.04 and ROS Indigo.
 
-## Installing
+## Installing from Source
 Clone this repository and build on both your desktop machine and on the robot:
 ```bash
 cd ~/catkin_ws/src
-git clone https://github.com/fetchrobotics/sandbox.git
+git clone https://github.com/fetchrobotics/fetch_pbd.git
 cd ~/catkin_ws
 catkin_make
-```
-Note: The above may not work if other things in the sandbox are broken. Just clone the sandbox somewhere else and copy the fetch_pbd repo ONLY into your workspace.
-
-You also need NodeJs, npm, bower and Polymer installed. To install Nodejs and npm, go [here](https://nodejs.org/en/). npm is installed with Nodejs. Then:
-```bash
-npm install -g bower
-npm install -g polymer-cli
-cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
-bower install
 ```
 
 ## Running
@@ -32,27 +23,26 @@ bower install
 #### Terminal #1
 ```bash
 source ~/catkin_ws/devel/setup.bash
-roslaunch fetch_pbd_interaction pbd_backend.launch
+roslaunch fetch_pbd_interaction pbd.launch
 ```
 You can run the backend without the "social gaze" head movements or without the sounds by passing arguments to the launch file:
 ```bash
 source ~/catkin_ws/devel/setup.bash
-roslaunch fetch_pbd_interaction pbd_backend.launch social_gaze:=false play_sound:=false
+roslaunch fetch_pbd_interaction pbd.launch social_gaze:=false play_sound:=false
 ```
 
-#### Terminal #2
+You can also pass arguments to the launch file to save your actions to a json file or load them from a json file.
+This behaviour is a bit complicated. It is recommended that you specify the full path to files or else it will look in your .ros folder.
+If you specify a from_file then actions will be loaded from that file. They will replace the ones in your session database.
+Whatever was in your session database will get stored in a timestamped file in your .ros folder (not overwritten).
+If you specify a to_file then whatever is in your current session file be saved to that file.
 ```bash
 source ~/catkin_ws/devel/setup.bash
-roslaunch fetch_pbd_interaction pbd_web_frontend.launch
+roslaunch fetch_pbd_interaction pbd.launch from_file:=/full/path/from.json to_file:=/full/path/to.json
 ```
-#### Terminal #3
-This will open the web interface.
-```bash
-cd /path_to_fetch_pbd/fetch_pbd_interaction/web_interface/fetch-pbd-gui
-polymer serve --hostname 0.0.0.0
-```
+
 ### Using the GUI
-In your browser go to ROBOT_NAME:8080 in your browser to use the GUI.
+In your browser go to ROBOT_HOSTNAME:8080 in your browser to use the GUI.
 
 The main page lists all the available actions.
 ![Main page](https://cloud.githubusercontent.com/assets/1470402/17989388/c71a3da2-6ae1-11e6-9d2f-894a67e508ca.png)
@@ -64,7 +54,7 @@ On the "Current Action" screen, most of the buttons are pretty self-explanatory.
 You can show/hide the markers for each primitive by clicking the marker icon for the primitive in the Primitive List.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989394/d05bf02c-6ae1-11e6-9446-9847bbd419ea.png)
 
-You can change the order of the primitives by dragging them to a new position in the list. 
+You can change the order of the primitives by dragging them to a new position in the list.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989397/d0608290-6ae1-11e6-98a4-bbb1049e1185.png)
 
 You can edit the position and orientation of certain primitives by clicking the edit icon or by moving the interactive marker.
