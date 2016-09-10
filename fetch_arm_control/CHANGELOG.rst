@@ -2,6 +2,11 @@
 Changelog for package fetch_arm_control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.3 (2016-09-09)
+------------------
+* More dependency fixing
+* Contributors: Sarah Elliott
+
 0.0.2 (2016-09-09)
 ------------------
 * Dependencies
