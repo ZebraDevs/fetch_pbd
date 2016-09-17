@@ -2,6 +2,11 @@
 Changelog for package fetch_pbd_interaction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.5 (2016-09-17)
+------------------
+* Update package.xml
+* Contributors: Russell Toris
+
 0.0.4 (2016-09-09)
 ------------------
 * Dependencies again
