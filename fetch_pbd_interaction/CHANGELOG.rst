@@ -2,6 +2,11 @@
 Changelog for package fetch_pbd_interaction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.6 (2016-10-29)
+------------------
+* Update install_web_dependencies.sh
+* Contributors: Sarah Elliott
+
 0.0.5 (2016-09-17)
 ------------------
 * Update package.xml
