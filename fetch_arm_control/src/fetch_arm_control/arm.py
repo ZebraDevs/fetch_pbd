@@ -313,7 +313,7 @@ class Arm:
         '''
         return self._gripper_state
 
-    def open_gripper(self, pos=0.115, eff=100.0, wait=True):
+    def open_gripper(self, pos=0.15, eff=100.0, wait=True):
         '''Opens gripper
 
         Args:
