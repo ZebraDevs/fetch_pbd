@@ -17,7 +17,19 @@ git clone https://github.com/fetchrobotics/fetch_pbd.git
 cd ~/catkin_ws
 catkin_make
 ```
+Note that the above adds the following paths to the end of your `~/.bashrc`:
+```bash
+export NVM_DIR="/home/USERNAME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
+```
+You will want to source your `~/.bashrc` file again before running the software.
 
+To make sure all dependencies are installed:
+```bash
+cd ~/catkin_ws
+rosdep update
+rosdep install --from-paths src --ignore-src --rosdistro=indigo -y
+```
 ## Running
 ### Commands on Fetch Robot
 #### Terminal #1
