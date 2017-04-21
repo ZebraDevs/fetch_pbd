@@ -179,15 +179,6 @@ install(DIRECTORY
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-install(PROGRAMS
-  web_interface/fetch-pbd-gui/install_web_dependencies.sh
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/web_interface/fetch-pbd-gui
-)
-
-add_custom_target(install_web_dependencies ALL
-  COMMAND "./install_web_dependencies.sh"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/web_interface/fetch-pbd-gui)
-
 #############
 ## Testing ##
 #############

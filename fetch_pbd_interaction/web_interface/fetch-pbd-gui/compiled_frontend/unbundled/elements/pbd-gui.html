@@ -1,0 +1,112 @@
+<html><head><link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/app-route/app-location.html">
+<link rel="import" href="../bower_components/app-route/app-route.html">
+<link rel="import" href="../bower_components/app-layout/app-drawer-layout/app-drawer-layout.html">
+<link rel="import" href="../bower_components/app-layout/app-drawer/app-drawer.html">
+<link rel="import" href="../bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+<link rel="import" href="../bower_components/app-layout/app-header/app-header.html">
+<link rel="import" href="../bower_components/app-layout/app-header-layout/app-header-layout.html">
+<link rel="import" href="../bower_components/app-layout/app-toolbar/app-toolbar.html">
+<link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../bower_components/iron-pages/iron-pages.html">
+<link rel="import" href="../bower_components/iron-selector/iron-selector.html">
+<link rel="import" href="../bower_components/iron-collapse/iron-collapse.html">
+<link rel="import" href="../bower_components/iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../bower_components/paper-drawer-panel/paper-drawer-panel.html">
+<link rel="import" href="../bower_components/paper-fab/paper-fab.html">
+<link rel="import" href="../bower_components/paper-header-panel/paper-header-panel.html">
+<link rel="import" href="../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../bower_components/paper-menu-button/paper-menu-button.html">
+<link rel="import" href="../bower_components/paper-menu/paper-menu.html">
+<link rel="import" href="../bower_components/paper-styles/color.html">
+<link rel="import" href="../bower_components/paper-styles/typography.html">
+<link rel="import" href="../bower_components/paper-toolbar/paper-toolbar.html">
+<link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
+<link rel="import" href="imports.html">
+
+</head><body><dom-module id="pbd-gui">
+  <template>
+    <style>
+      :host {
+        display: block;
+        --app-primary-color: #0066FF;
+        --app-secondary-color: black;
+      }
+      #menu {
+
+        background-color: #B0BEC5;
+        color: #000;
+      }
+      app-header {
+        background-color: var(--app-primary-color);
+        color: #fff;
+      }
+      app-drawer{
+        --app-drawer-content-container: {
+        background-color: #CFD8DC;
+        }
+      }
+      .drawer-list {
+        margin: 0 20px;
+      }
+      .drawer-list a {
+        display: block;
+        text-decoration: none;
+        padding: 0 10px;
+        line-height: 32px;
+        color: var(--app-secondary-color);
+      }
+      .drawer-list a.iron-selected {
+        color: black;
+        font-weight: bold;
+      }
+      .drawer-list a.subroute {
+        padding-left: 32px;
+      }
+    </style>
+
+    <app-location route="{{route}}"></app-location>
+    <app-route route="{{route}}" pattern="/:page" data="{{routeData}}" tail="{{subroute}}"></app-route>
+
+    <app-drawer-layout fullbleed="">
+
+      
+      <app-drawer>
+        <app-toolbar id="menu">Menu</app-toolbar>
+        <iron-selector id="selector" selected="[[page]]" attr-for-selected="name" class="drawer-list" role="navigation">
+          <a name="my-actions" href="/my-actions">My Actions</a>
+
+          <a name="current-action" href="/current-action">Current Action</a>
+
+        </iron-selector>
+      </app-drawer>
+
+      
+      <app-header-layout has-scrolling-region="">
+
+        <app-header condenses="" reveals="" effects="waterfall">
+          <app-toolbar>
+            <paper-icon-button icon="menu" drawer-toggle=""></paper-icon-button>
+            <div title="">Fetch Programming by Demonstration</div>
+          </app-toolbar>
+        </app-header>
+
+        <iron-pages id="page_options" role="main" selected="[[page]]" attr-for-selected="name">
+          <my-actions name="my-actions"></my-actions>
+
+          <current-action name="current-action"></current-action>
+
+        </iron-pages>
+
+      </app-header-layout>
+
+    </app-drawer-layout>
+
+  </template>
+
+  <script>Polymer({is:"pbd-gui",properties:{page:{type:String,reflectToAttribute:!0,observer:"_pageChanged"},pageListener:Object},observers:["_routePageChanged(routeData.page)"],attached:function(){var e=window.location.hostname,a=this;this.ros=new ROSLIB.Ros({url:"ws://"+e+":9090"}),this.pageListener=new ROSLIB.Topic({ros:this.ros,name:"/page_change",messageType:"std_msgs/String"}),this.pageListener.subscribe(function(e){a.pageCallback(a,e)})},pageCallback:function(e,a){console.log("Gui command"),e.$.selector.select(a.data),e.$.page_options.select(a.data),e.set("routeData.page",a.data),e._routePageChanged(a.data)},_routePageChanged:function(e){this.page=e||"my-actions"},_pageChanged:function(e){console.log("page change"),this.importHref(this.resolveUrl(e+".html"),null,null,!0)}});</script>
+</dom-module>
+</body></html>

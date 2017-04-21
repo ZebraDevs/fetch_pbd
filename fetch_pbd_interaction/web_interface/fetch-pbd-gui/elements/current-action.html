@@ -19,6 +19,7 @@
 <link rel='import' href='../bower_components/paper-input/paper-input.html'>
 <link rel='import' href='../bower_components/paper-dialog/paper-dialog.html'>
 <link rel='import' href='imports.html'>
+<link rel='import' href='marker_icons.html'>
 
 <dom-module id='current-action'>
   <template>
@@ -204,7 +205,7 @@
                               noink
                               data-primitive$='{{item.number}}'
                               on-tap='toggleMarker'
-                              src='{{item.marker}}'>
+			      icon='{{item.marker}}'>
                         </paper-icon-button>
                       </div>
                     </div>
@@ -323,11 +324,11 @@
         expListener : Object,
         showMarkerIcon : {
           type: String,
-          value: '../icons/show_marker.png',
+          value: 'marker_icons:show_marker',
         },
         hideMarkerIcon : {
           type: String,
-          value: '../icons/hide_marker.png',
+          value: 'marker_icons:hide_marker',
         },
         dragSource : Object,
         dragSourceId : Number,

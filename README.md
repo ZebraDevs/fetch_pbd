@@ -17,19 +17,34 @@ git clone https://github.com/fetchrobotics/fetch_pbd.git
 cd ~/catkin_ws
 catkin_make
 ```
+To make sure all dependencies are installed:
+```bash
+cd ~/catkin_ws
+source ~/devel/setup.bash
+rosdep update
+rosdep install --from-paths src --ignore-src --rosdistro=indigo -y
+```
+## Making Changes to the Web Interface
+To make changes to the web interface, you will want to install all of the web dependencies:
+```bash
+roscd fetch_pbd_interaction
+cd web_interface/fetch-pbd-gui
+./install_web_dependencies.sh
+```
 Note that the above adds the following paths to the end of your `~/.bashrc`:
 ```bash
 export NVM_DIR="/home/USERNAME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
 ```
 You will want to source your `~/.bashrc` file again before running the software.
-
-To make sure all dependencies are installed:
-```bash
-cd ~/catkin_ws
-rosdep update
-rosdep install --from-paths src --ignore-src --rosdistro=indigo -y
+Now all of the dependencies are installed. After you make changes to the web interface, to build you can run:
+```bash 
+roscd fetch_pbd_interaction
+cd web_interface/fetch-pbd-gui
+./build_frontend.sh
 ```
+Now when you roslaunch this software it will run using your newly built changes!
+
 ## Running
 ### Commands on Fetch Robot
 #### Terminal #1
