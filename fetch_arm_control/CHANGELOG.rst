@@ -2,6 +2,11 @@
 Changelog for package fetch_arm_control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.7 (2017-04-20)
+------------------
+* Make the gripper open all the way
+* Contributors: Sarah Elliott
+
 0.0.6 (2016-10-29)
 ------------------
 

@@ -2,6 +2,13 @@
 Changelog for package fetch_pbd_interaction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.7 (2017-04-20)
+------------------
+* Built frontend and now serve pre-built frontend directly
+* add couchdb as run_depend, fix `#6 <https://github.com/fetchrobotics/fetch_pbd/issues/6>`_
+* Custom ros3d.js to use unsubscribeTf and show mesh colours. Use local copies of Robot Web Tools libraries.
+* Contributors: Sarah Elliott
+
 0.0.6 (2016-10-29)
 ------------------
 * Update install_web_dependencies.sh
