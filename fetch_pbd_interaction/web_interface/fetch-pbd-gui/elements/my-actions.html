@@ -13,6 +13,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel='import' href='../bower_components/paper-input/paper-input.html'>
 <link rel='import' href='../bower_components/paper-menu/paper-menu.html'>
 <link rel='import' href='../bower_components/paper-listbox/paper-listbox.html'>
+<link rel='import' href='../bower_components/paper-dialog/paper-dialog.html'>
 
 
 <link rel='import' href='imports.html'>
@@ -21,7 +22,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link href='../bower_components/iron-icons/iron-icons.html' rel='import'>
 <link href='../bower_components/iron-icons/av-icons.html' rel='import'>
 <link href='../bower_components/iron-icons/image-icons.html' rel='import'>
-
 
 <dom-module id='my-actions'>
   <template>
@@ -83,12 +83,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       .actionList tr:last-child td {
         border-bottom: none;
       }
+      section paper-dialog-scrollable {
+        @apply(--layout-flex);
+      }
+      .flex-horizontal {
+        @apply(--layout-horizontal);
+        width: 100%;
+      }
+      .flexchild-horizontal {
+        @apply(--layout-flex);
+      }
+      #viewer {
+        overflow:hidden;
+        padding-left: 32px;
+      }
+      #actionName {
+        padding-left: 32px;
+      }
+      #buttons {
+        padding-left: 32px;
+      }
+      .left-content {
+        display: flex;
+        line-height: 3;
+        align-items: center;
+      }
+      .left-content > .left-content-item-name {
+        flex: auto;
+      }
 
-/*      h1 {
-        font-size: 22px;
-        margin: 16px 0;
-        color: #212121;
-      }*/
     </style>
 
      <paper-button class='createNew' raised on-tap='onCreate'><iron-icon icon='add'></iron-icon> Create new action</paper-button>
@@ -105,10 +128,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <tr>
                   <td>{{item.name}}</td>
                   <td>
-                    <paper-button on-tap='onRun' noink data-action$='{{item.action}}'><iron-icon icon='av:play-circle-filled'></iron-icon>Run</paper-button>
-                    <paper-button on-tap='onCopy' noink data-action$='{{item.action}}'><iron-icon icon='content-copy'></iron-icon>Copy</paper-button>
-                    <paper-button on-tap='onEdit' noink data-action$='{{item.action}}'><iron-icon icon='image:edit'></iron-icon>Edit</paper-button>
-                    <paper-button class='delete' noink data-action$='{{item.action}}' on-tap='onDelete'><iron-icon icon='delete'></iron-icon>Delete</paper-button>
+                    <paper-button on-tap='onRun' noink data-action$='{{item.action}}' disabled$="{{item.disabled}}"><iron-icon icon='av:play-circle-filled'></iron-icon>Run</paper-button>
+                    <paper-button on-tap='onCopy' noink data-action$='{{item.action}}' disabled$="{{item.disabled}}"><iron-icon icon='content-copy'></iron-icon>Copy</paper-button>
+                    <paper-button on-tap='onEdit' noink data-action$='{{item.action}}' disabled$="{{item.disabled}}"><iron-icon icon='image:edit'></iron-icon>Edit</paper-button>
+                    <paper-button class='delete' on-tap='onDelete' noink data-action$='{{item.action}}' disabled$="{{item.disabled}}"><iron-icon icon='delete'></iron-icon>Delete</paper-button>
                   </td>
                 </tr>
               </template>
@@ -122,6 +145,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </tbody>
           </table>
         </paper-material>
+        <paper-dialog id="statusDialog">
+          <h2>Status</h2>
+          <p>'{{statusMessage}}'</p>
+          <div class="buttons">
+            <paper-button dialog-confirm autofocus>OK</paper-button>
+          </div>
+        </paper-dialog>
   </template>
 
   <script>
@@ -186,6 +216,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         expListener: Object,
         inputSrv: Object,
         expSrv: Object,
+        statusMessage : String,
         // currentAction : '0',
         pagePub: Object
       },
@@ -235,6 +266,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           that.expCallback(that, result.state);
         });
 
+        this.statusListener = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/actions_status',
+          messageType : 'std_msgs/String'
+        });
+
+        this.statusListener.subscribe(function(message) {
+          that.statusCallback(that, message);
+        });
+
       },
 
       execute : function() {
@@ -249,8 +290,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         that.actions = [];
         for (i = 0; i < message.n_actions; i++) {
           var id = i + '';
-          var action = { action : id, name : message.action_names[i] };
+          var action = { action : id, name : message.action_names[i], disabled : message.actions_disabled[i]};
           that.push('actions', action);
+        }
+      },
+
+      statusCallback : function(that, message) {
+        if (message.data != '' && screen.width > 500 ) {
+          that.statusMessage = message.data;
+          var statusDialog = document.getElementById('statusDialog');
+          statusDialog.open();
         }
       },
 

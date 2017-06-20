@@ -55,10 +55,6 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_ref_frame_name(self):
-        pass
-
-    @abstractmethod
     def select(self, is_selected):
         pass
 
@@ -75,7 +71,7 @@ class Primitive:
         pass
 
     @abstractmethod
-    def update_viz(self):
+    def update_viz(self, check_reachable=True):
         pass
 
     @abstractmethod
@@ -95,6 +91,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def head_busy(self):
+        pass
+
+    @abstractmethod
     def is_reachable(self):
         pass
 
@@ -103,7 +103,7 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_absolute_pose(self, use_final=True):
+    def get_absolute_pose(self):
         pass
 
     @abstractmethod

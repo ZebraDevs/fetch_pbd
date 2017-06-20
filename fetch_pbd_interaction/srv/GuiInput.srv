@@ -8,7 +8,7 @@ string DELETE_CURRENT_ACTION = delete-current-action
 string DELETE_ACTION = delete-action
 string COPY_ACTION = copy-action
 
-# Primitive Creation Navigation
+# Primitive Creation/Navigation
 string SWITCH_PRIMITIVE_ORDER = switch-primitive-order
 string DELETE_PRIMITIVE = delete-primitive
 string COPY_PRIMITIVE = copy-primitive
@@ -24,6 +24,7 @@ string CLOSE_HAND = close-hand
 
 string RECORD_OBJECTS= record-objects
 string SAVE_TARGET = save-target
+string ADD_GRASP = add-grasp
 
 string START_RECORDING_TRAJECTORY = start-recording-trajectory
 string STOP_RECORDING_TRAJECTORY = stop-recording-trajectory

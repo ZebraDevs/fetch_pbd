@@ -23,11 +23,13 @@ if __name__ == '__main__':
 
     # Register as a ROS node.
     rospy.init_node('fetch_pbd_interaction', anonymous=True)
+    grasp_suggestion_service = rospy.get_param('~grasp_suggestion_service')
+    external_ee_link = rospy.get_param('~grasp_suggestion_ee_link')
 
-    # Run the system
-    interaction = Interaction()
+    # Run the system    
+    interaction = Interaction(grasp_suggestion_service, external_ee_link)
 
-    while (not rospy.is_shutdown()):
+    while not rospy.is_shutdown():
         interaction.update()
 
         # This is the pause between update runs. Note that this doesn't

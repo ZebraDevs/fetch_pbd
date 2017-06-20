@@ -107,7 +107,7 @@ class Arm:
         # Wait for move_group to be ready
         rospy.wait_for_service('compute_ik')
         self._move_group = moveit_commander.MoveGroupCommander("arm")
-        self._move_group.set_planning_time(2.0)
+        self._move_group.set_planning_time(5.0)
         self._move_group.set_planner_id('RRTConnectkConfigDefault')
 
         # Define ground plane
@@ -245,9 +245,10 @@ class Arm:
             else:
                 rospy.logerr("Joint %s not found!", joint_name)
         self._lock.release()
+        rospy.loginfo("Current joints: {}".format(positions))
         return positions
 
-    def get_ik_for_ee(self, ee_pose, seed):
+    def get_ik_for_ee(self, ee_pose, seed=None):
         ''' Finds the IK solution for given end effector pose
 
         Args:
@@ -256,12 +257,11 @@ class Arm:
         Returns:
             [float]
         '''
-        # rospy.loginfo("Solve ik: {}".format(ee_pose))
+        rospy.loginfo("Solve ik: {}".format(ee_pose))
         joints = self._solve_ik(ee_pose)
+        rospy.loginfo("Joints: {}".format(joints))
 
-        if joints is None:
-            pass
-        else:
+        if joints and seed:
             rollover = array((array(joints) - array(seed)) / pi, int)
             joints -= ((rollover + (sign(rollover) + 1) / 2) / 2) * 2 * pi
 
@@ -277,6 +277,7 @@ class Arm:
             bool
         '''
         ee_pose_stamped = None
+        rospy.loginfo("Executing pose: {}".format(ee_pose))
 
         if type(ee_pose) is Pose:
             ee_pose_stamped = PoseStamped()

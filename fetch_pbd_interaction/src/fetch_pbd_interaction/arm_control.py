@@ -309,7 +309,7 @@ class ArmControl:
                 move to.
         '''
         arm_state = req.arm_state
-        rospy.loginfo("Move to pose")
+        rospy.loginfo("Moving to pose: {}".format(arm_state.ee_pose))
         self._status = ExecutionStatus.EXECUTING
 
         # Should we transform pose to base_link?
