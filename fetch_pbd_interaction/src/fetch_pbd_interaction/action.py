@@ -380,17 +380,25 @@ class Action:
         rospy.loginfo("Initialising viz for: {}".format(self.get_action_id()))
         # self._lock.acquire()
         # self._marker_visibility = [True] * len(self._seq)
+        marker_visibility = []
         for i in range(len(self._seq)):
             primitive = self._seq[i]
 
             # Construct the markers.
-            primitive.show_marker()
+            marker_visibility.append(primitive.show_marker())
 
             self._update_links()
+        if False in marker_visibility:
+            rospy.logwarn("Not showing primitive markers because " +
+                          "no objects present")
+            self._status_publisher.publish(
+                        String("Not showing primitive markers because " +
+                       "no objects present"))
 
         self._update_markers()
         # self._lock.release()
         self.update_viz()
+
 
     def delete_last_primitive(self):
         '''Deletes the last primitive of the action.'''

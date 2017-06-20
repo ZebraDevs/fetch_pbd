@@ -232,16 +232,18 @@ class ArmTarget(Primitive):
 
     def show_marker(self):
         '''Adds marker for primitive'''
+        self._marker_visible = False
         if self.update_ref_frames():
             try:
                 self._update_menu()
                 self._update_viz_core()
                 self._menu_handler.apply(self._im_server, self.get_name())
                 self._im_server.applyChanges()
+                self._marker_visible = True
             except Exception, e:
                 rospy.logwarn(e)
 
-        self._marker_visible = True
+        return self._marker_visible
 
     def hide_marker(self):
         '''Removes marker from the world.'''
@@ -269,13 +271,7 @@ class ArmTarget(Primitive):
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
                 return True
-
             else:
-                rospy.logwarn("Not showing primitive markers because " +
-                              "no objects present")
-                self._status_publisher.publish(
-                    String("Not showing primitive markers because " +
-                              "no objects present"))
                 return False
         else:
             return True
