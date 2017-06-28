@@ -18,12 +18,16 @@ import json
 # ROS builtins
 from tf import TransformBroadcaster
 from std_srvs.srv import Empty
+from grasp_suggestion.srv import SuggestGrasps
+from geometry_msgs.msg import PoseStamped
 
 # Local
 from fetch_pbd_interaction.action import Action
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory  import ArmTrajectory
-from fetch_pbd_interaction.msg import SessionState, ExecutionStatus
+from fetch_pbd_interaction.grasp  import Grasp
+from fetch_pbd_interaction.msg import SessionState, ExecutionStatus, \
+                                        Landmark
 from fetch_pbd_interaction.srv import GetSessionState, \
                                      GetSessionStateResponse, \
                                      GetObjectList
@@ -37,7 +41,9 @@ class Session:
     in the current session
     '''
 
-    def __init__(self, robot, _tf_listener, im_server, from_file=None, to_file=None):
+    def __init__(self, robot, _tf_listener, im_server, 
+                from_file=None, to_file=None, 
+                grasp_suggestion_service_name=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -53,6 +59,13 @@ class Session:
             self._to_file = rospy.get_param("/to_file")
         else:
             self._to_file = to_file
+        if grasp_suggestion_service_name is None:
+            grasp_suggestion_service_name = rospy.get_param("/grasp_suggestion_service_name")
+            if not grasp_suggestion_service_name:
+                rospy.logwarn("No grasp suggestion service provided" + \
+                                "defaulting to 'suggest_grasps'")
+                grasp_suggestion_service_name = ""
+        
         self._json = {}
         self._robot = robot
         self._tf_listener = _tf_listener
@@ -82,16 +95,25 @@ class Session:
                                                 queue_size=10)
         rospy.Service('get_session_state', GetSessionState,
                       self._get_session_state_cb)
+        rospy.Subscriber('add_grasp', Landmark,
+                      self._add_grasp)
         self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
                                                        GetObjectList)
         self._update_world_srv = rospy.ServiceProxy('update_world',
                                                     GetObjectList)
         rospy.wait_for_service('update_world')
+        rospy.loginfo("Got update_world service.")
+
 
         self._clear_world_objects_srv = \
                         rospy.ServiceProxy('clear_world_objects', Empty)
         rospy.wait_for_service('clear_world_objects')
+        rospy.loginfo("Got clear_world_objects service.")
 
+        # self._grasp_suggestion_srv = \
+        #                 rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
+        # rospy.wait_for_service(grasp_suggestion_service_name)
+        # rospy.loginfo("Got grasp_suggestion_service.")
         # Load saved actions
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
@@ -229,6 +251,9 @@ class Session:
         else:
             rospy.logwarn("Can't add primitive: No actions created yet.")
         self._update_session_state()
+
+    def add_grasp_to_action(self):
+        '''Add a grasp primitive to the current action.'''
 
     def delete_last_primitive(self):
         '''Removes the last primitive of the action.'''
@@ -414,6 +439,14 @@ class Session:
                         elif primitive.has_key('arm_trajectory'):
                             target = primitive['arm_trajectory']
                             primitive_copy = ArmTrajectory(self._robot,
+                                                           self._tf_listener,
+                                                           self._im_server)
+                            primitive_copy.build_from_json(target)
+                            primitive_copy.set_primitive_number(new_num)
+                            break
+                        elif primitive.has_key('grasp'):
+                            target = primitive['grasp']
+                            primitive_copy = Grasp(self._robot,
                                                            self._tf_listener,
                                                            self._im_server)
                             primitive_copy.build_from_json(target)
@@ -665,6 +698,24 @@ class Session:
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
+
+    def _add_grasp(self, msg):
+        '''Callback to add a grasp for the specified object to 
+        the current action
+        '''
+        rospy.loginfo("Asking for grasp suggestions from service!")
+        if self.n_actions() > 0:
+            current_action = self._actions[self._current_action_id]
+            primitive_number = current_action.n_primitives()
+            grasp = Grasp(self._robot, self._tf_listener, 
+                              self._im_server, primitive_number)
+            if grasp.suggest_grasps(msg):
+                current_action.add_primitive(grasp)
+            else:
+                rospy.logwarn("No grasps suggested")            
+        else:
+            rospy.logwarn("Can't add primitive: No actions created yet.")
+        self._update_session_state()
 
     def _get_marker_visibility(self):
         '''Get the visibility of the markers

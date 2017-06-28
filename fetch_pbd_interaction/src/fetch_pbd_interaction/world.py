@@ -11,6 +11,8 @@ import rospy
 import threading
 from numpy.linalg import norm
 from numpy import array
+import struct
+import ctypes
 
 # ROS builtins
 from tf import TransformListener, TransformBroadcaster
@@ -25,9 +27,11 @@ from interactive_markers.interactive_marker_server import \
 import moveit_commander
 from rail_manipulation_msgs.msg import SegmentedObjectList, SegmentedObject
 import sensor_msgs.point_cloud2 as pc2
+from sensor_msgs.msg import PointCloud2, PointField
+import ros_numpy
 
 # Local
-from fetch_pbd_interaction.msg import WorldState
+from fetch_pbd_interaction.msg import WorldState, Landmark
 from fetch_pbd_interaction.srv import GetObjectList, GetObjectListResponse, \
                                       GetMostSimilarObject, \
                                       GetMostSimilarObjectResponse, \
@@ -116,6 +120,8 @@ class World:
         rospy.Service('get_object_from_name', GetObjectFromName,
                       self._get_object_from_name)
 
+        self._add_grasp_pub = rospy.Publisher('add_grasp', Landmark, queue_size=1)
+
         self._clear_all_objects()
 
     # ##################################################################
@@ -140,6 +146,33 @@ class World:
     # ##################################################################
     # Static methods: Internal ("private")
     # ##################################################################
+    @staticmethod
+    def _pc2_to_points_and_colors(point_cloud2):
+        ''' Uses numpy_ros and returns lists of Point and ColorRGBA msgs'''
+        points_list = []
+        colors_list = []
+
+        points_arr = ros_numpy.numpify(point_cloud2)
+        points_and_colors = ros_numpy.point_cloud2.split_rgb_field(points_arr)
+        # rospy.loginfo("Shape of points and colors:{}".format(points_and_colors.shape))
+        # rospy.loginfo("Size of points and colors:{}".format(points_and_colors.size))
+        # rospy.loginfo("Array: {}".format(new_points_arr))
+        for i in range(points_and_colors.shape[0]):
+            x = points_and_colors[i][0]
+            y = points_and_colors[i][1]
+            z = points_and_colors[i][2]
+            point = Point(x, y, z)
+            points_list.append(point)
+            # point.x+=0.01
+            # points_list.append(point)
+            r = float(points_and_colors[i][3]) / 255.0
+            g = float(points_and_colors[i][4]) / 255.0 
+            b = float(points_and_colors[i][5]) / 255.0
+            color = ColorRGBA(r, g, b, 0.9)
+            # colors_list.append(color)
+            colors_list.append(color)
+
+        return points_list, colors_list
 
     @staticmethod
     def _object_dissimilarity(obj1, obj2):
@@ -384,7 +417,7 @@ class World:
             print "Call to segmentation service failed: %s" % e
 
     def _tabletop_update(self, msg):
-        '''Callback for segmentation updates
+        '''Callback for segmentation updates. 
 
         Args:
             msg : SegmentedObjectList
@@ -415,7 +448,7 @@ class World:
                         Pose(Point((min_x + max_x) / 2, (min_y + max_y) / 2,
                         (min_z + max_z) / 2), Quaternion(0, 0, 0, 1)),
                         Point(max_x - min_x, max_y - min_y, max_z - min_z),
-                        False)
+                        False, pc)
             if not added:
                 rospy.loginfo("Failed to add object")
             else:
@@ -496,7 +529,7 @@ class World:
             rospy.sleep(0.1)
 
     def _add_surface_to_planning_scene(self, pose, dimensions):
-        for i in range(5):
+        for i in range(10):
                 self._planning_scene.add_box(
                     "surface",
                     PoseStamped(Header(frame_id=BASE_LINK), pose),
@@ -566,7 +599,7 @@ class World:
         self._lock.release()
         self._world_changed()
 
-    def _add_new_object(self, pose, dimensions, is_recognized, mesh=None):
+    def _add_new_object(self, pose, dimensions, is_recognized, point_cloud=None, mesh=None):
         '''Maybe add a new object with the specified properties to our
         object list.
 
@@ -627,11 +660,11 @@ class World:
 
             # Actually add the object.
             self._add_new_object_internal(
-                pose, dimensions, is_recognized, mesh)
+                pose, dimensions, is_recognized, point_cloud, mesh)
             return True
 
     def _add_new_object_internal(self, pose, dimensions, is_recognized,
-                                 mesh=None):
+                                 point_cloud=None, mesh=None):
         '''Does the 'internal' adding of an object with the passed
         properties. Call _add_new_object to do all pre-requisite checks
         first (it then calls this function).
@@ -645,7 +678,8 @@ class World:
         # TODO(sarah) : implement adding meshes?
         n_objects = len(self._objects)
         self._objects.append(WorldLandmark(self._remove_object,
-            pose, n_objects, dimensions, is_recognized))
+            self._generate_grasps, pose, n_objects, dimensions, 
+            is_recognized, point_cloud))
         int_marker = self._get_object_marker(len(self._objects) - 1)
         self._objects[-1].int_marker = int_marker
         self._im_server.insert(int_marker, self._marker_feedback_cb)
@@ -686,6 +720,20 @@ class World:
         #             self._objects[i].decrease_index()
         #     self.n_unrecognized -= 1
 
+    def _generate_grasps(self, to_grasp):
+        '''Generate grasps for an object by name.
+
+        Args:
+            to_grasp (string): Name of the object to grasp in
+                self._objects.
+        '''
+        rospy.loginfo("Asking for grasp suggestions from session")
+        resp = self._get_object_from_name(GetObjectFromNameRequest(to_grasp))
+        if resp.has_object:
+            self._add_grasp_pub.publish(resp.obj)
+        else:
+            rospy.logwarn("No objects matching that name")
+
     def _remove_surface(self):
         '''Function to request removing surface (from IM).'''
         rospy.loginfo('Removing surface')
@@ -706,7 +754,7 @@ class World:
         '''
         int_marker = InteractiveMarker()
         int_marker.name = self._objects[index].get_name()
-        int_marker.header.frame_id = 'base_link'
+        int_marker.header.frame_id = self._objects[index].object.point_cloud.header.frame_id
         int_marker.pose = self._objects[index].object.pose
         int_marker.scale = 1
 
@@ -714,30 +762,46 @@ class World:
         button_control.interaction_mode = InteractiveMarkerControl.BUTTON
         button_control.always_visible = True
 
+        # object_marker = Marker(
+        #     type=Marker.CUBE,
+        #     id=index,
+        #     lifetime=MARKER_DURATION,
+        #     scale=self._objects[index].object.dimensions,
+        #     header=Header(frame_id=''),
+        #     color=COLOR_OBJ,
+        #     pose=Pose(Point(), Quaternion(w=1.0))
+        # )
+
+        pc = self._objects[index].object.point_cloud
+
+        points_list, colors_list = World._pc2_to_points_and_colors(pc)
         object_marker = Marker(
-            type=Marker.CUBE,
-            id=index,
+            type=Marker.SPHERE_LIST, 
+            id=index, 
             lifetime=MARKER_DURATION,
-            scale=self._objects[index].object.dimensions,
-            header=Header(frame_id=''),
-            color=COLOR_OBJ,
-            pose=Pose(Point(), Quaternion(w=1.0))
+            scale=Vector3(0.005, 0.005, 0.005),
+            header=Header(frame_id=pc.header.frame_id),
+            pose=Pose(Point(), Quaternion(w=1.0)),
+            points=points_list,
+            colors=colors_list
         )
+
+        rospy.loginfo("Length of points: {}, length of colours: {}".format(len(points_list), len(colors_list)))
 
         if mesh is not None:
             object_marker = World._get_mesh_marker(object_marker, mesh)
         button_control.markers.append(object_marker)
 
-        text_pos = Point()
-        text_pos.x = self._objects[index].object.pose.position.x
-        text_pos.y = self._objects[index].object.pose.position.y
-        text_pos.z = (
-            self._objects[index].object.pose.position.z +
-            self._objects[index].object.dimensions.z / 2 + OFFSET_OBJ_TEXT_Z)
+        # text_pos = Point()
+        # text_pos.x = self._objects[index].object.pose.position.x
+        # text_pos.y = self._objects[index].object.pose.position.y
+        # text_pos.z = (
+        #     self._objects[index].object.pose.position.z +
+        #     self._objects[index].object.dimensions.z / 2 + OFFSET_OBJ_TEXT_Z)
         # button_control.markers.append(
         #     Marker(
         #         type=Marker.TEXT_VIEW_FACING,
-        #         id=index,
+        #         id=index + 100,
         #         scale=SCALE_TEXT,
         #         text=int_marker.name,
         #         color=COLOR_TEXT,

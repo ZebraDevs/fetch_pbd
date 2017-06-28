@@ -20,8 +20,8 @@ from fetch_pbd_interaction.msg import Landmark
 class WorldLandmark:
     '''Class for representing objects'''
 
-    def __init__(self, remove_object_cb, pose, index, dimensions,
-                 is_recognized):
+    def __init__(self, remove_object_cb, generate_grasps_cb, pose, index, dimensions,
+                 is_recognized, point_cloud):
         '''
         Args:
             remove_object_cb (callback) : execute when removing objects
@@ -32,16 +32,19 @@ class WorldLandmark:
         '''
 
         self._remove_object_cb = remove_object_cb
+        self._generate_grasps_cb = generate_grasps_cb
+        self._point_cloud = point_cloud
         self._assigned_name = None
 
         self.index = index
         self.is_recognized = is_recognized
         self.object = Landmark(self.get_name(), pose,
-                               dimensions)
+                               dimensions, point_cloud)
         self.menu_handler = MenuHandler()
         self.int_marker = None
         self.is_removed = False
         self.menu_handler.insert('Remove from scene', callback=self.remove)
+        self.menu_handler.insert('Generate grasps for object', callback=self.get_grasps)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -69,6 +72,15 @@ class WorldLandmark:
         '''
         rospy.loginfo('Will remove object: ' + self.get_name())
         self._remove_object_cb(self.object.name)
+
+    def get_grasps(self, feedback):
+        '''Function to trigger generation of grasps for the object
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
+        rospy.loginfo('Generating grasps for object: ' + self.get_name())
+        self._generate_grasps_cb(self.object.name)
 
     # TODO(mbforbes): Re-implement object recognition or remove
     # this dead code.

@@ -29,7 +29,6 @@ add_message_files(
   FILES
   ArmState.msg
   Condition.msg
-  GripperAction.msg
   Landmark.msg
   ExecutionStatus.msg
   RobotSound.msg

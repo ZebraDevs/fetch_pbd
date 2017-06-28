@@ -1811,11 +1811,11 @@ ROS3D.Marker = function(options) {
       var numPoints = message.points.length;
       var createColors = (numPoints === message.colors.length);
       // do not render giant lists
-      var stepSize = Math.ceil(numPoints / 1250);
+      var stepSize = Math.ceil(numPoints / 3000);
         
       // add the points
       var p, cube, curColor, newMesh;
-      for (p = 0; p < numPoints; p+=stepSize) {
+      for (p = 0; p < numPoints; p+=1) {
         cube = new THREE.CubeGeometry(message.scale.x, message.scale.y, message.scale.z);
 
         // check the color
@@ -1842,7 +1842,7 @@ ROS3D.Marker = function(options) {
       var numSpherePoints = message.points.length;
       var createSphereColors = (numSpherePoints === message.colors.length);
       // do not render giant lists
-      var sphereStepSize = Math.ceil(numSpherePoints / 1250);
+      var sphereStepSize = Math.ceil(numSpherePoints / 3000);
         
       // add the points
       var q, sphere, curSphereColor, newSphereMesh;

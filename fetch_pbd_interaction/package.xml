@@ -44,6 +44,7 @@
   <run_depend>couchdb</run_depend>
   <run_depend version_gt="0.1.9-0">rail_segmentation</run_depend>
   <run_depend>rail_manipulation_msgs</run_depend>
+  <run_depend>ros_numpy</run_depend>
 
   <export>
   </export>

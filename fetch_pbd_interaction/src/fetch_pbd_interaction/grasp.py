@@ -1,5 +1,4 @@
-'''Defines behaviour for ArmTarget primitive. This is for primitives
-where the arm moves to a single pose.
+'''Defines behaviour for Grasp primitive.
 '''
 
 # ######################################################################
@@ -17,6 +16,7 @@ from visualization_msgs.msg import Marker, InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.menu_handler import MenuHandler
+from grasp_suggestion.srv import SuggestGrasps
 
 # Local
 from fetch_pbd_interaction.primitive import Primitive
@@ -33,10 +33,10 @@ from fetch_pbd_interaction.srv import GetObjectList, \
 # --------------
 # Colors
 # COLOR_OBJ_REF_ARROW = ColorRGBA(1.0, 0.8, 0.2, 0.5)
-COLOR_MESH_REACHABLE = ColorRGBA(1.0, 0.5, 0.0, 0.6)
+COLOR_MESH_REACHABLE = ColorRGBA(0.0, 0.0, 1.0, 0.6)
 COLOR_MESH_REACHABLE_SELECTED = ColorRGBA(0.0, 1.0, 0.0, 1.0)
 
-COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.6)
+COLOR_MESH_UNREACHABLE = ColorRGBA(0.5, 0.5, 0.5, 0.7)
 COLOR_MESH_UNREACHABLE_SELECTED = ColorRGBA(0.5, 0.9, 0.5, 0.4)
 
 # Scales
@@ -54,11 +54,11 @@ DEFAULT_OFFSET = 0.085
 
 # Right-click menu.
 MENU_OPTIONS = {
-    'ref': 'Reference frame',
-    'move_here': 'Move arm here',
-    'move_current': 'Move to current arm pose',
+    'ref': 'Change target object:',
+    # 'move_here': 'Move arm here',
+    # 'move_current': 'Move to current arm pose',
     'del': 'Delete',
-    'target': 'Change target object:'
+    'gen': 'Regenerate grasp'
 }
 
 # Offets to maintain globally-unique IDs but with new sets of objects.
@@ -89,15 +89,14 @@ PREVIOUS_PRIMITIVE = "previous primitive"
 # Classes
 # ######################################################################
 
-class ArmTarget(Primitive):
-    '''Defines behaviour for ArmTarget primitive. This is for primitives
+class Grasp(Primitive):
+    '''Defines behaviour for Grasp primitive. This is for primitives
     where the arm moves to a single pose.
     '''
 
     _offset = DEFAULT_OFFSET
 
-    def __init__(self, robot, tf_listener, im_server, arm_state=ArmState(),
-                 gripper_state=None, number=None):
+    def __init__(self, robot, tf_listener, im_server, number=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -111,26 +110,30 @@ class ArmTarget(Primitive):
         self._name = '' #Unused currently
         self._im_server = im_server
         self._robot = robot
-        self._arm_state = arm_state
-        self._gripper_state = gripper_state
         self._number = number
+
         self._is_control_visible = False
         self._selected = False
         self._tf_listener = tf_listener
         self._marker_visible = False
         self._color_mesh_reachable = COLOR_MESH_REACHABLE
         self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
-        self._reachable = True
+        self._grasp_reachable = False
+        self._pre_grasp_reachable = False
+        self._grasp_state = ArmState()
+        self._pre_grasp_state = ArmState()
+        self._approach_dist = 0.1 # default value
 
-        # self._ref_names = []
-        # self._im_server = InteractiveMarkerServer("programmed_actions")
         self._menu_handler = MenuHandler()
 
-        self._sub_ref_entries = None
+        self._sub_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
         self._pose_change_cb = None
         self._action_change_cb = None
+
+        grasp_suggestion_service_name = \
+                rospy.get_param("/grasp_suggestion_service_name")
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -140,10 +143,15 @@ class ArmTarget(Primitive):
                                          GetMostSimilarObject)
         self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
                                                        GetObjectList)
+        self._grasp_suggestion_srv = \
+                rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
         self._status_publisher = rospy.Publisher('fetch_pbd_status',
                                                 String,
                                                 queue_size=10,
                                                 latch=True)
+
+        # if not pose_stamped is None and not landmark is None:
+        #     self.build_from_pose(pose_stamped, landmark)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -156,45 +164,80 @@ class ArmTarget(Primitive):
 
         json['name'] = self._name
         json['number'] = self._number
-        json['arm_state'] = ArmTarget._get_json_from_arm_state(self._arm_state)
-        json['gripper_state'] = self._gripper_state
+        json['grasp_state'] = Grasp._get_json_from_arm_state(self._grasp_state)
+        json['pre_grasp_state'] = Grasp._get_json_from_arm_state(
+                                                        self._pre_grasp_state)
 
-        return {'arm_target': json}
+        return {'grasp': json}
+
+    def build_from_pose(self, pose_stamped, landmark, 
+                        approach_dist=0.1, name=''):
+        '''Fills out Grasp using information from David's grasp suggestion'''
+        rospy.loginfo("Building from pose: {}".format(pose_stamped))
+
+        self._name = name # Unused
+        self._grasp_state.ref_type = ArmState.OBJECT
+        new_pose = self._tf_listener.transformPose(landmark.name,
+                                               pose_stamped)
+        self._grasp_state.ee_pose = new_pose
+        self._grasp_state.ref_landmark = landmark
+
+        self._approach_dist = approach_dist
+
+        
+
+        # I think this will make a pre-grasp that's approach_dist 
+        # away from the grasp along the x axis of the grasp
+        self._set_pre_grasp_state_from_pose(new_pose)
+
+        self._pre_grasp_state.ref_type = ArmState.OBJECT
+        
+        self._pre_grasp_state.ref_landmark = landmark
 
     def build_from_json(self, json):
-        '''Fills out ArmTarget using json from db'''
+        '''Fills out Grasp using json from db'''
 
         self._name = json['name']
         self._number = json['number']
-        arm_state_json = json['arm_state']
+        grasp_state_json = json['grasp_state']
+        pre_grasp_state_json = json['pre_grasp_state']
 
         # build self._arm_state
-        self._arm_state = ArmState()
-        self._arm_state.ref_type = arm_state_json['ref_type']
-        self._arm_state.joint_pose = arm_state_json['joint_pose']
-        pose = ArmTarget._get_pose_stamped_from_json(arm_state_json['ee_pose'])
-        self._arm_state.ee_pose = pose
+        self._grasp_state = ArmState()
+        self._pre_grasp_state = ArmState()
+        self._grasp_state.ref_type = grasp_state_json['ref_type']
+        self._pre_grasp_state.ref_type = pre_grasp_state_json['ref_type']
+        self._grasp_state.joint_pose = grasp_state_json['joint_pose']
+        self._pre_grasp_state.joint_pose = pre_grasp_state_json['joint_pose']
+        grasp_pose = Grasp._get_pose_stamped_from_json(
+                                    grasp_state_json['ee_pose'])
+        pre_grasp_pose = Grasp._get_pose_stamped_from_json(
+                                    pre_grasp_state_json['ee_pose'])
+        self._grasp_state.ee_pose = grasp_pose
+        self._pre_grasp_state.ee_pose = pre_grasp_pose
 
-        self._arm_state.ref_landmark = Landmark()
-        landmark_name = arm_state_json['ref_landmark']['name']
-        self._arm_state.ref_landmark.name = landmark_name
+        self._grasp_state.ref_landmark = Landmark()
+        self._pre_grasp_state.ref_landmark = Landmark()
+        landmark_name = grasp_state_json['ref_landmark']['name']
+        self._grasp_state.ref_landmark.name = landmark_name
+        self._pre_grasp_state.ref_landmark.name = landmark_name
 
-        landmark_pose_json = arm_state_json['ref_landmark']['pose']
-        landmark_pose = ArmTarget._get_pose_from_json(landmark_pose_json)
-        self._arm_state.ref_landmark.pose = landmark_pose
+        landmark_pose_json = grasp_state_json['ref_landmark']['pose']
+        landmark_pose = Grasp._get_pose_from_json(landmark_pose_json)
+        self._grasp_state.ref_landmark.pose = landmark_pose
+        self._pre_grasp_state.ref_landmark.pose = landmark_pose
 
         landmark_dimensions = Vector3()
-        x_dim = arm_state_json['ref_landmark']['dimensions']['x']
-        y_dim = arm_state_json['ref_landmark']['dimensions']['y']
-        z_dim = arm_state_json['ref_landmark']['dimensions']['z']
+        x_dim = grasp_state_json['ref_landmark']['dimensions']['x']
+        y_dim = grasp_state_json['ref_landmark']['dimensions']['y']
+        z_dim = grasp_state_json['ref_landmark']['dimensions']['z']
         landmark_dimensions.x = x_dim
         landmark_dimensions.y = y_dim
         landmark_dimensions.z = z_dim
 
         # build self._gripper_state
-        self._gripper_state = json['gripper_state']
-
-        self._arm_state.ref_landmark.dimensions = landmark_dimensions
+        self._grasp_state.ref_landmark.dimensions = landmark_dimensions
+        self._pre_grasp_state.ref_landmark.dimensions = landmark_dimensions
 
     def get_pre_condition(self):
         ''' Currently just a placeholder
@@ -265,18 +308,19 @@ class ArmTarget(Primitive):
     def update_ref_frames(self):
         '''Updates and re-assigns coordinate frames when the world changes.'''
 
-        arm_pose = self._arm_state
-        if arm_pose.ref_type == ArmState.OBJECT:
-            prev_ref_obj = arm_pose.ref_landmark
-            # rospy.loginfo("prev ref object: {}".format(prev_ref_obj))
+        rospy.loginfo("Updating primitive reference frames")
+        if self._grasp_state.ref_type == ArmState.OBJECT:
+            prev_ref_obj = self._grasp_state.ref_landmark
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
-                self._arm_state.ref_landmark = resp.similar_object
+                self._grasp_state.ref_landmark = resp.similar_object
+                self._pre_grasp_state.ref_landmark = resp.similar_object
                 return True
             else:
                 return False
         else:
-            return True
+            rospy.logwarn("Grasp has non-OBJECT-type reference frame")
+            return False
 
     def change_ref_frame(self, ref_type, landmark):
         '''Sets new reference frame for primitive
@@ -284,8 +328,8 @@ class ArmTarget(Primitive):
         Args:
 
         '''
-        self._arm_state.ref_type = ref_type
-        # self._arm_state.ref_landmark = landmark
+        self._grasp_state.ref_type = ref_type
+        self._pre_grasp_state.ref_type = ref_type
 
         self._convert_ref_frame(landmark)
         rospy.loginfo(
@@ -305,18 +349,18 @@ class ArmTarget(Primitive):
                 reference frame name. Returns None in error.
         '''
         # "Normal" step (saved pose).
-        ref_type = self._arm_state.ref_type
-        ref_name = self._arm_state.ref_landmark.name
-
+        # ref_type = self._grasp_state.ref_type
+        ref_name = self._grasp_state.ref_landmark.name
+        rospy.loginfo("Ref frame name: {}".format(ref_name))
 
         # Update ref frame name if it's absolute.
-        if ref_type == ArmState.ROBOT_BASE:
-            ref_name = BASE_LINK
-        elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = "primitive_" + str(self._number - 1)
-        elif ref_name == '':
-            ref_name = BASE_LINK
-            rospy.loginfo("Empty frame: {}".format(self._number))
+        # if ref_type == ArmState.ROBOT_BASE:
+        #     ref_name = BASE_LINK
+        # elif ref_type == ArmState.PREVIOUS_TARGET:
+        #     ref_name = "primitive_" + str(self._number - 1)
+        # elif ref_name == '':
+        #     ref_name = BASE_LINK
+        #     rospy.loginfo("Empty frame: {}".format(self._number))
 
         return ref_name
 
@@ -368,9 +412,10 @@ class ArmTarget(Primitive):
                                     before drawing marker
         '''
         rospy.loginfo("Updating viz for: {}".format(self.get_name()))
+        rospy.loginfo("ee pose header: {}".format(self._grasp_state.ee_pose.header.frame_id))
         draw_markers = True
-        if self._arm_state.ref_type == ArmState.OBJECT:
-            landmark_name = self._arm_state.ref_landmark.name
+        if self._grasp_state.ref_type == ArmState.OBJECT:
+            landmark_name = self._grasp_state.ref_landmark.name
             resp = self._get_object_from_name_srv(landmark_name)
             if not resp.has_object:
                 draw_markers = False
@@ -406,44 +451,52 @@ class ArmTarget(Primitive):
         Returns:
             bool
         '''
-
-        is_required = False
-        ref = self._arm_state.ref_type
-
-        if ref == ArmState.OBJECT:
-            is_required = True
-
-        return is_required
+        return True
 
     def execute(self):
-        '''Execute this primitive
+        '''Execute this primitive, assumes that gripper commands just work
 
         Returns
             bool : Success of execution
         '''
-        if not self._robot.move_arm_to_pose(self._arm_state):
+        if not self._robot.move_arm_to_pose(self._pre_grasp_state):
             return False
-        if not self._gripper_state == self._robot.get_gripper_state():
-            self._robot.set_gripper_state(self._gripper_state)
+        if not self._robot.get_gripper_state() == GripperState.OPEN:
+            self._robot.set_gripper_state(GripperState.OPEN)
+
+        if not self._robot.move_arm_to_pose(self._grasp_state):
+            return False
+        if not self._robot.get_gripper_state() == GripperState.CLOSED:
+            self._robot.set_gripper_state(GripperState.CLOSED)
         return True
 
     def is_reachable(self):
         '''Check if robot can physically reach target'''
-        self._reachable = self._robot.can_reach(self._arm_state)
-        return self._reachable
+        self._grasp_reachable = self._robot.can_reach(self._grasp_state)
+        self._pre_grasp_reachable = self._robot.can_reach(self._grasp_state)
+        if not self._grasp_reachable:
+            rospy.logwarn("Grasp not reachable")
+        if not self._pre_grasp_reachable:
+            rospy.logwarn("Pre-grasp not reachable")
+        return self._grasp_reachable and self._pre_grasp_reachable
 
     def get_relative_pose(self, use_final=True):
-        '''Returns the relative pose of the primitive.
+        '''Returns the absolute pose of the primitive.
         Args:
-            use_final (bool, optional) : Unused
+            use_final (bool, optional). If true, uses pose of grasp_state
+            rather than pre_grasp_state
         Returns:
             PoseStamped
         '''
-        return self._arm_state.ee_pose
 
+        if use_final:
+            return self._grasp_state.ee_pose
+        else:
+            return self._pre_grasp_state.ee_pose
 
     def get_absolute_pose(self):
-        '''Returns the absolute pose of the primitive.
+        '''Returns the absolute pose of the grasp part of the primitive
+           (not the pre-grasp).
 
         Args:
             None
@@ -453,10 +506,10 @@ class ArmTarget(Primitive):
         '''
         try:
             abs_pose = self._tf_listener.transformPose('base_link',
-                                               self._arm_state.ee_pose)
+                                               self._grasp_state.ee_pose)
             return abs_pose
         except:
-            frame_id = self._arm_state.ee_pose.header.frame_id
+            frame_id = self._grasp_state.ee_pose.header.frame_id
             rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
@@ -470,12 +523,20 @@ class ArmTarget(Primitive):
             PoseStamped
         '''
         try:
+            if use_final:
+                pose_to_use = self._grasp_state.ee_pose
+            else:
+                pose_to_use = self._pre_grasp_state.ee_pose 
             abs_pose = self._tf_listener.transformPose('base_link',
-                                               self._arm_state.ee_pose)
-            return ArmTarget._offset_pose(abs_pose)
+                                               pose_to_use)
+            return Grasp._offset_pose(abs_pose)
         except:
-            frame_id = self._arm_state.ee_pose.header.frame_id
-            # rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            if use_final:
+                pose_to_use = self._grasp_state.ee_pose
+            else:
+                pose_to_use = self._pre_grasp_state.ee_pose
+            frame_id = pose_to_use.pose.header.frame_id
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
     def get_absolute_marker_position(self, use_final=True):
@@ -488,7 +549,7 @@ class ArmTarget(Primitive):
         Returns:
             Point
         '''
-        abs_pose = self.get_absolute_marker_pose()
+        abs_pose = self.get_absolute_marker_pose(use_final)
         if not abs_pose is None:
             return abs_pose.pose.position
         else:
@@ -528,7 +589,9 @@ class ArmTarget(Primitive):
         Args:
             new_pose (PoseStamped)
         '''
-        self._arm_state.ee_pose = new_pose
+        rospy.loginfo("Setting new ee pose")
+        self._grasp_state.ee_pose = new_pose
+        self._set_pre_grasp_state_from_pose(new_pose)
         self.update_viz()
         self._action_change_cb()
 
@@ -538,7 +601,7 @@ class ArmTarget(Primitive):
         Returns:
             bool : True
         '''
-        return True
+        return False
 
     def get_ref_type(self):
         '''Return reference type of primitive
@@ -546,7 +609,20 @@ class ArmTarget(Primitive):
         Returns:
             ArmState.ROBOT_BASE, etc
         '''
-        return self._arm_state.ref_type
+        return ArmState.OBJECT
+
+    def suggest_grasps(self, landmark):
+        resp = self._grasp_suggestion_srv(landmark.point_cloud)
+        grasps = resp.graspList
+        if not len(grasps.poses) > 0:
+            return False
+        else:
+            # placeholder, choose first grasp
+            pose_stamped = PoseStamped()
+            pose_stamped.pose = grasps.poses[0]
+            pose_stamped.header.frame_id = grasps.header.frame_id
+            self.build_from_pose(pose_stamped, landmark)
+            return True
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -564,10 +640,10 @@ class ArmTarget(Primitive):
         json = {}
         json['ref_type'] = arm_state.ref_type
         json['joint_pose'] = arm_state.joint_pose
-        pose = ArmTarget._get_json_from_pose_stamped(arm_state.ee_pose)
+        pose = Grasp._get_json_from_pose_stamped(arm_state.ee_pose)
         json['ee_pose'] = pose
         landmark = arm_state.ref_landmark
-        json['ref_landmark'] = ArmTarget._get_json_from_landmark(landmark)
+        json['ref_landmark'] = Grasp._get_json_from_landmark(landmark)
         return json
 
     @staticmethod
@@ -580,7 +656,7 @@ class ArmTarget(Primitive):
             json (dict)
         '''
         json = {}
-        json['pose'] = ArmTarget._get_json_from_pose(pose_stamped.pose)
+        json['pose'] = Grasp._get_json_from_pose(pose_stamped.pose)
         json['frame_id'] = pose_stamped.header.frame_id
 
         return json
@@ -620,7 +696,7 @@ class ArmTarget(Primitive):
         json = {}
         # json['type'] = landmark.type
         json['name'] = landmark.name
-        json['pose'] = ArmTarget._get_json_from_pose(landmark.pose)
+        json['pose'] = Grasp._get_json_from_pose(landmark.pose)
         json['dimensions'] = {}
         json['dimensions']['x'] = landmark.dimensions.x
         json['dimensions']['y'] = landmark.dimensions.y
@@ -638,7 +714,7 @@ class ArmTarget(Primitive):
             PoseStamped
         '''
         pose_stamped = PoseStamped()
-        pose = ArmTarget._get_pose_from_json(json['pose'])
+        pose = Grasp._get_pose_from_json(json['pose'])
         pose_stamped.pose = pose
         pose_stamped.header.frame_id = json['frame_id']
 
@@ -673,20 +749,20 @@ class ArmTarget(Primitive):
         Args:
             pose (PoseStamped): The pose to offset.
             constant (int, optional): How much to scale the set offset
-                by (scales ArmTarget._offset). Defaults to 1.
+                by (scales Grasp._offset). Defaults to 1.
 
         Returns:
             PoseStamped: The offset pose.
         '''
-        transform = ArmTarget._get_matrix_from_pose(pose)
-        offset_array = [constant * ArmTarget._offset, 0, 0]
+        transform = Grasp._get_matrix_from_pose(pose)
+        offset_array = [constant * Grasp._offset, 0, 0]
         offset_transform = tf.transformations.translation_matrix(offset_array)
         hand_transform = tf.transformations.concatenate_matrices(
             transform, offset_transform)
 
         new_pose = PoseStamped()
         new_pose.header.frame_id = pose.header.frame_id
-        new_pose.pose = ArmTarget._get_pose_from_transform(hand_transform)
+        new_pose.pose = Grasp._get_pose_from_transform(hand_transform)
         return new_pose
 
     @staticmethod
@@ -712,7 +788,7 @@ class ArmTarget(Primitive):
 
         Args:
             transform (Matrix3x3): (I think this is the correct type.
-                See ArmTarget as a reference for how to use.)
+                See Grasp as a reference for how to use.)
 
         Returns:
             Pose
@@ -751,63 +827,32 @@ class ArmTarget(Primitive):
         self._menu_handler = MenuHandler()
 
         # Insert sub entries.
-        self._sub_ref_entries = []
+        self._sub_entries = []
         frame_entry = self._menu_handler.insert(MENU_OPTIONS['ref'])
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
-        if self._number > 0:
-            refs.append(PREVIOUS_PRIMITIVE)
-        if len(refs) > 0:
-            refs.append(BASE_LINK)
         for ref in refs:
             subent = self._menu_handler.insert(
                 ref, parent=frame_entry, callback=self._change_ref_cb)
-            self._sub_ref_entries += [subent]
-
-
-        # Make all unchecked to start.
-        for subent in self._sub_ref_entries:
-            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
-
-        # Check if necessary.
-        menu_id = self._get_menu_ref_id(self._get_menu_ref())
-        if not menu_id is None:
-            # self.has_object = False
-            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
-
-
-        self._sub_target_entries = []
-        target_entry = self._menu_handler.insert(MENU_OPTIONS['target'])
-        object_list = self._get_object_list_srv().object_list
-        targets = [obj.name + " " for obj in object_list]
-        for target in targets:
-            subent = self._menu_handler.insert(
-                target, parent=target_entry, callback=self._change_target_cb)
-            self._sub_target_entries += [subent]
-
-        # Make all unchecked to start.
-        for subent in self._sub_target_entries:
-            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
-
-        # Check if necessary.
-        menu_id = self._get_menu_target_id(self._get_menu_ref(target=True))
-        if not menu_id is None:
-            # self.has_object = False
-            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
+            self._sub_entries += [subent]
 
         # Inset main menu entries.
-
-        self._menu_handler.insert(
-            MENU_OPTIONS['move_here'], callback=self._move_to_cb)
-        self._menu_handler.insert(
-            MENU_OPTIONS['move_current'], callback=self._move_pose_to_cb)
         self._menu_handler.insert(
             MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
+        self._menu_handler.insert(
+            MENU_OPTIONS['gen'], callback=self._regenerate_grasps_cb)
 
-        # Update.
-        rospy.loginfo("Viz core")
+        # Make all unchecked to start.
+        for subent in self._sub_entries:
+            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
 
-    def _get_menu_ref_id(self, ref_name):
+        # Check if necessary.
+        menu_id = self._get_menu_id(self._get_menu_ref())
+        if not menu_id is None:
+            # self.has_object = False
+            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
+
+    def _get_menu_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
         object is not found.
 
@@ -823,35 +868,14 @@ class ArmTarget(Primitive):
         refs.append(BASE_LINK)
         if ref_name in refs:
             index = refs.index(ref_name)
-            if index < len(self._sub_ref_entries):
-                return self._sub_ref_entries[index]
+            if index < len(self._sub_entries):
+                return self._sub_entries[index]
             else:
                 return None
         else:
             return None
 
-    def _get_menu_target_id(self, ref_name):
-        '''Returns the unique menu id from its name or None if the
-        object is not found.
-
-        Args:
-            ref_name (str)
-        Returns:
-            int (?)|None
-        '''
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name + " " for obj in object_list]
-        if ref_name in refs:
-            index = refs.index(ref_name)
-            if index < len(self._sub_target_entries):
-                return self._sub_target_entries[index]
-            else:
-                return None
-        else:
-            return None
-
-
-    def _get_menu_ref_name(self, menu_id):
+    def _get_menu_name(self, menu_id):
         '''Returns the menu name from its unique menu id.
 
         Args:
@@ -859,42 +883,13 @@ class ArmTarget(Primitive):
         Returns:
             str
         '''
-        index = self._sub_ref_entries.index(menu_id)
+        index = self._sub_entries.index(menu_id)
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
         if self._number > 0:
             refs.append(PREVIOUS_PRIMITIVE)
         refs.append(BASE_LINK)
         return refs[index]
-
-    def _get_menu_target_name(self, menu_id):
-        '''Returns the menu name from its unique menu id.
-
-        Args:
-            menu_id (int)
-        Returns:
-            str
-        '''
-        index = self._sub_target_entries.index(menu_id)
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name for obj in object_list]
-        return refs[index]
-
-
-    def _set_target(self, new_ref):
-        '''Changes the reference frame of the primitive to
-        new_ref_name.
-
-        Args:
-            new_ref_name
-        '''
-        # Get the id of the new ref (an int).
-        self._arm_state.ref_type = ArmState.OBJECT
-        new_ref_obj = self._get_object_from_name_srv(new_ref).obj
-        rospy.loginfo("Setting reference of primitive" + 
-                      "{} to object".format(self._number))
-        self._arm_state.ref_landmark = new_ref_obj
-        self._arm_state.ee_pose.header.frame_id = new_ref_obj.name
 
     def _set_ref(self, new_ref):
         '''Changes the reference frame of the primitive to
@@ -904,82 +899,113 @@ class ArmTarget(Primitive):
             new_ref_name
         '''
         # Get the id of the new ref (an int).
-        new_ref_obj = Landmark()
-        if new_ref == PREVIOUS_PRIMITIVE:
-            self._arm_state.ref_type = ArmState.PREVIOUS_TARGET
-            rospy.loginfo("PREVIOUS!!!")
-        elif new_ref == BASE_LINK:
-            self._arm_state.ref_type = ArmState.ROBOT_BASE
-        else:
-            self._arm_state.ref_type = ArmState.OBJECT
-            new_ref_obj = self._get_object_from_name_srv(new_ref).obj
-            rospy.loginfo("OBJECT!!!")
-
-        self._convert_ref_frame(new_ref_obj)
+        self._grasp_state.ref_type = ArmState.OBJECT
+        self._pre_grasp_state.ref_type = ArmState.OBJECT
+        new_ref_obj = self._get_object_from_name_srv(new_ref).obj
+        rospy.loginfo("Setting reference of primitive" + 
+                      "{} to object".format(self._number))
+        self._grasp_state.ref_landmark = new_ref_obj
+        self._pre_grasp_state.ref_landmark = new_ref_obj
+        self._grasp_state.ee_pose.header.frame_id = new_ref_obj.name
 
     def _convert_ref_frame(self, new_landmark):
-        '''Convert arm_state to be in a different reference frame
+        '''Convert grasp_state and pre_grasp_state to be in a different 
+           reference frame
 
             Args:
                 new_landmark (Landmark)
             Returns:
                 ArmState
         '''
-        if self._arm_state.ref_type == ArmState.OBJECT:
+        ee_pose = PoseStamped()
+        if self._grasp_state.ref_type == ArmState.OBJECT:
             rospy.loginfo("Relative to object")
-            if self._arm_state.ref_landmark.name != new_landmark.name:
+            if self._grasp_state.ref_landmark.name != new_landmark.name:
                 ee_pose = self._tf_listener.transformPose(
                                     new_landmark.name,
-                                    self._arm_state.ee_pose
+                                    self._grasp_state.ee_pose
                                 )
-                self._arm_state.ref_landmark = new_landmark
-                self._arm_state.ee_pose = ee_pose
-        elif self._arm_state.ref_type == ArmState.ROBOT_BASE:
+                self._grasp_state.ref_landmark = new_landmark
+                self._grasp_state.ee_pose = ee_pose
+                self._pre_grasp_state.ref_landmark = new_landmark
+        elif self._grasp_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
                                     BASE_LINK,
-                                    self._arm_state.ee_pose
+                                    self._grasp_state.ee_pose
                                 )
-            self._arm_state.ee_pose = ee_pose
-            self._arm_state.ref_landmark = Landmark()
-        elif self._arm_state.ref_type == ArmState.PREVIOUS_TARGET:
+            self._grasp_state.ee_pose = ee_pose
+            self._grasp_state.ref_landmark = Landmark()
+            self._pre_grasp_state.ref_landmark = Landmark()
+        elif self._grasp_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = 'primitive_' + str(self._number - 1)
-            rospy.loginfo("Original pose: {}".format(self._arm_state.ee_pose))
+            rospy.loginfo("Original pose: {}".format(self._grasp_state.ee_pose))
             ee_pose = self._tf_listener.transformPose(
                                     prev_frame_name,
-                                    self._arm_state.ee_pose
+                                    self._grasp_state.ee_pose
                                 )
             rospy.loginfo("New pose: {}".format(ee_pose))
 
-            self._arm_state.ee_pose = ee_pose
-            self._arm_state.ref_landmark = Landmark()
+            self._grasp_state.ee_pose = ee_pose
+            self._grasp_state.ref_landmark = Landmark()
+            self._pre_grasp_state.ref_landmark = Landmark()
+
+        self._set_pre_grasp_state_from_pose(ee_pose)
+
+    def _set_pre_grasp_state_from_pose(self, pose_stamped):
+        '''Sets pre_grasp_state based on a pose_stamped msg'''
+
+        rot_mat = Grasp._get_matrix_from_pose(pose_stamped)
+        x_axis = Vector3(rot_mat[0, 0], rot_mat[1, 0], rot_mat[2, 0])
+        self._pre_grasp_state.ee_pose = PoseStamped()
+        self._pre_grasp_state.ee_pose.header.frame_id = \
+                            pose_stamped.header.frame_id
+        self._pre_grasp_state.ee_pose.pose.orientation.x = \
+                            pose_stamped.pose.orientation.x
+        self._pre_grasp_state.ee_pose.pose.orientation.y = \
+                            pose_stamped.pose.orientation.y
+        self._pre_grasp_state.ee_pose.pose.orientation.z = \
+                            pose_stamped.pose.orientation.z
+        self._pre_grasp_state.ee_pose.pose.orientation.w = \
+                            pose_stamped.pose.orientation.w
+        self._pre_grasp_state.ee_pose.pose.position.x = \
+                            pose_stamped.pose.position.x \
+                            - (x_axis.x * self._approach_dist)
+        self._pre_grasp_state.ee_pose.pose.position.y = \
+                            pose_stamped.pose.position.y \
+                            - (x_axis.y * self._approach_dist)
+        self._pre_grasp_state.ee_pose.pose.position.z = \
+                            pose_stamped.pose.position.z \
+                            - (x_axis.z * self._approach_dist)
 
     def _get_marker_pose(self):
-        '''Returns the pose of the primitive.
+        '''Returns the pose of the marker for the primitive.
 
         Returns:
             Pose
         '''
         try:
             self._tf_listener.waitForTransform(BASE_LINK,
-                                 self._arm_state.ee_pose.header.frame_id,
+                                 self._grasp_state.ee_pose.header.frame_id,
                                  rospy.Time(0),
                                  rospy.Duration(4.0))
             intermediate_pose = self._tf_listener.transformPose(
-                                                        BASE_LINK,
-                                                        self._arm_state.ee_pose)
-            offset_pose = ArmTarget._offset_pose(intermediate_pose)
+                                                    BASE_LINK,
+                                                    self._grasp_state.ee_pose)
+            offset_pose = Grasp._offset_pose(intermediate_pose)
             return self._tf_listener.transformPose(self.get_ref_frame_name(),
                                                 offset_pose)
         except Exception, e:
             rospy.logwarn(e)
-            rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
+            rospy.logwarn(
+                "Frame not available yet: {}".format(self.get_ref_frame_name()))
             return None
 
     def _update_viz_core(self, check_reachable=True):
         '''Updates visualization after a change.
 
         Args:
-            check_reachable (bool) : Check reachability of pose before drawing marker
+            check_reachable (bool) : Check reachability of 
+            pose before drawing marker
         '''
         # Create a new IM control.
         menu_control = InteractiveMarkerControl()
@@ -993,8 +1019,8 @@ class ArmTarget(Primitive):
         if check_reachable:
             self.is_reachable()
 
-        menu_control = self._make_gripper_marker(
-               menu_control, self._gripper_state)
+        menu_control = self._make_gripper_markers(
+               menu_control)
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
@@ -1066,35 +1092,19 @@ class ArmTarget(Primitive):
         Args:
             new_pose (Pose)
         '''
-        rospy.loginfo("Setting new ee_pose!!!")
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = frame_id
         pose_stamped.pose = new_pose
         pose_stamped_transformed = self._tf_listener.transformPose(
                                                     self.get_ref_frame_name(),
                                                     pose_stamped)
-        self._arm_state.ee_pose = ArmTarget._offset_pose(
+        self._grasp_state.ee_pose = Grasp._offset_pose(
                                                     pose_stamped_transformed,
                                                     -1)
+        self._set_pre_grasp_state_from_pose(self._grasp_state.ee_pose)
         self.update_viz()
 
-    def _get_mesh_marker_color(self):
-        '''Gets the color for the mesh marker (thing that looks like a
-        gripper) for this primitive.
-
-        A simple implementation of this will return one color for
-        reachable poses, another for unreachable ones. Future
-        implementations may provide further visual cues.
-
-        Returns:
-            ColorRGBA: The color for the gripper mesh for this arm target.
-        '''
-        if self._reachable:
-            return self._color_mesh_reachable
-        else:
-            return self._color_mesh_unreachable
-
-    def _make_gripper_marker(self, control, gripper_state=GripperState.CLOSED):
+    def _make_gripper_markers(self, control):
         '''Makes a gripper marker, adds it to control, returns control.
 
         Args:
@@ -1106,53 +1116,64 @@ class ArmTarget(Primitive):
             InteractiveMarkerControl: The passed control.
         '''
 
-        mesh_color = self._get_mesh_marker_color()
-        # frame_id = self._get_menu_ref()
+        if self._grasp_reachable:
+            grasp_mesh_color = self._color_mesh_reachable
+        else:
+            grasp_mesh_color = self._color_mesh_unreachable
+
+        if self._pre_grasp_reachable:
+            pre_grasp_mesh_color = self._color_mesh_reachable
+        else:
+            pre_grasp_mesh_color = self._color_mesh_unreachable
+
+
+        # Make grasp marker
 
         # Create mesh 1 (palm).
-        mesh1 = ArmTarget._make_mesh_marker(mesh_color)
-        mesh1.mesh_resource = STR_GRIPPER_PALM_FILE
-        mesh1.pose.position.x = ArmTarget._offset
-        mesh1.pose.orientation.w = 1
-        # mesh1.header.frame_id = frame_id
+        grasp_mesh1 = Grasp._make_mesh_marker(grasp_mesh_color)
+        grasp_mesh1.mesh_resource = STR_GRIPPER_PALM_FILE
+        grasp_mesh1.pose.position.x = Grasp._offset
+        grasp_mesh1.pose.orientation.w = 1
 
-        # TODO (sarah): make all of these numbers into constants
-        if gripper_state == GripperState.OPEN:
-            mesh2 = ArmTarget._make_mesh_marker(mesh_color)
-            mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
-            mesh2.pose.position.x = 0.08
-            mesh2.pose.position.y = -0.165
-            mesh2.pose.orientation.w = 1
-            # mesh2.header.frame_id = frame_id
+        # Fingers
+        grasp_mesh2 = Grasp._make_mesh_marker(grasp_mesh_color)
+        grasp_mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
+        grasp_mesh2.pose.position.x = 0.08
+        grasp_mesh2.pose.position.y = -0.116
+        grasp_mesh2.pose.orientation.w = 1
 
-            mesh3 = ArmTarget._make_mesh_marker(mesh_color)
-            mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
-            mesh3.pose.position.x = 0.08
-            mesh3.pose.position.y = 0.165
-            mesh3.pose.orientation.w = 1
-            # mesh3.header.frame_id = frame_id
-        else:
-            mesh2 = ArmTarget._make_mesh_marker(mesh_color)
-            mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
-            mesh2.pose.position.x = 0.08
-            mesh2.pose.position.y = -0.116
-            mesh2.pose.orientation.w = 1
-            # mesh2.header.frame_id = frame_id
+        grasp_mesh3 = Grasp._make_mesh_marker(grasp_mesh_color)
+        grasp_mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
+        grasp_mesh3.pose.position.x = 0.08
+        grasp_mesh3.pose.position.y = 0.116
+        grasp_mesh3.pose.orientation.w = 1
 
-            mesh3 = ArmTarget._make_mesh_marker(mesh_color)
-            mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
-            mesh3.pose.position.x = 0.08
-            mesh3.pose.position.y = 0.116
-            mesh3.pose.orientation.w = 1
-            # mesh3.header.frame_id = frame_id
+        # make pre-grasp marker 
+        pre_grasp_mesh1 = Grasp._make_mesh_marker(pre_grasp_mesh_color)
+        pre_grasp_mesh1.mesh_resource = STR_GRIPPER_PALM_FILE
+        pre_grasp_mesh1.pose.position.x = Grasp._offset - self._approach_dist
+        pre_grasp_mesh1.pose.orientation.w = 1
+
+        pre_grasp_mesh2 = Grasp._make_mesh_marker(pre_grasp_mesh_color)
+        pre_grasp_mesh2.mesh_resource = STR_L_GRIPPER_FINGER_FILE
+        pre_grasp_mesh2.pose.position.x = 0.08 - self._approach_dist
+        pre_grasp_mesh2.pose.position.y = -0.165 
+        pre_grasp_mesh2.pose.orientation.w = 1
+
+        pre_grasp_mesh3 = Grasp._make_mesh_marker(pre_grasp_mesh_color)
+        pre_grasp_mesh3.mesh_resource = STR_R_GRIPPER_FINGER_FILE
+        pre_grasp_mesh3.pose.position.x = 0.08 - self._approach_dist
+        pre_grasp_mesh3.pose.position.y = 0.165
+        pre_grasp_mesh3.pose.orientation.w = 1
 
         # Append all meshes we made.
-        control.markers.append(mesh1)
-        control.markers.append(mesh2)
-        control.markers.append(mesh3)
+        control.markers.append(grasp_mesh1)
+        control.markers.append(grasp_mesh2)
+        control.markers.append(grasp_mesh3)
+        control.markers.append(pre_grasp_mesh1)
+        control.markers.append(pre_grasp_mesh2)
+        control.markers.append(pre_grasp_mesh3)
 
-        # Return back the control.
-        # TODO(mbforbes): Why do we do this?
         return control
 
     def _delete_primitive_cb(self, feedback):
@@ -1163,44 +1184,30 @@ class ArmTarget(Primitive):
         '''
         self._marker_delete_cb(self._number)
 
+    def _regenerate_grasps_cb(self, feedback):
+        '''Callback for regenerating grasps upon request
+
+        Args:
+            feedback (InteractiveMarkerFeedback): Unused
+        '''
+        self.hide_marker()
+
+        resp = self._get_object_from_name_srv(self.get_ref_frame_name())
+        self.suggest_grasps(resp.obj)
+        self.show_marker()
+        # self.update_viz()
+        self.update_viz()
+        self._action_change_cb()
+        self._pose_change_cb()
+
     def _move_to_cb(self, feedback):
         '''Callback for when moving to a pose is requested.
 
         Args:
             feedback (InteractiveMarkerFeedback): Unused
         '''
-        self._robot.move_arm_to_pose(self._arm_state)
-
-    def _move_pose_to_cb(self, feedback):
-        '''Callback for when a pose change to current is requested.
-
-        Args:
-            feedback (InteractiveMarkerFeedback): Unused
-
-        '''
-        self._arm_state = self._robot.get_arm_state()
-        self._gripper_state = self._robot.get_gripper_state()
-        self.update_ref_frames()
-
-    def _change_target_cb(self, feedback):
-        '''Callback for when a reference frame change is requested.
-
-        Args:
-            feedback (InteractiveMarkerFeedback (?))
-        '''
-        self._menu_handler.setCheckState(
-            self._get_menu_target_id(self._get_menu_ref(target=True)), MenuHandler.UNCHECKED)
-        self._menu_handler.setCheckState(
-            feedback.menu_entry_id, MenuHandler.CHECKED)
-        new_ref = self._get_menu_target_name(feedback.menu_entry_id)
-        self._set_target(new_ref)
-        rospy.loginfo(
-            'Switching reference frame to ' + new_ref + ' for primitive ' +
-            self.get_name())
-        self._menu_handler.reApply(self._im_server)
-        self._im_server.applyChanges()
-        self.update_viz(False)
-        self._action_change_cb()
+        # for now, "move to" this primitive will just mean execute 
+        self.execute()
 
     def _change_ref_cb(self, feedback):
         '''Callback for when a reference frame change is requested.
@@ -1209,10 +1216,10 @@ class ArmTarget(Primitive):
             feedback (InteractiveMarkerFeedback (?))
         '''
         self._menu_handler.setCheckState(
-            self._get_menu_ref_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
+            self._get_menu_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
         self._menu_handler.setCheckState(
             feedback.menu_entry_id, MenuHandler.CHECKED)
-        new_ref = self._get_menu_ref_name(feedback.menu_entry_id)
+        new_ref = self._get_menu_name(feedback.menu_entry_id)
         self._set_ref(new_ref)
         rospy.loginfo(
             'Switching reference frame to ' + new_ref + ' for primitive ' +
@@ -1234,7 +1241,7 @@ class ArmTarget(Primitive):
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Changing visibility of the pose controls.')
-            self._is_control_visible = not self._is_control_visible
+            # self._is_control_visible = not self._is_control_visible
             self._marker_click_cb(
                 self._number, self._is_control_visible)
         elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
@@ -1247,31 +1254,26 @@ class ArmTarget(Primitive):
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
-    def _get_menu_ref(self, target=False):
+    def _get_menu_ref(self):
         '''Returns the name string for the reference frame object of the
-        primitive. 
+        primitive. This is specifically for
 
         Returns:
             str|None: Under all normal circumstances, returns the str
                 reference frame name. Returns None in error.
         '''
         # "Normal" step (saved pose).
-        ref_type = self._arm_state.ref_type
-        ref_name = self._arm_state.ref_landmark.name
+        ref_type = self._grasp_state.ref_type
+        ref_name = self._grasp_state.ref_landmark.name
 
-        if not target:
-            # Update ref frame name if it's absolute.
-            if ref_type == ArmState.ROBOT_BASE:
-                ref_name = BASE_LINK
-            elif ref_type == ArmState.PREVIOUS_TARGET:
-                ref_name = PREVIOUS_PRIMITIVE
-            elif ref_name == '':
-                ref_name = BASE_LINK
-                rospy.loginfo("Empty frame: {}".format(self._number))
-        else:
-            ref_name = ref_name + " "
+        # Update ref frame name if it's absolute.
+        if ref_type == ArmState.ROBOT_BASE:
+            ref_name = BASE_LINK
+        elif ref_type == ArmState.PREVIOUS_TARGET:
+            ref_name = PREVIOUS_PRIMITIVE
+        elif ref_name == '':
+            ref_name = BASE_LINK
+            rospy.loginfo("Empty frame: {}".format(self._number))
 
         return ref_name
-
-
 

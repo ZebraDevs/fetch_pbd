@@ -397,11 +397,9 @@ class ArmTrajectory(Primitive):
 
     def get_relative_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive.
-
         Args:
-            use_final (bool, optional). For trajectories only. Whether to
+            use_final (bool, optional). Whether to
                 get the final pose in the trajectory. Defaults to True.
-
         Returns:
             PoseStamped
         '''
@@ -410,12 +408,11 @@ class ArmTrajectory(Primitive):
 
         return arm_state.ee_pose
 
-    def get_absolute_pose(self, use_final=True):
+    def get_absolute_pose(self):
         '''Returns the absolute pose of the primitive.
 
         Args:
-            use_final (bool, optional). For trajectories only. Whether to
-                get the final pose in the trajectory. Defaults to True.
+            None
 
         Returns:
             PoseStamped

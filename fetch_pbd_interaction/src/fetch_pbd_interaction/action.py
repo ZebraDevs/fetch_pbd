@@ -19,6 +19,7 @@ import tf
 # Local
 from fetch_pbd_interaction.arm_target import ArmTarget
 from fetch_pbd_interaction.arm_trajectory import ArmTrajectory
+from fetch_pbd_interaction.grasp import Grasp
 from fetch_pbd_interaction.msg import ExecutionStatus, OrientationRPY, \
                                       ArmState, Landmark
 
@@ -181,6 +182,11 @@ class Action:
                 primitive = ArmTrajectory(self._robot, self._tf_listener,
                                   self._im_server)
                 primitive.build_from_json(target)
+            elif primitive.has_key('grasp'):
+                target = primitive['grasp']
+                primitive = Grasp(self._robot, self._tf_listener,
+                            self._im_server)
+                primitive.build_from_json(target)
 
             self.add_primitive(primitive, False, False)
 
@@ -268,7 +274,7 @@ class Action:
             # self._marker_visibility.append(False)
             primitive.hide_marker()
             self._lock.release()
-        # rospy.loginfo("marker viz: {}".format(self._marker_visibility))
+        rospy.loginfo("Primitive added")
 
     def update_objects(self):
         '''For each primitive, updates the reference frames based on
@@ -436,9 +442,21 @@ class Action:
         self._lock.release()
         return ref_frame_names
 
+    def get_primitive_names(self):
+        '''Returns the names of primitives.
+
+        Returns:
+            [str]
+        '''
+        self._lock.acquire()
+        names = []
+        for primitive in self._seq:
+            names += [primitive.get_name()]
+        self._lock.release()
+        return names
+
     def get_primitive_positions_orientations(self):
         '''Returns the positions and orientations of primitives
-
         Returns:
             Point[], OrientationRPY[]
         '''
@@ -458,19 +476,6 @@ class Action:
             orientations += [rpy]
         self._lock.release()
         return positions, orientations
-
-    def get_primitive_names(self):
-        '''Returns the names of primitives.
-
-        Returns:
-            [str]
-        '''
-        self._lock.acquire()
-        names = []
-        for primitive in self._seq:
-            names += [primitive.get_name()]
-        self._lock.release()
-        return names
 
     def get_primitives_editable(self):
         '''Returns list of whether primitive poses are editable
@@ -547,10 +552,10 @@ class Action:
 
     def update_viz(self):
         '''Updates the visualization of the action.'''
+        # rospy.loginfo("Updating action viz")
         self._lock.acquire()
         self._update_links()
         m_array = MarkerArray()
-        # rospy.loginfo("link markers: {}".format(self._link_markers))
         for i in self._link_markers.keys():
             m_array.markers.append(self._link_markers[i])
         self._marker_publisher.publish(m_array)
@@ -621,10 +626,11 @@ class Action:
             return
         self._lock.acquire()
         # if (to_delete + 1) < self.n_primitives():
-        #     rospy.loginfo("Abs pose: {}".format(self._seq[to_delete + 1].get_absolute_pose()))
         self._seq[to_delete].hide_marker()
         for i in range(to_delete + 1, self.n_primitives()):
-            rospy.loginfo("Frame name: {}, {}, {}".format(i, self._seq[i].get_ref_frame_name(), self._seq[i]._number))
+            rospy.loginfo("Frame name: {}, {}, {}".format(i, 
+                           self._seq[i].get_ref_frame_name(), 
+                           self._seq[i].get_number()))
             self._seq[i].decrease_id()
 
         if self.n_primitives() > (to_delete + 1):
@@ -828,31 +834,30 @@ class Action:
 
     def _update_markers(self):
         '''Updates the markers after a change.'''
+        rospy.loginfo("Updating viz markers")
         for idx, primitive in enumerate(self._seq):
             primitive.update_viz()
 
     def _update_links(self):
         '''Updates the visualized links b/w action primitives.'''
+        # rospy.loginfo("Updating marker links")
         current_num_links = len(self._link_markers)
         new_num_links = len(self._seq) - 1
 
         self._link_markers = {}
-
-        for i in range(new_num_links):
-            link_marker = Action._get_link(self._seq[i],
-                                       self._seq[i + 1],
-                                       i)
-            if not link_marker is None:
-                self._link_markers[i] = link_marker
-        if (current_num_links - new_num_links) > 0:
-            for i in range(new_num_links, current_num_links):
-                self._link_markers[i] = Marker(id=i, action=Marker.DELETE)
-
-        if new_num_links == 0:
-            marker = Action._get_link(self._seq[0],
-                                           self._seq[0], 0)
-
-            if not marker is None:
-                self._link_markers[0] = marker
-                self._link_markers[0].action = Marker.DELETE
-
+        if new_num_links >= 1:
+            for i in range(new_num_links):
+                link_marker = Action._get_link(self._seq[i],
+                                           self._seq[i + 1],
+                                           i)
+                if not link_marker is None:
+                    self._link_markers[i] = link_marker
+            if (current_num_links - new_num_links) > 0:
+                for i in range(new_num_links, current_num_links):
+                    self._link_markers[i] = Marker(id=i, action=Marker.DELETE)
+                    
+        else:
+            marker = Marker()
+            marker.id = 0
+            self._link_markers[0] = marker
+            self._link_markers[0].action = Marker.DELETE
