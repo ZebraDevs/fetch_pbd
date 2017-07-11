@@ -498,7 +498,7 @@ class Action:
             position (Point)
             orientation (OrientationRPY)
         '''
-
+        rospy.loginfo("Updating primitive pose")
         frame_id = self.get_ref_frame_names()[primitive_number]
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = frame_id

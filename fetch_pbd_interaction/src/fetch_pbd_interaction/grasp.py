@@ -58,7 +58,10 @@ MENU_OPTIONS = {
     # 'move_here': 'Move arm here',
     # 'move_current': 'Move to current arm pose',
     'del': 'Delete',
-    'gen': 'Regenerate grasp'
+    'regen': 'Regenerate grasps',
+    'gen' : 'Generate grasps',
+    'choice' : 'Switch grasp to:'
+
 }
 
 # Offets to maintain globally-unique IDs but with new sets of objects.
@@ -96,7 +99,7 @@ class Grasp(Primitive):
 
     _offset = DEFAULT_OFFSET
 
-    def __init__(self, robot, tf_listener, im_server, number=None):
+    def __init__(self, robot, tf_listener, im_server, grasp_suggestion_service_name=None, landmark=None, number=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -121,19 +124,23 @@ class Grasp(Primitive):
         self._grasp_reachable = False
         self._pre_grasp_reachable = False
         self._grasp_state = ArmState()
+        self._grasp_state.ref_landmark = landmark
+        self._grasp_state.ref_type = ArmState.OBJECT
         self._pre_grasp_state = ArmState()
+        self._pre_grasp_state.ref_landmark = landmark
+        self._pre_grasp_state.ref_type = ArmState.OBJECT
+        self._current_grasp_num = None
+        self._current_grasp_list = []
         self._approach_dist = 0.1 # default value
 
         self._menu_handler = MenuHandler()
 
         self._sub_entries = None
+        self._grasp_menu_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
         self._pose_change_cb = None
         self._action_change_cb = None
-
-        grasp_suggestion_service_name = \
-                rospy.get_param("/grasp_suggestion_service_name")
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -149,9 +156,6 @@ class Grasp(Primitive):
                                                 String,
                                                 queue_size=10,
                                                 latch=True)
-
-        # if not pose_stamped is None and not landmark is None:
-        #     self.build_from_pose(pose_stamped, landmark)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -488,11 +492,15 @@ class Grasp(Primitive):
         Returns:
             PoseStamped
         '''
-
-        if use_final:
-            return self._grasp_state.ee_pose
+        if self._current_grasp_num is None:
+            return PoseStamped(
+                    header=self._grasp_state.ref_landmark.point_cloud.header, 
+                    pose=self._grasp_state.ref_landmark.pose)
         else:
-            return self._pre_grasp_state.ee_pose
+            if use_final:
+                return self._grasp_state.ee_pose
+            else:
+                return self._pre_grasp_state.ee_pose
 
     def get_absolute_pose(self):
         '''Returns the absolute pose of the grasp part of the primitive
@@ -504,14 +512,27 @@ class Grasp(Primitive):
         Returns:
             PoseStamped
         '''
-        try:
-            abs_pose = self._tf_listener.transformPose('base_link',
-                                               self._grasp_state.ee_pose)
-            return abs_pose
-        except:
-            frame_id = self._grasp_state.ee_pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
-            return None
+        if self._current_grasp_num is None:
+            try:
+                pose = PoseStamped(
+                    header=self._grasp_state.ref_landmark.point_cloud.header, 
+                    pose=self._grasp_state.ref_landmark.pose)
+                abs_pose = self._tf_listener.transformPose('base_link',
+                                                   pose)
+                return abs_pose
+            except:
+                frame_id = self._grasp_state.ref_landmark.point_cloud.header.frame_id
+                rospy.logwarn("Frame: {} does not exist".format(frame_id))
+                return None
+        else:
+            try:
+                abs_pose = self._tf_listener.transformPose('base_link',
+                                                   self._grasp_state.ee_pose)
+                return abs_pose
+            except:
+                frame_id = self._grasp_state.ee_pose.header.frame_id
+                rospy.logwarn("Frame: {} does not exist".format(frame_id))
+                return None
 
     def get_absolute_marker_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive marker.
@@ -522,22 +543,35 @@ class Grasp(Primitive):
         Returns:
             PoseStamped
         '''
-        try:
-            if use_final:
-                pose_to_use = self._grasp_state.ee_pose
-            else:
-                pose_to_use = self._pre_grasp_state.ee_pose 
-            abs_pose = self._tf_listener.transformPose('base_link',
-                                               pose_to_use)
-            return Grasp._offset_pose(abs_pose)
-        except:
-            if use_final:
-                pose_to_use = self._grasp_state.ee_pose
-            else:
-                pose_to_use = self._pre_grasp_state.ee_pose
-            frame_id = pose_to_use.pose.header.frame_id
-            rospy.logwarn("Frame: {} does not exist".format(frame_id))
-            return None
+        if self._current_grasp_num is None:
+            try:
+                pose = PoseStamped(
+                    header=self._grasp_state.ref_landmark.point_cloud.header, 
+                    pose=self._grasp_state.ref_landmark.pose)
+                abs_pose = self._tf_listener.transformPose('base_link',
+                                                   pose)
+                return abs_pose
+            except:
+                frame_id = self._grasp_state.ref_landmark.point_cloud.header.frame_id
+                rospy.logwarn("Frame: {} does not exist".format(frame_id))
+                return None
+        else:
+            try:
+                if use_final:
+                    pose_to_use = self._grasp_state.ee_pose
+                else:
+                    pose_to_use = self._pre_grasp_state.ee_pose 
+                abs_pose = self._tf_listener.transformPose('base_link',
+                                                   pose_to_use)
+                return Grasp._offset_pose(abs_pose)
+            except:
+                if use_final:
+                    pose_to_use = self._grasp_state.ee_pose
+                else:
+                    pose_to_use = self._pre_grasp_state.ee_pose
+                frame_id = pose_to_use.pose.header.frame_id
+                rospy.logwarn("Frame: {} does not exist".format(frame_id))
+                return None
 
     def get_absolute_marker_position(self, use_final=True):
         '''Returns the absolute position of the primitive marker.
@@ -610,19 +644,6 @@ class Grasp(Primitive):
             ArmState.ROBOT_BASE, etc
         '''
         return ArmState.OBJECT
-
-    def suggest_grasps(self, landmark):
-        resp = self._grasp_suggestion_srv(landmark.point_cloud)
-        grasps = resp.graspList
-        if not len(grasps.poses) > 0:
-            return False
-        else:
-            # placeholder, choose first grasp
-            pose_stamped = PoseStamped()
-            pose_stamped.pose = grasps.poses[0]
-            pose_stamped.header.frame_id = grasps.header.frame_id
-            self.build_from_pose(pose_stamped, landmark)
-            return True
 
     # ##################################################################
     # Static methods: Internal ("private")
@@ -819,6 +840,40 @@ class Grasp(Primitive):
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
+    def _generate_grasps_cb(self, feedback):
+        '''Callback for when users want to generate grasps for an object'''
+        self._suggest_grasps(self._grasp_state.ref_landmark)
+
+    def _switch_grasp_cb(self, feedback):
+        '''Callback to switch between grasps indicated by menu entries'''
+        menu_id = feedback.menu_entry_id
+        self._current_grasp_num = self._grasp_menu_entries.index(menu_id)
+        grasp_pose = self._current_grasp_list[self._current_grasp_num]
+        self.build_from_pose(grasp_pose, 
+                                self._grasp_state.ref_landmark, 
+                                name=self.get_name())
+        self._pose_change_cb()
+
+
+    def _suggest_grasps(self, landmark):
+        rospy.loginfo("Getting grasps")
+        resp = self._grasp_suggestion_srv(landmark.point_cloud)
+        grasps = resp.grasp_list
+        if not len(grasps.poses) > 0:
+            return False
+        else:
+            # placeholder, choose first grasp
+            pose_stamped = PoseStamped()
+            pose_stamped.pose = grasps.poses[0]
+            pose_stamped.header.frame_id = grasps.header.frame_id
+            self.build_from_pose(pose_stamped, 
+                                    landmark,
+                                    name=self.get_name())
+            self._current_grasp_list = [PoseStamped(header=grasps.header, pose=pose) for pose in grasps.poses]
+            rospy.loginfo("Current grasps: {}".format(len(self._current_grasp_list)))
+            self._current_grasp_num = 0
+            self._pose_change_cb()
+            return True
 
     def _update_menu(self):
         '''Recreates the menu when something has changed.'''
@@ -839,8 +894,31 @@ class Grasp(Primitive):
         # Inset main menu entries.
         self._menu_handler.insert(
             MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
-        self._menu_handler.insert(
-            MENU_OPTIONS['gen'], callback=self._regenerate_grasps_cb)
+        
+        self._grasp_menu_entries = []
+        if self._current_grasp_list:
+            self._menu_handler.insert(
+                MENU_OPTIONS['regen'], callback=self._regenerate_grasps_cb)
+            grasp_choice_entry = self._menu_handler.insert( 
+                                                MENU_OPTIONS['choice'])
+            for idx, grasp in enumerate(self._current_grasp_list):
+                grasp_ent = self._menu_handler.insert("grasp_" + str(idx),
+                                        parent=grasp_choice_entry,
+                                        callback=self._switch_grasp_cb)
+                self._grasp_menu_entries += [grasp_ent]
+
+            for grasp_ent in self._grasp_menu_entries:
+                self._menu_handler.setCheckState(grasp_ent, 
+                                                MenuHandler.UNCHECKED)
+            if not self._current_grasp_num is None:
+                self._menu_handler.setCheckState(
+                            self._grasp_menu_entries[self._current_grasp_num], 
+                            MenuHandler.CHECKED)
+
+        else:
+            self._menu_handler.insert(
+                MENU_OPTIONS['gen'], callback=self._generate_grasps_cb)
+
 
         # Make all unchecked to start.
         for subent in self._sub_entries:
@@ -1012,15 +1090,25 @@ class Grasp(Primitive):
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
         frame_id = self.get_ref_frame_name()
-        pose = self._get_marker_pose()
-        if pose is None:
-            return
+        if self._current_grasp_num is None:
+            pose = PoseStamped()
+            pose.pose.orientation.w = 1.0
+            marker = Marker()
+            marker.type = Marker.CUBE
+            marker.action = Marker.ADD
+            marker.scale = self._grasp_state.ref_landmark.dimensions
+            marker.color = COLOR_MESH_REACHABLE
+            menu_control.markers.append(marker)
+        else:
+            pose = self._get_marker_pose()
+            if pose is None:
+                return
 
-        if check_reachable:
-            self.is_reachable()
+            if check_reachable and not self._current_grasp_num is None:
+                self.is_reachable()
 
-        menu_control = self._make_gripper_markers(
-               menu_control)
+            menu_control = self._make_gripper_markers(
+                   menu_control)
 
         # Make and add interactive marker.
         int_marker = InteractiveMarker()
@@ -1028,7 +1116,8 @@ class Grasp(Primitive):
         int_marker.header.frame_id = frame_id
         int_marker.pose = pose.pose
         int_marker.scale = INT_MARKER_SCALE
-        self._add_6dof_marker(int_marker, True)
+        #self._add_6dof_marker(int_marker, True)
+        rospy.loginfo("Marker name: {}".format(self.get_name()))
         int_marker.controls.append(menu_control)
         self._im_server.insert(
             int_marker, self._marker_feedback_cb)
@@ -1092,6 +1181,7 @@ class Grasp(Primitive):
         Args:
             new_pose (Pose)
         '''
+        rospy.loginfo("Setting new pose for grasp primitive")
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = frame_id
         pose_stamped.pose = new_pose
@@ -1193,7 +1283,7 @@ class Grasp(Primitive):
         self.hide_marker()
 
         resp = self._get_object_from_name_srv(self.get_ref_frame_name())
-        self.suggest_grasps(resp.obj)
+        self._suggest_grasps(resp.obj)
         self.show_marker()
         # self.update_viz()
         self.update_viz()

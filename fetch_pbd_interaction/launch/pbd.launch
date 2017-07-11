@@ -13,15 +13,47 @@
 	<arg name="grasp_suggestion_service" default="suggest_grasps" />
 	<param name="grasp_suggestion_service_name" value="$(arg grasp_suggestion_service)" />
 
+	<arg name="im_topic" default="world_objects" />
+    <arg name="add_grasp_topic" default="add_grasp" />
+    <arg name="world_update_topic" default="world_updates" />
+    <arg name="segmentation_service" default="rail_segmentation/segment" />
+    <arg name="segmented_objects_topic" default="rail_segmentation/segmented_objects" />
+    <arg name="segmented_table_topic" default="rail_segmentation/segmented_table" />
+    <arg name="planning_scene_topic" default="planning_scene" />
+    <arg name="object_similar_distance_threshold" default="0.075" />
+    <arg name="object_add_distance_threshold" default="0.02" />
+    <arg name="object_nearest_distance_threshold" default="0.4" />
+    <arg name="object_distance_zero_clamp" default="0.0001" />
+    <arg name="text_height" default="0.03" />
+    <arg name="surface_height" default="0.01" />
+    <arg name="text_offset" default="0.06" />
+    <arg name="base_frame" default="base_link" />
+
 	<!-- This runs all of the prerequisite nodes for the PbD backend to
 	work, such as interactive manipulation backend and social gaze. -->
 	<include file="$(find fetch_pbd_interaction)/launch/pbd_prereqs.launch">
 		<arg name="social_gaze" value="$(arg social_gaze)" />
 		<arg name="play_sound" value="$(arg play_sound)" />
+		<arg name="im_topic" value="$(arg im_topic)" />
+    	<arg name="add_grasp_topic" value="$(arg add_grasp_topic)" />
+    	<arg name="world_update_topic" value="$(arg world_update_topic)" />
+    	<arg name="segmentation_service" value="$(arg segmentation_service)" />
+    	<arg name="segmented_objects_topic" value="$(arg segmented_objects_topic)" />
+    	<arg name="segmented_table_topic" value="$(arg segmented_table_topic)" />
+    	<arg name="planning_scene_topic" value="$(arg planning_scene_topic)" />
+    	<arg name="object_similar_distance_threshold" value="$(arg object_similar_distance_threshold)" />
+    	<arg name="object_add_distance_threshold" value="$(arg object_add_distance_threshold)" />
+    	<arg name="object_nearest_distance_threshold" value="$(arg object_nearest_distance_threshold)" />
+    	<arg name="object_distance_zero_clamp" value="$(arg object_distance_zero_clamp)" />
+    	<arg name="text_height" value="$(arg text_height)" />
+    	<arg name="surface_height" value="$(arg surface_height)" />
+    	<arg name="text_offset" value="$(arg text_offset)" />
+    	<arg name="base_frame" value="$(arg base_frame)" />
 	</include>
 
 	<!-- This runs the interaction node itself.	It is the main state
 	machine for interaction and PbD -->
 	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_interaction_node.py" output="screen">
+		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
 	</node>
 </launch>

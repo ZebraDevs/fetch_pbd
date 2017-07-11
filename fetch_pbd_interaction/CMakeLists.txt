@@ -4,21 +4,29 @@ cmake_minimum_required(VERSION 2.8.3)
 project(fetch_pbd_interaction)
 # Load catkin and all dependencies required for this package
 # TODO: remove all from COMPONENTS that are not catkin packages.
-find_package(catkin REQUIRED COMPONENTS
+find_package(catkin REQUIRED COMPONENTS 
   actionlib
   geometry_msgs
+  moveit_msgs
   message_generation
   fetch_arm_control
   rospy
   rospy_message_converter
   std_msgs
   tf
+  moveit_ros_planning_interface
+  pcl_ros
+  interactive_markers
 )
+find_package(PCL REQUIRED)
 
 # include_directories(include ${Boost_INCLUDE_DIR} ${catkin_INCLUDE_DIRS})
 # CATKIN_MIGRATION: removed during catkin migration
 # cmake_minimum_required(VERSION 2.4.6)
-
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(
+  ${PCL_LIBRARY_DIRS}
+)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -69,9 +77,9 @@ generate_messages(
 # catkin_package parameters: http://ros.org/doc/groovy/api/catkin/html/dev_guide/generated_cmake_api.html#catkin-package
 # TODO: fill in what other packages will need to use this package
 catkin_package(
-  INCLUDE_DIRS src/fetch_pbd_interaction
+  INCLUDE_DIRS include src/fetch_pbd_interaction
   LIBRARIES fetch_pbd_interaction
-  CATKIN_DEPENDS rospy
+  CATKIN_DEPENDS rospy roscpp
   DEPENDS system_lib
 )
 
@@ -83,13 +91,42 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
-# add_library(pr2_pbd
-#   src/${PROJECT_NAME}/pr2_pbd.cpp
-# )
+add_library( pbd_world_landmark
+  src/world_landmark.cpp
+)
+
+add_dependencies(
+  pbd_world_landmark
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(
+  pbd_world_landmark 
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+
+add_library( pbd_world
+  src/world.cpp
+)
+
+add_dependencies(
+  pbd_world
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(
+  pbd_world 
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
 
 ## Declare a cpp executable
 # add_executable(pr2_pbd_node src/pr2_pbd_node.cpp)
@@ -102,6 +139,20 @@ include_directories(
 # target_link_libraries(pr2_pbd_node
 #   ${catkin_LIBRARIES}
 # )
+
+add_executable(pbd_world_node nodes/pbd_world_node.cpp)
+add_dependencies(pbd_world_node
+  pbd_world
+  pbd_world_landmark
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+target_link_libraries(pbd_world_node 
+  pbd_world
+  pbd_world_landmark
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
 
 #############
 ## Install ##

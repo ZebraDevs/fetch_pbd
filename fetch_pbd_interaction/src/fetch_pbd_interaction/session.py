@@ -51,20 +51,9 @@ class Session:
             im_server (InteractiveMarkerSerever)
         '''
         self._lock = threading.Lock()
-        if from_file is None:
-            self._from_file = rospy.get_param("/from_file")
-        else:
-            self._from_file = from_file
-        if to_file is None:
-            self._to_file = rospy.get_param("/to_file")
-        else:
-            self._to_file = to_file
-        if grasp_suggestion_service_name is None:
-            grasp_suggestion_service_name = rospy.get_param("/grasp_suggestion_service_name")
-            if not grasp_suggestion_service_name:
-                rospy.logwarn("No grasp suggestion service provided" + \
-                                "defaulting to 'suggest_grasps'")
-                grasp_suggestion_service_name = ""
+        self._from_file = from_file
+        self._to_file = to_file
+        self._grasp_suggestion_service = grasp_suggestion_service_name
         
         self._json = {}
         self._robot = robot
@@ -110,11 +99,6 @@ class Session:
         rospy.wait_for_service('clear_world_objects')
         rospy.loginfo("Got clear_world_objects service.")
 
-        # self._grasp_suggestion_srv = \
-        #                 rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
-        # rospy.wait_for_service(grasp_suggestion_service_name)
-        # rospy.loginfo("Got grasp_suggestion_service.")
-        # Load saved actions
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
         # if not self._current_action_id is None:
@@ -274,6 +258,8 @@ class Session:
         Returns:
             bool: Whether successfully switched to index action.
         '''
+        self._im_server.clear()
+        self._im_server.applyChanges()
         self._lock.acquire()
         self._selected_primitive = -1
 
@@ -447,8 +433,9 @@ class Session:
                         elif primitive.has_key('grasp'):
                             target = primitive['grasp']
                             primitive_copy = Grasp(self._robot,
-                                                           self._tf_listener,
-                                                           self._im_server)
+                                               self._tf_listener,
+                                               self._im_server,
+                                               self._grasp_suggestion_service)
                             primitive_copy.build_from_json(target)
                             primitive_copy.set_primitive_number(new_num)
                             break
@@ -708,11 +695,11 @@ class Session:
             current_action = self._actions[self._current_action_id]
             primitive_number = current_action.n_primitives()
             grasp = Grasp(self._robot, self._tf_listener, 
-                              self._im_server, primitive_number)
-            if grasp.suggest_grasps(msg):
-                current_action.add_primitive(grasp)
-            else:
-                rospy.logwarn("No grasps suggested")            
+                              self._im_server, 
+                              self._grasp_suggestion_service, 
+                              msg,
+                              primitive_number)
+            current_action.add_primitive(grasp)            
         else:
             rospy.logwarn("Can't add primitive: No actions created yet.")
         self._update_session_state()
@@ -735,12 +722,14 @@ class Session:
         Args:
             action (Action)
         '''
+        rospy.loginfo("Updating database")
         if db_file is None:
             db_file = self._to_file
         action_json = action.get_json()
         # rospy.loginfo("json: {}".format(json))
         action_id_str = str(action.get_action_id())
         if action_id_str in self._db:
+
             self._db.delete(self._db[action_id_str])
             self._db[action_id_str] = action_json
         else:
@@ -806,6 +795,7 @@ class Session:
             self._lock.release()
         state = self._get_session_state()
         self._state_publisher.publish(state)
+        rospy.loginfo("Session state updated")
 
     def _get_session_state(self):
         '''Creates and returns a message with the latest state.
@@ -813,11 +803,13 @@ class Session:
         Returns:
             SessionState
         '''
+        rospy.loginfo("Getting session state")
         index = self._current_action_id
 
         # Should the GUI retrieve this information itself?
         object_list = self._get_object_list_srv().object_list
         positions, orientations = self._get_primitive_positions_orientations()
+        rospy.loginfo("Got positions and orientations")
 
         return SessionState(
             self.n_actions(),
@@ -956,7 +948,7 @@ class Session:
         '''
         try:
             marker_pose = primitive.get_absolute_marker_pose()
-            # rospy.loginfo("Pose")
+            # rospy.loginfo("Publishing primitive TF")
             pose = self._tf_listener.transformPose('base_link', marker_pose)
             position = pose.pose.position
             orientation = pose.pose.orientation

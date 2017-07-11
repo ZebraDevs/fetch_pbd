@@ -51,14 +51,15 @@ class Interaction:
     recording trajectories.
     '''
 
-    def __init__(self):
+    def __init__(self, grasp_suggestion_service):
 
         # Create main components.
         self._tf_listener = TransformListener()
         self._robot = Robot(self._tf_listener)
         self._im_server = InteractiveMarkerServer(TOPIC_IM_SERVER)
         self._session = Session(self._robot, self._tf_listener,
-                                self._im_server)
+                                self._im_server, 
+                                grasp_suggestion_service_name=grasp_suggestion_service)
         self._head_busy = False
 
         # ROS publishers, subscribers, services
@@ -67,7 +68,7 @@ class Interaction:
                                               queue_size=10)
 
         # rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
-        rospy.Service('gui_input', GuiInput, self._gui_input_cb )
+        rospy.Service('gui_input', GuiInput, self._gui_input_cb)
 
         rospy.Subscriber('world_update', WorldState, self._world_update_cb)
 

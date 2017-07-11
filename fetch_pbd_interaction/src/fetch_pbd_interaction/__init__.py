@@ -1,6 +1,5 @@
 from .interaction import Interaction
 from .session import Session
-from .world import World
 from .arm_control import ArmControl
 from .robot import Robot
 from .primitive import Primitive
