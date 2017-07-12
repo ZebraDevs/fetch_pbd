@@ -51,7 +51,7 @@ class Interaction:
     recording trajectories.
     '''
 
-    def __init__(self, grasp_suggestion_service):
+    def __init__(self, grasp_suggestion_service, external_ee_link):
 
         # Create main components.
         self._tf_listener = TransformListener()
@@ -59,7 +59,8 @@ class Interaction:
         self._im_server = InteractiveMarkerServer(TOPIC_IM_SERVER)
         self._session = Session(self._robot, self._tf_listener,
                                 self._im_server, 
-                                grasp_suggestion_service_name=grasp_suggestion_service)
+                                grasp_suggestion_service_name=grasp_suggestion_service,
+                                external_ee_link=external_ee_link)
         self._head_busy = False
 
         # ROS publishers, subscribers, services
@@ -132,6 +133,8 @@ class Interaction:
         '''
 
         arm_moving = self._robot.is_arm_moving()
+
+        self._head_busy = self._head_busy or self._session.head_busy()
 
         if not arm_moving and not self._head_busy:
             # rospy.loginfo("Arm moving")

@@ -113,6 +113,17 @@ class Action:
     # Instance methods: Public (API)
     # ##################################################################
 
+    def head_busy(self):
+        '''Returns true if head is busy
+        
+        Returns:
+            bool
+        '''
+        for primitive in self._seq:
+            if primitive.head_busy():
+                return True
+        return False
+
     def get_action_id(self):
         ''' Returns action_id
 

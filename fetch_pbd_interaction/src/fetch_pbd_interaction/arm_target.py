@@ -427,6 +427,14 @@ class ArmTarget(Primitive):
             self._robot.set_gripper_state(self._gripper_state)
         return True
 
+    def head_busy(self):
+        '''Return true if head busy
+
+        Returns:
+            bool
+        '''
+        return False
+
     def is_reachable(self):
         '''Check if robot can physically reach target'''
         self._reachable = self._robot.can_reach(self._arm_state)

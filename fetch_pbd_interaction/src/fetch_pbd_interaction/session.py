@@ -43,7 +43,8 @@ class Session:
 
     def __init__(self, robot, _tf_listener, im_server, 
                 from_file=None, to_file=None, 
-                grasp_suggestion_service_name=None):
+                grasp_suggestion_service_name=None,
+                external_ee_link=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -54,6 +55,7 @@ class Session:
         self._from_file = from_file
         self._to_file = to_file
         self._grasp_suggestion_service = grasp_suggestion_service_name
+        self._external_ee_link = external_ee_link
         
         self._json = {}
         self._robot = robot
@@ -110,6 +112,17 @@ class Session:
     # ##################################################################
     # Instance methods: Public (API)
     # ##################################################################
+
+    def head_busy(self):
+        '''Returns true if head is busy
+        
+        Returns:
+            bool
+        '''
+        if self.n_actions() < 1 or self._current_action_id is None:
+            return False
+        action = self._actions[self._current_action_id]
+        return action.head_busy()
 
     def select_action_primitive(self, primitive_id):
         ''' Makes the interactive marker for the indicated action primitive
@@ -435,7 +448,8 @@ class Session:
                             primitive_copy = Grasp(self._robot,
                                                self._tf_listener,
                                                self._im_server,
-                                               self._grasp_suggestion_service)
+                                               self._grasp_suggestion_service,
+                                               self._external_ee_link)
                             primitive_copy.build_from_json(target)
                             primitive_copy.set_primitive_number(new_num)
                             break
@@ -696,7 +710,8 @@ class Session:
             primitive_number = current_action.n_primitives()
             grasp = Grasp(self._robot, self._tf_listener, 
                               self._im_server, 
-                              self._grasp_suggestion_service, 
+                              self._grasp_suggestion_service,
+                              self._external_ee_link, 
                               msg,
                               primitive_number)
             current_action.add_primitive(grasp)            

@@ -388,6 +388,14 @@ class ArmTrajectory(Primitive):
         self._robot.set_gripper_state(gripper_state)
         return all_states
 
+    def head_busy(self):
+        '''Return true if head busy
+
+        Returns:
+            bool
+        '''
+        return False
+
     def is_reachable(self):
         '''Check if robot can physically reach all steps in trajectory'''
         for arm_state in self._arm_states:

@@ -12,11 +12,12 @@ import rospy
 import tf
 from std_msgs.msg import ColorRGBA, String
 from geometry_msgs.msg import Vector3, Point, Pose, Quaternion, PoseStamped
+from sensor_msgs.msg import PointCloud2
 from visualization_msgs.msg import Marker, InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.menu_handler import MenuHandler
-from grasp_suggestion.srv import SuggestGrasps
+from grasp_suggestion.srv import SuggestGrasps, SuggestGraspsRequest
 
 # Local
 from fetch_pbd_interaction.primitive import Primitive
@@ -87,6 +88,7 @@ TOPIC_IM_SERVER = 'programmed_actions'
 # the code.
 BASE_LINK = 'base_link'
 PREVIOUS_PRIMITIVE = "previous primitive"
+EE_LINK = 'wrist_roll_link'
 
 # ######################################################################
 # Classes
@@ -99,7 +101,10 @@ class Grasp(Primitive):
 
     _offset = DEFAULT_OFFSET
 
-    def __init__(self, robot, tf_listener, im_server, grasp_suggestion_service_name=None, landmark=None, number=None):
+    def __init__(self, robot, tf_listener, im_server, 
+                    grasp_suggestion_service_name=None, 
+                    external_ee_link=None, 
+                    landmark=None, number=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -115,6 +120,8 @@ class Grasp(Primitive):
         self._robot = robot
         self._number = number
 
+        self._head_busy = False
+        self._external_ee_link = external_ee_link
         self._is_control_visible = False
         self._selected = False
         self._tf_listener = tf_listener
@@ -156,6 +163,12 @@ class Grasp(Primitive):
                                                 String,
                                                 queue_size=10,
                                                 latch=True)
+
+        self._pc_publisher = rospy.Publisher('pc_check',
+                                                PointCloud2,
+                                                queue_size=10,
+                                                latch=True)
+
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -473,6 +486,14 @@ class Grasp(Primitive):
         if not self._robot.get_gripper_state() == GripperState.CLOSED:
             self._robot.set_gripper_state(GripperState.CLOSED)
         return True
+
+    def head_busy(self):
+        '''Return true if head busy
+
+        Returns:
+            bool
+        '''
+        return self._head_busy
 
     def is_reachable(self):
         '''Check if robot can physically reach target'''
@@ -844,6 +865,7 @@ class Grasp(Primitive):
         '''Callback for when users want to generate grasps for an object'''
         self._suggest_grasps(self._grasp_state.ref_landmark)
 
+
     def _switch_grasp_cb(self, feedback):
         '''Callback to switch between grasps indicated by menu entries'''
         menu_id = feedback.menu_entry_id
@@ -856,24 +878,71 @@ class Grasp(Primitive):
 
 
     def _suggest_grasps(self, landmark):
+        '''Call grasp suggestion service and process results'''
+        self._head_busy = True
         rospy.loginfo("Getting grasps")
+        self._robot.look_down()
+        req = SuggestGraspsRequest()
+        req.cloud = landmark.point_cloud
+        rospy.loginfo("Point cloud size: {}".format(req.cloud.height*req.cloud.width))
+        rospy.loginfo("PC header: {}".format(landmark.point_cloud.header))
+        self._pc_publisher.publish(landmark.point_cloud)
         resp = self._grasp_suggestion_srv(landmark.point_cloud)
         grasps = resp.grasp_list
         if not len(grasps.poses) > 0:
+            rospy.logwarn("No grasps received")
+            self._head_busy = False
             return False
         else:
-            # placeholder, choose first grasp
-            pose_stamped = PoseStamped()
-            pose_stamped.pose = grasps.poses[0]
-            pose_stamped.header.frame_id = grasps.header.frame_id
+            self._current_grasp_list = [PoseStamped(header=grasps.header, pose=p) for p in grasps.poses]
+            self._change_grasp_frames(EE_LINK)
+            pose_stamped = self._current_grasp_list[0]
             self.build_from_pose(pose_stamped, 
                                     landmark,
                                     name=self.get_name())
-            self._current_grasp_list = [PoseStamped(header=grasps.header, pose=pose) for pose in grasps.poses]
             rospy.loginfo("Current grasps: {}".format(len(self._current_grasp_list)))
             self._current_grasp_num = 0
             self._pose_change_cb()
+            self._head_busy = False
             return True
+
+    def _change_grasp_frames(self, target_frame):
+        '''Change frames of grasps in self._current_grasp_list'''
+
+        if not self._current_grasp_list:
+            return
+        else:
+            pose_frame = self._external_ee_link
+            self._tf_listener.waitForTransform(pose_frame,
+                                 target_frame,
+                                 rospy.Time(0),
+                                 rospy.Duration(4.0))
+            (trans_diff, rot_diff) = self._tf_listener.lookupTransform(pose_frame, target_frame, rospy.Time(0))
+            new_list = []
+        
+            for pose in self._current_grasp_list:
+
+                rot_mat = Grasp._get_matrix_from_pose(pose)
+                x_axis = Vector3(rot_mat[0, 0], rot_mat[1, 0], rot_mat[2, 0])
+                y_axis = Vector3(rot_mat[0, 1], rot_mat[1, 1], rot_mat[2, 1])
+                z_axis = Vector3(rot_mat[0, 2], rot_mat[1, 2], rot_mat[2, 2])
+
+                pose_temp = PoseStamped()
+                pose_temp.header.frame_id = BASE_LINK
+                pose_temp.pose.position.x = pose.pose.position.x + x_axis.x*trans_diff[0] + y_axis.x*trans_diff[1] + z_axis.x*trans_diff[2]
+                pose_temp.pose.position.y = pose.pose.position.y + x_axis.y*trans_diff[0] + y_axis.y*trans_diff[1] + z_axis.y*trans_diff[2]
+                pose_temp.pose.position.z = pose.pose.position.z + x_axis.z*trans_diff[0] + y_axis.z*trans_diff[1] + z_axis.z*trans_diff[2]
+
+                q = [pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w]
+                q_new = tf.transformations.quaternion_multiply(q, rot_diff)
+                pose_temp.pose.orientation.x = q_new[0]
+                pose_temp.pose.orientation.y = q_new[1]
+                pose_temp.pose.orientation.z = q_new[2]
+                pose_temp.pose.orientation.w = q_new[3]
+                rospy.loginfo("Pose: {}".format(pose))
+                rospy.loginfo("Pose temp: {}".format(pose_temp))
+                new_list.append(pose_temp)
+            self._current_grasp_list = new_list
 
     def _update_menu(self):
         '''Recreates the menu when something has changed.'''
@@ -1284,9 +1353,8 @@ class Grasp(Primitive):
 
         resp = self._get_object_from_name_srv(self.get_ref_frame_name())
         self._suggest_grasps(resp.obj)
-        self.show_marker()
-        # self.update_viz()
         self.update_viz()
+        self.show_marker()
         self._action_change_cb()
         self._pose_change_cb()
 

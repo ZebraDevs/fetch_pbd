@@ -91,6 +91,10 @@ class Primitive:
         pass
 
     @abstractmethod
+    def head_busy(self):
+        pass
+
+    @abstractmethod
     def is_reachable(self):
         pass
 

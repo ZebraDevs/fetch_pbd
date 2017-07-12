@@ -12,6 +12,8 @@
 	<param name="to_file" value="$(arg to_file)" />
 	<arg name="grasp_suggestion_service" default="suggest_grasps" />
 	<param name="grasp_suggestion_service_name" value="$(arg grasp_suggestion_service)" />
+	<arg name="grasp_suggestion_ee_link" default="gripper_link" />
+	<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
 
 	<arg name="im_topic" default="world_objects" />
     <arg name="add_grasp_topic" default="add_grasp" />
@@ -51,9 +53,12 @@
     	<arg name="base_frame" value="$(arg base_frame)" />
 	</include>
 
+	<include file="$(find fetch_pbd_interaction)/launch/grasp_suggestion.launch" />
+
 	<!-- This runs the interaction node itself.	It is the main state
 	machine for interaction and PbD -->
 	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_interaction_node.py" output="screen">
 		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
+		<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
 	</node>
 </launch>
