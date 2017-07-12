@@ -288,6 +288,10 @@ class Session:
                 "Can't switch actions: failed to load action {}".format(
                     index))
             return False
+        else:
+            rospy.loginfo(
+                "Switching to action {}".format(
+                    index))
 
         self._current_action_id = index
         self._clear_world_objects_srv()
@@ -302,6 +306,7 @@ class Session:
                              "primitive_" + str(i),
                              rospy.Time.now(),
                              rospy.Duration(5.0))
+                rospy.loginfo("primitive: {}".format(action.get_primitive(i)))
                 action.get_primitive(i).update_viz(False)
             except Exception, e:
                 rospy.loginfo("Frame primitive_" + str(i) +
@@ -964,16 +969,17 @@ class Session:
         try:
             marker_pose = primitive.get_absolute_marker_pose()
             # rospy.loginfo("Publishing primitive TF")
-            pose = self._tf_listener.transformPose('base_link', marker_pose)
-            position = pose.pose.position
-            orientation = pose.pose.orientation
-            pos = (position.x, position.y, position.z)
-            rot = (orientation.x, orientation.y, orientation.z, orientation.w)
-            name = "primitive_" + str(primitive.get_number())
-            # TODO(mbforbes): Is it necessary to change the position
-            # and orientation into tuples to send to TF?
-            self._tf_broadcaster.sendTransform(
-                pos, rot, rospy.Time.now(), name, parent)
+            if marker_pose:
+                pose = self._tf_listener.transformPose('base_link', marker_pose)
+                position = pose.pose.position
+                orientation = pose.pose.orientation
+                pos = (position.x, position.y, position.z)
+                rot = (orientation.x, orientation.y, orientation.z, orientation.w)
+                name = "primitive_" + str(primitive.get_number())
+                # TODO(mbforbes): Is it necessary to change the position
+                # and orientation into tuples to send to TF?
+                self._tf_broadcaster.sendTransform(
+                    pos, rot, rospy.Time.now(), name, parent)
         except Exception, e:
-            # rospy.loginfo(str(e))
+            rospy.logwarn(str(e))
             pass

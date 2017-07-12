@@ -214,6 +214,8 @@ class Grasp(Primitive):
     def build_from_json(self, json):
         '''Fills out Grasp using json from db'''
 
+        rospy.loginfo("Json: {}".format(json))
+
         self._name = json['name']
         self._number = json['number']
         grasp_state_json = json['grasp_state']
@@ -293,6 +295,7 @@ class Grasp(Primitive):
 
     def show_marker(self):
         '''Adds marker for primitive'''
+        rospy.loginfo("Showing marker")
         self._marker_visible = False
         if self.update_ref_frames():
             try:
@@ -566,6 +569,10 @@ class Grasp(Primitive):
         '''
         if self._current_grasp_num is None:
             try:
+                height = self._grasp_state.ref_landmark.point_cloud.height
+                width = self._grasp_state.ref_landmark.point_cloud.width
+                if height * width == 0:
+                    return None
                 pose = PoseStamped(
                     header=self._grasp_state.ref_landmark.point_cloud.header, 
                     pose=self._grasp_state.ref_landmark.pose)
