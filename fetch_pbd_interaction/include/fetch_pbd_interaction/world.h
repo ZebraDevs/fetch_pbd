@@ -97,7 +97,7 @@ private:
     ros::Subscriber table_subscriber;
     ros::Subscriber object_subscriber;
     ros::ServiceClient segmentation_service_client;
-    // std::string segmented_objects_topic;
+    std::string segmented_objects_topic;
     bool has_surface;
     tf::TransformListener tf_listener;
     tf::TransformBroadcaster tf_broadcaster;

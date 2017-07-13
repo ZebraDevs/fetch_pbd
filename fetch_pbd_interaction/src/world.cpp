@@ -50,6 +50,7 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn, const std::string& im_topic,
 
   base_frame = base_frame_name;
   marker_duration = ros::Duration(0.0);
+  segmented_objects_topic = segmented_objects_topic_name;
   
   geometry_msgs::Vector3 scale_text = geometry_msgs::Vector3();
   scale_text.z = text_height;
@@ -65,7 +66,7 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn, const std::string& im_topic,
   update_world_service = n.advertiseService("update_world", &World::updateWorldCallback, this);
   // segmented_objects_topic = segmented_objects_topic_name;
   table_subscriber = n.subscribe(segmented_table_topic_name, 1, &World::tablePositionUpdateCallback, this);
-  object_subscriber = n.subscribe(segmented_objects_topic_name, 1, &World::objectsUpdateCallback, this);
+  // object_subscriber = n.subscribe(segmented_objects_topic_name, 1, &World::objectsUpdateCallback, this);
   has_surface = false;
   planning_scene_diff_publisher = n.advertise<moveit_msgs::PlanningScene>(planning_scene_topic, 1);
   menu_handler = interactive_markers::MenuHandler();
@@ -196,6 +197,9 @@ std::vector<fetch_pbd_interaction::Landmark> World::getObjectList(){
   for (int i=0; i < objects.size(); i++){
     object_list.push_back(objects[i].object);
   }
+  if (object_list.size() == 0){
+    ROS_WARN("No objects detected");
+  }
   return object_list;
 }
 
@@ -277,8 +281,8 @@ void World::recordObjectPose(){
   {
     std_srvs::Empty srv;
     segmentation_service_client.call(srv);
-    // rail_manipulation_msgs::SegmentedObjectListConstPtr msg = ros::topic::waitForMessage<rail_manipulation_msgs::SegmentedObjectList>(segmented_objects_topic);
-    // tabletopUpdate(msg);
+    rail_manipulation_msgs::SegmentedObjectListConstPtr msg = ros::topic::waitForMessage<rail_manipulation_msgs::SegmentedObjectList>(segmented_objects_topic);
+    objectsUpdateCallback(msg);
   }
   catch ( ros::Exception &e )
   {
@@ -292,8 +296,6 @@ void World::objectsUpdateCallback(const rail_manipulation_msgs::SegmentedObjectL
     im_server.erase(objects[i].int_marker.name);
     im_server.applyChanges();
   }
-  im_server.clear();
-  im_server.applyChanges();
   objects.clear();
   mutex.lock();
   bool added = false;
@@ -390,8 +392,6 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
 void World::tablePositionUpdateCallback(const rail_manipulation_msgs::SegmentedObjectPtr& msg){
   // resetObjects();
   removeSurfaceMarker();
-  im_server.clear();
-  im_server.applyChanges();
   // objects.clear();
   if (msg->point_cloud.height == 0 || msg->point_cloud.width == 0){
     ROS_WARN("No table detected");
