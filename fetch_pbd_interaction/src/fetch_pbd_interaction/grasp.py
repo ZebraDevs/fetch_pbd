@@ -356,9 +356,9 @@ class Grasp(Primitive):
             'Switching reference frame for primitive ' +
             self.get_name())
         self._menu_handler.reApply(self._im_server)
-        self._im_server.applyChanges()
         self.update_viz(False)
         self._action_change_cb()
+        self._im_server.applyChanges()
 
     def get_ref_frame_name(self):
         '''Returns the name string for the reference frame object of the
@@ -479,6 +479,7 @@ class Grasp(Primitive):
         Returns
             bool : Success of execution
         '''
+        rospy.loginfo("Executing grasp")
         if not self._robot.move_arm_to_pose(self._pre_grasp_state):
             return False
         if not self._robot.get_gripper_state() == GripperState.OPEN:
@@ -1357,7 +1358,6 @@ class Grasp(Primitive):
             feedback (InteractiveMarkerFeedback): Unused
         '''
         self.hide_marker()
-
         resp = self._get_object_from_name_srv(self.get_ref_frame_name())
         self._suggest_grasps(resp.obj)
         self.update_viz()

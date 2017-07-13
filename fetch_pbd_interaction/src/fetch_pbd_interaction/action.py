@@ -52,7 +52,9 @@ class Action:
     _marker_publisher = None
 
     def __init__(self, robot, tf_listener, im_server, primitive_click_cb,
-                 action_change_cb, action_id=None):
+                 action_change_cb, action_id=None, 
+                 grasp_suggestion_service=None,
+                 external_ee_link=None):
         '''
         Args:
             robot (Robot) : interface to lower level robot functionality
@@ -80,6 +82,8 @@ class Action:
 
         # Markers to connect consecutive primitives together
         self._link_markers = {}
+        self._grasp_suggestion_service = grasp_suggestion_service
+        self._external_ee_link = external_ee_link
 
         # TODO(sarah): Understand this note better
         # NOTE(mbforbes): It appears that this is locking manipulation
@@ -196,7 +200,9 @@ class Action:
             elif primitive.has_key('grasp'):
                 target = primitive['grasp']
                 primitive = Grasp(self._robot, self._tf_listener,
-                            self._im_server)
+                            self._im_server, 
+                            self._grasp_suggestion_service,
+                            self._external_ee_link)
                 primitive.build_from_json(target)
 
             self.add_primitive(primitive, False, False)
@@ -275,10 +281,8 @@ class Action:
 
             # self._marker_visibility.append(True)
             primitive.show_marker()
-
-            self._update_links()
-
             self._update_markers()
+
             self._lock.release()
             self.update_viz()
         else:

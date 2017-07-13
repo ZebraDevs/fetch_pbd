@@ -157,7 +157,9 @@ class Session:
                         self._im_server,
                         self._selected_primitive_cb,
                         self._action_change_cb,
-                        self._current_action_id)
+                        self._current_action_id,
+                        self._grasp_suggestion_service,
+                        self._external_ee_link)
         if not name is None:
             action.set_name(name)
         else:
@@ -399,7 +401,9 @@ class Session:
         for result in results:
             if int(result.value['id']) == action_id:
                 action = Action(self._robot, self._tf_listener, self._im_server,
-                           self._selected_primitive_cb, self._action_change_cb)
+                           self._selected_primitive_cb, self._action_change_cb,
+                           grasp_suggestion_service=self._grasp_suggestion_service,
+                           external_ee_link=self._external_ee_link)
                 result.value['id'] = new_id
                 action.build_from_json(result.value)
                 name = action.get_name()
@@ -586,16 +590,22 @@ class Session:
         Args:
             primitive_number (int)
         '''
+        rospy.loginfo("Executing primitive")
+
         action = self._actions[self._current_action_id]
         primitive = action.get_primitive(primitive_number)
         if primitive.is_object_required():
             # We need an object; check if we have one.
+            rospy.loginfo("Object required for execution")
             self._robot.look_down()
             resp = self._update_world_srv()
             if resp.object_list:
+                rospy.loginfo("Object list not empty")
                 # An object is required, and we got one. Execute.
                 self.get_current_action().update_objects()
                 primitive.execute()
+            else:
+                rospy.logwarn("Needs object(s) but none available")
         else:
             primitive.execute()
 
@@ -626,9 +636,9 @@ class Session:
                 # Now, see if we can execute.
                 if self.get_current_action().is_object_required():
                     # We need an object; check if we have one.
+                    rospy.loginfo("An object is required for this action")
                     self._robot.look_down()
                     resp = self._update_world_srv()
-
                     # objects = resp.objects
                     if resp.object_list:
                         # An object is required, and we got one. Execute.
@@ -648,6 +658,7 @@ class Session:
 
                     else:
                         # An object is required, but we didn't get it.
+                        rospy.logwarn("An object is required for this action but none were found")
                         return False
                 else:
                     # No object is required: start execution now.
@@ -924,7 +935,9 @@ class Session:
         # Load data from db into Action objects.
         for result in results:
             action = Action(self._robot, self._tf_listener, self._im_server,
-                       self._selected_primitive_cb, self._action_change_cb)
+                       self._selected_primitive_cb, self._action_change_cb, 
+                       grasp_suggestion_service=self._grasp_suggestion_service,
+                       external_ee_link=self._external_ee_link)
             action.build_from_json(result.value)
             self._actions[int(result.value['id'])] = action
             self._action_ids.append(int(result.value['id']))
@@ -947,7 +960,9 @@ class Session:
             keys.sort()
             for key in keys:
                 action = Action(self._robot, self._tf_listener, self._im_server,
-                           self._selected_primitive_cb, self._action_change_cb)
+                       self._selected_primitive_cb, self._action_change_cb,
+                       grasp_suggestion_service=self._grasp_suggestion_service,
+                       external_ee_link=self._external_ee_link)
                 action.build_from_json(self._json[key])
                 self._actions[int(self._json[key]['id'])] = action
                 self._action_ids.append(int(self._json[key]['id']))
