@@ -443,9 +443,10 @@ class Grasp(Primitive):
         if draw_markers and self._marker_visible:
             try:
                 self._update_menu()
-                self._update_viz_core(check_reachable)
-                self._menu_handler.apply(self._im_server, self.get_name())
-                self._im_server.applyChanges()
+                
+                if self._update_viz_core(check_reachable):
+                    self._menu_handler.apply(self._im_server, self.get_name())
+                    self._im_server.applyChanges()
             except Exception, e:
                 rospy.logwarn(e)
 
@@ -1196,8 +1197,17 @@ class Grasp(Primitive):
         #self._add_6dof_marker(int_marker, True)
         rospy.loginfo("Marker name: {}".format(self.get_name()))
         int_marker.controls.append(menu_control)
-        self._im_server.insert(
-            int_marker, self._marker_feedback_cb)
+        prev_marker = self._im_server.get(self.get_name())
+        if not prev_marker:
+            self._im_server.insert(
+                int_marker, self._marker_feedback_cb)
+            return True
+        elif prev_marker.pose != int_marker.pose:
+            rospy.loginfo("New marker")
+            self._im_server.insert(
+                int_marker, self._marker_feedback_cb)
+            return True
+        return False
 
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.
