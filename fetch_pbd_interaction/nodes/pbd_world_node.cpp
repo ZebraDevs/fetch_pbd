@@ -8,6 +8,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n, pn("~");
   ros::AsyncSpinner spinner(2);
   spinner.start();
+  std::string grasp_suggestion_service;
   std::string im_topic;
   std::string add_grasp_topic;
   std::string world_update_topic;
@@ -24,6 +25,7 @@ int main(int argc, char **argv)
   float text_offset;
   std::string base_frame;
 
+  pn.getParam("grasp_suggestion_service", grasp_suggestion_service);
   pn.getParam("interactive_marker_topic", im_topic);
   pn.getParam("add_grasp_topic", add_grasp_topic);
   pn.getParam("world_update_topic", world_update_topic);
@@ -40,7 +42,7 @@ int main(int argc, char **argv)
   pn.getParam("text_offset", text_offset);
   pn.getParam("base_frame", base_frame);
 
-  World world(n, pn, im_topic, 
+  World world(n, pn, grasp_suggestion_service, im_topic, 
               add_grasp_topic, world_update_topic,
               segmentation_service_name, segmented_objects_topic_name, segmented_table_topic_name,
               planning_scene_topic, obj_similar_dist_threshold, obj_add_dist_threshold,

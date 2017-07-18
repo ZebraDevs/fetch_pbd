@@ -10,7 +10,7 @@
 	<param name="from_file" value="$(arg from_file)" />
 	<arg name="to_file" default="" />
 	<param name="to_file" value="$(arg to_file)" />
-	<arg name="grasp_suggestion_service" default="suggest_grasps" />
+	<arg name="grasp_suggestion_service" default="" />
 	<param name="grasp_suggestion_service_name" value="$(arg grasp_suggestion_service)" />
 	<arg name="grasp_suggestion_ee_link" default="gripper_link" />
 	<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
@@ -34,6 +34,7 @@
 	<!-- This runs all of the prerequisite nodes for the PbD backend to
 	work, such as interactive manipulation backend and social gaze. -->
 	<include file="$(find fetch_pbd_interaction)/launch/pbd_prereqs.launch">
+		<arg name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
 		<arg name="social_gaze" value="$(arg social_gaze)" />
 		<arg name="play_sound" value="$(arg play_sound)" />
 		<arg name="im_topic" value="$(arg im_topic)" />
@@ -52,8 +53,6 @@
     	<arg name="text_offset" value="$(arg text_offset)" />
     	<arg name="base_frame" value="$(arg base_frame)" />
 	</include>
-
-	<include file="$(find fetch_pbd_interaction)/launch/grasp_suggestion.launch" />
 
 	<!-- This runs the interaction node itself.	It is the main state
 	machine for interaction and PbD -->

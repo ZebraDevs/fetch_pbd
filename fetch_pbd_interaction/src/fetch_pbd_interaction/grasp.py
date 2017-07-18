@@ -17,7 +17,7 @@ from visualization_msgs.msg import Marker, InteractiveMarker
 from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.menu_handler import MenuHandler
-from grasp_suggestion.srv import SuggestGrasps, SuggestGraspsRequest
+from rail_manipulation_msgs.srv import SuggestGrasps, SuggestGraspsRequest
 
 # Local
 from fetch_pbd_interaction.primitive import Primitive
@@ -1175,6 +1175,8 @@ class Grasp(Primitive):
             marker.type = Marker.CUBE
             marker.action = Marker.ADD
             marker.scale = self._grasp_state.ref_landmark.dimensions
+            marker.pose = Pose()
+            marker.pose.orientation.w = 1.0
             marker.color = COLOR_MESH_REACHABLE
             menu_control.markers.append(marker)
         else:

@@ -203,7 +203,8 @@ private:
 
 
 public:
-    World(ros::NodeHandle n, ros::NodeHandle pn, const std::string& im_topic, 
+    World(ros::NodeHandle n, ros::NodeHandle pn, 
+              const std::string grasp_suggestion_service, const std::string& im_topic, 
               const std::string& add_grasp_topic, const std::string& world_update_topic,
               const std::string& segmentation_service_name, const std::string& segmented_objects_topic_name,
               const std::string& segmented_table_topic_name, const std::string& planning_scene_topic, 

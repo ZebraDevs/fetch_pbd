@@ -261,7 +261,7 @@
       </div>
     </div>
 
-    <paper-dialog id="statusDialog">
+    <paper-dialog id="actionDialog">
       <h2>Status</h2>
       <p>'{{statusMessage}}'</p>
       <div class="buttons">
@@ -322,6 +322,8 @@
         inputSrv: Object,
         action_name : '',
         expListener : Object,
+        statusListener : Object,
+        loadedPublisher: Object,
         showMarkerIcon : {
           type: String,
           value: 'marker_icons:show_marker',
@@ -453,13 +455,23 @@
 
         this.statusListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/fetch_pbd_status',
+          name : '/current_action_status',
           messageType : 'std_msgs/String'
         });
 
         this.statusListener.subscribe(function(message) {
           that.statusCallback(that, message);
         });
+
+        this.loadedPublisher = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/action_loaded',
+          messageType : 'std_msgs/Empty'
+        });
+
+        var empty_msg = new ROSLIB.Message({});
+        this.loadedPublisher.publish(empty_msg);
+
       },
 
       isAbove : function(source, target) {
@@ -517,10 +529,12 @@
       },
 
       statusCallback : function(that, message) {
-        if (message.data != '' && screen.width > 500 ) {
+        console.log("Got status update");
+        if (message.data != '') {
           that.statusMessage = message.data;
-          var statusDialog = document.getElementById('statusDialog');
-          statusDialog.open();
+          console.log("Making dialog");
+          var actionDialog = document.getElementById('actionDialog');
+          actionDialog.open();
         }
       },
 

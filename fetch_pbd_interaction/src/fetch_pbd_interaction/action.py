@@ -102,7 +102,7 @@ class Action:
         # primitives that exist) was learned while this lock was acquired,
         # you cannot assume it is true.
         self._lock = threading.Lock()
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._status_publisher = rospy.Publisher('current_action_status',
                                                 String,
                                                 queue_size=10)
 
@@ -182,6 +182,7 @@ class Action:
         Args:
             dict : json/dict retrieved from couchdb
         '''
+        enabled = True
         self._action_id = json['id']
         self._name = json['name']
         self._primitive_counter = json['primitive_counter']
@@ -198,6 +199,8 @@ class Action:
                                   self._im_server)
                 primitive.build_from_json(target)
             elif primitive.has_key('grasp'):
+                if self._grasp_suggestion_service == "":
+                    enabled = False
                 target = primitive['grasp']
                 primitive = Grasp(self._robot, self._tf_listener,
                             self._im_server, 
@@ -208,6 +211,7 @@ class Action:
             self.add_primitive(primitive, False, False)
 
         self.reset_viz()
+        return enabled
 
     def start_execution(self):
         ''' Starts execution of action.

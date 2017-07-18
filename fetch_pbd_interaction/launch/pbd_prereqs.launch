@@ -14,6 +14,7 @@
     <arg name="camera_frame_prefix" default="/head_camera" />
     <arg name="camera_name" default="head_camera" />
 
+	<arg name="grasp_suggestion_service" default="" />
     <arg name="im_topic" default="world_objects" />
     <arg name="add_grasp_topic" default="add_grasps" />
     <arg name="world_update_topic" default="world_updates" />
@@ -49,6 +50,7 @@
 
 	<node name="fetch_pbd_arm_control" pkg="fetch_pbd_interaction" type="pbd_arm_control_node.py" output="screen" />
 	<node name="pbd_world_node" pkg="fetch_pbd_interaction" type="pbd_world_node" output="screen"> 
+		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
     	<param name="interactive_marker_topic" value="$(arg im_topic)" />
     	<param name="add_grasp_topic" value="$(arg add_grasp_topic)" />
     	<param name="world_update_topic" value="$(arg world_update_topic)" />

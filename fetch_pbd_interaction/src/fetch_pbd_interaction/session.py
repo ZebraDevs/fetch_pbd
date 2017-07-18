@@ -17,8 +17,10 @@ import json
 
 # ROS builtins
 from tf import TransformBroadcaster
-from std_srvs.srv import Empty
-from grasp_suggestion.srv import SuggestGrasps
+from std_srvs.srv import Empty as EmptySrv
+from std_msgs.msg import Empty as EmptyMsg
+from std_msgs.msg import String
+from rail_manipulation_msgs.srv import SuggestGrasps
 from geometry_msgs.msg import PoseStamped
 
 # Local
@@ -80,9 +82,14 @@ class Session:
         self._current_arm_trajectory = None
         self._marker_visibility = []
 
+        self._actions_disabled = []
+
         # Publishers & Services
         self._state_publisher = rospy.Publisher('session_state',
                                                 SessionState,
+                                                queue_size=10)
+        self._status_publisher = rospy.Publisher('actions_status',
+                                                String,
                                                 queue_size=10)
         rospy.Service('get_session_state', GetSessionState,
                       self._get_session_state_cb)
@@ -97,7 +104,7 @@ class Session:
 
 
         self._clear_world_objects_srv = \
-                        rospy.ServiceProxy('clear_world_objects', Empty)
+                        rospy.ServiceProxy('clear_world_objects', EmptySrv)
         rospy.wait_for_service('clear_world_objects')
         rospy.loginfo("Got clear_world_objects service.")
 
@@ -298,6 +305,10 @@ class Session:
         self._current_action_id = index
         self._clear_world_objects_srv()
         self._lock.release()
+        try:
+            rospy.wait_for_message('action_loaded', EmptyMsg, timeout=100)
+        except Exception, e:
+            rospy.logwarn("Timed out waiting for frontend to respond")
         self.get_current_action().initialize_viz()
         self._update_session_state()
         self.publish_primitive_tf()
@@ -850,6 +861,7 @@ class Session:
             self._get_action_names(),
             self._get_ref_frame_names(),
             self._get_primitive_names(),
+            self._get_actions_disabled(),
             self._get_marker_visibility(),
             self._get_primitives_editable(),
             [],
@@ -910,6 +922,17 @@ class Session:
         action = self._actions[self._current_action_id]
         return action.get_primitive_names()
 
+    def _get_actions_disabled(self):
+        '''Returns whether each action is disabled currently 
+        (due to grasp suggestion not being available)
+
+        Returns:
+            [bool]
+        '''
+        if not self._actions_disabled:
+            return [True] * self.n_actions()
+        return self._actions_disabled
+
     def _get_primitives_editable(self):
         '''Returns list of whether primitive poses are editable
 
@@ -938,7 +961,7 @@ class Session:
                        self._selected_primitive_cb, self._action_change_cb, 
                        grasp_suggestion_service=self._grasp_suggestion_service,
                        external_ee_link=self._external_ee_link)
-            action.build_from_json(result.value)
+            self._actions_disabled.append(not action.build_from_json(result.value))
             self._actions[int(result.value['id'])] = action
             self._action_ids.append(int(result.value['id']))
             self._update_db_with_action(action)
@@ -958,15 +981,20 @@ class Session:
 
             keys = self._json.keys()
             keys.sort()
+            self._actions_disabled = []
             for key in keys:
                 action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb,
                        grasp_suggestion_service=self._grasp_suggestion_service,
                        external_ee_link=self._external_ee_link)
-                action.build_from_json(self._json[key])
+                self._actions_disabled.append(not action.build_from_json(self._json[key]))
                 self._actions[int(self._json[key]['id'])] = action
                 self._action_ids.append(int(self._json[key]['id']))
                 self._update_db_with_action(action)
+
+        if True in self._actions_disabled:
+            self._status_publisher.publish(String("Some actions have been " +
+                       "diabled because they require grasp suggestion."))
 
         # if len(self._actions) > 0:
         #     # Select the starting action as the action with the largest id
