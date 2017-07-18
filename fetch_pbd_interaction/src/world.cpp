@@ -2,7 +2,8 @@
 
 namespace fetch_pbd_interaction {
 
-World::World(ros::NodeHandle n, ros::NodeHandle pn, const std::string& im_topic, 
+World::World(ros::NodeHandle n, ros::NodeHandle pn, 
+              const std::string grasp_suggestion_service, const std::string& im_topic, 
               const std::string& add_grasp_topic, const std::string& world_update_topic,
               const std::string& segmentation_service_name, const std::string& segmented_objects_topic_name,
               const std::string& segmented_table_topic_name, const std::string& planning_scene_topic, 
@@ -71,7 +72,9 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn, const std::string& im_topic,
   planning_scene_diff_publisher = n.advertise<moveit_msgs::PlanningScene>(planning_scene_topic, 1);
   menu_handler = interactive_markers::MenuHandler();
   menu_handler.insert("Remove from scene", boost::bind(&World::removeObject, this, _1));
-  menu_handler.insert("Add grasp", boost::bind(&World::addGrasp, this, _1));
+  if (grasp_suggestion_service != ""){
+    menu_handler.insert("Add grasp", boost::bind(&World::addGrasp, this, _1));
+  }
 
 }
 
@@ -196,6 +199,12 @@ std::vector<fetch_pbd_interaction::Landmark> World::getObjectList(){
   std::vector<fetch_pbd_interaction::Landmark> object_list;
   for (int i=0; i < objects.size(); i++){
     object_list.push_back(objects[i].object);
+    ROS_INFO("orientation now: %f, %f, %f, %f", 
+        objects[i].object.pose.orientation.x,
+        objects[i].object.pose.orientation.y,
+        objects[i].object.pose.orientation.z,
+        objects[i].object.pose.orientation.w
+        );
   }
   if (object_list.size() == 0){
     ROS_WARN("No objects detected");
@@ -308,6 +317,8 @@ void World::objectsUpdateCallback(const rail_manipulation_msgs::SegmentedObjectL
     geometry_msgs::Pose pose;
     getBoundingBox(pc2, &dimensions, &pose);
     added = addNewObject(pose, dimensions, pc2);
+    ROS_INFO("orientation now: %f, %f, %f, %f", pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w); 
+
   }
   if (!added){
     ROS_WARN("Failed to add object");
@@ -326,7 +337,7 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
   // ROS_INFO("Got transform for point cloud.");
   // tf_listener.lookupTransform(base_frame, pc2.header.frame_id, ros::Time(0), transform);
   // pcl_ros::transformPointCloud(base_frame, transform, pc2, transformed_cloud_msg);
- 
+  bool switched = false;
   pcl::fromROSMsg(pc2, cloud);
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr projected(new pcl::PointCloud<pcl::PointXYZRGB>(cloud));
@@ -342,11 +353,16 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
   // Because we projected points on the XY plane, we add in the Z vector as the
   // 3rd eigenvector.
   eigenvectors.col(2) = eigenvectors.col(0).cross(eigenvectors.col(1));
-  // ROS_INFO("eigenvectors z: %f, %f, %f", eigenvectors.col(2)(0), eigenvectors.col(2)(1), eigenvectors.col(2)(2));
   if(eigenvectors.col(2)(2) < 0.0){
     //switch axes
-    eigenvectors.col(2)(2) = 1.0;
+    switched = true;
+    Eigen::Matrix3f eigenvectors_temp;
+    eigenvectors_temp.col(0) = eigenvectors.col(1);
+    eigenvectors_temp.col(1) = eigenvectors.col(0);
+    eigenvectors_temp.col(2) = eigenvectors_temp.col(0).cross(eigenvectors_temp.col(1));
+    eigenvectors = eigenvectors_temp;
   }
+  ROS_INFO("eigenvectors z: %f, %f, %f", eigenvectors.col(2)(0), eigenvectors.col(2)(1), eigenvectors.col(2)(2));
 
   Eigen::Quaternionf q1(eigenvectors);
   // Find min/max x and y, based on the points in eigenspace.
@@ -383,10 +399,18 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
   pose->orientation.x = q1.x();
   pose->orientation.y = q1.y();
   pose->orientation.z = q1.z();
+  ROS_INFO("orientation: %f, %f, %f, %f", q1.x(), q1.y(), q1.z(), q1.w()); 
   // Output dimensions.
-  dimensions->x = x_length;
-  dimensions->y = y_length;
-  dimensions->z = z_length;
+  if (!switched){
+    dimensions->x = x_length;
+    dimensions->y = y_length;
+    dimensions->z = z_length;
+  }
+  else {
+    dimensions->x = y_length;
+    dimensions->y = x_length;
+    dimensions->z = z_length;
+  }
 }
 
 void World::tablePositionUpdateCallback(const rail_manipulation_msgs::SegmentedObjectPtr& msg){
@@ -585,8 +609,19 @@ void World::removeSurfaceFromPlanningScene(){
 void World::publishTfPose(geometry_msgs::Pose pose, std::string name, std::string parent){
   tf::Transform transform;
   transform.setOrigin( tf::Vector3(pose.position.x, pose.position.y, pose.position.z));
-  tf::Quaternion q(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+  tf::Quaternion q;
+  tf::quaternionMsgToTF(pose.orientation, q); 
+  ROS_INFO("orientation tf: %f, %f, %f, %f", 
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+        pose.orientation.w
+        );
   transform.setRotation(q);
+  tf::Quaternion qu = transform.getRotation();
+  ROS_INFO("orientation tf again: %f", 
+        qu.getW()
+        );
   if (name == ""){
     ROS_INFO("No name");
   }
