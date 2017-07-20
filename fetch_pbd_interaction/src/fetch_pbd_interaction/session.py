@@ -46,6 +46,7 @@ class Session:
     def __init__(self, robot, _tf_listener, im_server, 
                 from_file=None, to_file=None, 
                 grasp_suggestion_service_name=None,
+                grasp_feedback_topic=None,
                 external_ee_link=None):
         '''
         Args:
@@ -57,6 +58,7 @@ class Session:
         self._from_file = from_file
         self._to_file = to_file
         self._grasp_suggestion_service = grasp_suggestion_service_name
+        self._grasp_feedback_topic = grasp_feedback_topic
         self._external_ee_link = external_ee_link
         
         self._json = {}
@@ -85,33 +87,32 @@ class Session:
         self._actions_disabled = []
 
         # Publishers & Services
-        self._state_publisher = rospy.Publisher('session_state',
+        self._state_publisher = rospy.Publisher('/fetch_pbd/session_state',
                                                 SessionState,
                                                 queue_size=10)
-        self._status_publisher = rospy.Publisher('actions_status',
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10)
-        rospy.Service('get_session_state', GetSessionState,
+        rospy.Service('/fetch_pbd/get_session_state', GetSessionState,
                       self._get_session_state_cb)
-        rospy.Subscriber('add_grasp', Landmark,
-                      self._add_grasp)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
-                                                       GetObjectList)
-        self._update_world_srv = rospy.ServiceProxy('update_world',
+        
+        self._get_object_list_srv = rospy.ServiceProxy(
+                                                '/fetch_pbd/get_object_list',
+                                                GetObjectList)
+        self._update_world_srv = rospy.ServiceProxy('/fetch_pbd/update_world',
                                                     GetObjectList)
-        rospy.wait_for_service('update_world')
+        rospy.wait_for_service('/fetch_pbd/update_world')
         rospy.loginfo("Got update_world service.")
 
 
         self._clear_world_objects_srv = \
-                        rospy.ServiceProxy('clear_world_objects', EmptySrv)
-        rospy.wait_for_service('clear_world_objects')
+                        rospy.ServiceProxy('/fetch_pbd/clear_world_objects', 
+                                            EmptySrv)
+        rospy.wait_for_service('/fetch_pbd/clear_world_objects')
         rospy.loginfo("Got clear_world_objects service.")
 
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
-        # if not self._current_action_id is None:
-        #     self._marker_visibility = [True] * self.n_primitives()
 
         # Send initial broadcast of experiment state.
         self._update_session_state()
@@ -139,14 +140,14 @@ class Session:
             primitive_id (int): ID of the primitive to select.
         '''
         # If already selected, un-select, else select
-        rospy.loginfo("new: {}, selected: {}".format(primitive_id, self._selected_primitive))
+        rospy.loginfo("new: {}, selected: {}".format(primitive_id, 
+                        self._selected_primitive))
         if primitive_id == self._selected_primitive:
             is_selected = False
         else:
             is_selected = True
-        self._actions[self._current_action_id].select_primitive(primitive_id, is_selected)
-        # self._selected_primitive = primitive_id
-
+        self._actions[self._current_action_id].select_primitive(primitive_id, 
+                                                                is_selected)
 
     def new_action(self, name=None):
         '''Creates new action.'''
@@ -166,16 +167,18 @@ class Session:
                         self._action_change_cb,
                         self._current_action_id,
                         self._grasp_suggestion_service,
+                        self._grasp_feedback_topic,
                         self._external_ee_link)
         if not name is None:
             action.set_name(name)
         else:
             time_str = datetime.datetime.now().strftime('%c')
-            action.set_name('Untitled action {}'.format(time_str))
+            action.set_name("Untitled action {}".format(time_str))
 
         self._actions.update({
             self._current_action_id: action
         })
+        self._actions_disabled.append(False)
         self._action_ids.append(self._current_action_id)
         self._marker_visibility = [True] * self.n_primitives()
         self._update_session_state()
@@ -258,8 +261,26 @@ class Session:
             rospy.logwarn("Can't add primitive: No actions created yet.")
         self._update_session_state()
 
-    def add_grasp_to_action(self):
-        '''Add a grasp primitive to the current action.'''
+    def add_grasp_to_action(self, landmark):
+        '''Add a grasp primitive to the current action.
+
+        Args:
+            landmark (Landmark)
+        '''
+        if self.n_actions() > 0:
+            current_action = self._actions[self._current_action_id]
+            primitive_number = current_action.n_primitives()
+            grasp = Grasp(self._robot, self._tf_listener, 
+                              self._im_server, 
+                              self._grasp_suggestion_service,
+                              self._grasp_feedback_topic,
+                              self._external_ee_link, 
+                              landmark,
+                              primitive_number)
+            current_action.add_primitive(grasp)            
+        else:
+            rospy.logwarn("Can't add grasp: No actions created yet.")
+        self._update_session_state()
 
     def delete_last_primitive(self):
         '''Removes the last primitive of the action.'''
@@ -306,7 +327,7 @@ class Session:
         self._clear_world_objects_srv()
         self._lock.release()
         try:
-            rospy.wait_for_message('action_loaded', EmptyMsg, timeout=100)
+            rospy.wait_for_message('/fetch_pbd/action_loaded', EmptyMsg, timeout=100)
         except Exception, e:
             rospy.logwarn("Timed out waiting for frontend to respond")
         self.get_current_action().initialize_viz()
@@ -350,7 +371,7 @@ class Session:
         '''
         index = self._action_ids.index(self._current_action_id)
         if index == len(self._actions) - 1:
-            rospy.logerr('Already on the last action.')
+            rospy.logerr("Already on the last action.")
             return False
         action_id = self._action_ids[index + 1]
         return self.switch_to_action_by_index(action_id)
@@ -363,7 +384,7 @@ class Session:
         '''
         index = self._action_ids.index(self._current_action_id)
         if index == 0:
-            rospy.logerr('Already on the first action.')
+            rospy.logerr("Already on the first action.")
             return False
         action_id = self._action_ids[index - 1]
         return self.switch_to_action_by_index(action_id)
@@ -414,6 +435,7 @@ class Session:
                 action = Action(self._robot, self._tf_listener, self._im_server,
                            self._selected_primitive_cb, self._action_change_cb,
                            grasp_suggestion_service=self._grasp_suggestion_service,
+                           grasp_feedback_topic=self._grasp_feedback_topic,
                            external_ee_link=self._external_ee_link)
                 result.value['id'] = new_id
                 action.build_from_json(result.value)
@@ -469,6 +491,7 @@ class Session:
                                                self._tf_listener,
                                                self._im_server,
                                                self._grasp_suggestion_service,
+                                               self._grasp_feedback_topic,
                                                self._external_ee_link)
                             primitive_copy.build_from_json(target)
                             primitive_copy.set_primitive_number(new_num)
@@ -653,45 +676,56 @@ class Session:
                     # objects = resp.objects
                     if resp.object_list:
                         # An object is required, and we got one. Execute.
-                        self.get_current_action().update_objects()
-                        self.get_current_action().start_execution()
+                        action = self.get_current_action()
+                        action.update_objects()
+                        action.start_execution()
                         # Wait a certain max time for execution to finish
                         for i in range(1000):
-                            action = self.get_current_action()
                             status = action.get_status()
                             if status != ExecutionStatus.EXECUTING:
                                 break
+                            if i % 10 == 0:
+                                rospy.loginfo("Still executing")
                             rospy.sleep(0.1)
                         if status == ExecutionStatus.SUCCEEDED:
+                            action.end_execution()
                             return True
                         else:
+                            action.end_execution()
                             return False
 
                     else:
                         # An object is required, but we didn't get it.
-                        rospy.logwarn("An object is required for this action but none were found")
+                        rospy.logwarn("An object is required for" + 
+                                        " this action but none were found")
                         return False
                 else:
                     # No object is required: start execution now.
-                    self.get_current_action().start_execution()
+                    action = self.get_current_action()
+                    action.start_execution()
 
                     for i in range(1000):
-                        action = self.get_current_action()
+                        
                         status = action.get_status()
                         if status != ExecutionStatus.EXECUTING:
                             break
+                        if i % 10 == 0:
+                            rospy.loginfo("Still executing")
                         rospy.sleep(0.1)
                     if status == ExecutionStatus.SUCCEEDED:
+                        action.end_execution()
                         return True
                     else:
+                        rospy.logwarn("Execution failed, with status: {}".format(status))
+                        action.end_execution()
                         return False
             else:
                 # No primitives / poses / frames recorded.
-                rospy.loginfo("No primitives recorded")
+                rospy.logwarn("No primitives recorded")
                 return False
         else:
             # No actions.
-            rospy.loginfo("No current action")
+            rospy.logwarn("No current action")
             return False
 
     def publish_primitive_tf(self):
@@ -715,36 +749,9 @@ class Session:
         action = self._actions[self._current_action_id]
         action.update_primitive_pose(primitive_number, position, orientation)
 
-    # def update_viz(self):
-    #     '''Updates visualization, specifically links between markerks'''
-    #     if not self._current_action_id is None:
-    #         self._lock.acquire()
-    #         action = self._actions[self._current_action_id]
-    #         action.update_viz()
-    #         self._lock.release()
-
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
-
-    def _add_grasp(self, msg):
-        '''Callback to add a grasp for the specified object to 
-        the current action
-        '''
-        rospy.loginfo("Asking for grasp suggestions from service!")
-        if self.n_actions() > 0:
-            current_action = self._actions[self._current_action_id]
-            primitive_number = current_action.n_primitives()
-            grasp = Grasp(self._robot, self._tf_listener, 
-                              self._im_server, 
-                              self._grasp_suggestion_service,
-                              self._external_ee_link, 
-                              msg,
-                              primitive_number)
-            current_action.add_primitive(grasp)            
-        else:
-            rospy.logwarn("Can't add primitive: No actions created yet.")
-        self._update_session_state()
 
     def _get_marker_visibility(self):
         '''Get the visibility of the markers
@@ -960,8 +967,10 @@ class Session:
             action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb, 
                        grasp_suggestion_service=self._grasp_suggestion_service,
+                       grasp_feedback_topic=self._grasp_feedback_topic,
                        external_ee_link=self._external_ee_link)
-            self._actions_disabled.append(not action.build_from_json(result.value))
+            success = action.build_from_json(result.value)
+            self._actions_disabled.append(not success)
             self._actions[int(result.value['id'])] = action
             self._action_ids.append(int(result.value['id']))
             self._update_db_with_action(action)
@@ -986,8 +995,10 @@ class Session:
                 action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb,
                        grasp_suggestion_service=self._grasp_suggestion_service,
+                       grasp_feedback_topic=self._grasp_feedback_topic,
                        external_ee_link=self._external_ee_link)
-                self._actions_disabled.append(not action.build_from_json(self._json[key]))
+                success = action.build_from_json(self._json[key])
+                self._actions_disabled.append(not success)
                 self._actions[int(self._json[key]['id'])] = action
                 self._action_ids.append(int(self._json[key]['id']))
                 self._update_db_with_action(action)
@@ -1017,7 +1028,8 @@ class Session:
                 position = pose.pose.position
                 orientation = pose.pose.orientation
                 pos = (position.x, position.y, position.z)
-                rot = (orientation.x, orientation.y, orientation.z, orientation.w)
+                rot = (orientation.x, orientation.y, 
+                        orientation.z, orientation.w)
                 name = "primitive_" + str(primitive.get_number())
                 # TODO(mbforbes): Is it necessary to change the position
                 # and orientation into tuples to send to TF?
@@ -1025,4 +1037,3 @@ class Session:
                     pos, rot, rospy.Time.now(), name, parent)
         except Exception, e:
             rospy.logwarn(str(e))
-            pass

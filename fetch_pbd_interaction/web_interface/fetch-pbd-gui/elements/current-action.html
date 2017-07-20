@@ -389,7 +389,7 @@
         this.markerClient = new ROS3D.MarkerArrayClient({
           ros : this.ros,
           tfClient : this.tfClient,
-          topic : '/visualization_marker_array',
+          topic : '/fetch_pbd/visualization_marker_array',
           rootObject : this._viewer.scene
         });
 
@@ -407,7 +407,7 @@
           ros : this.ros,
           tfClient : this.tfClient,
           path : 'http://resources.robotwebtools.org/',
-          topic : 'programmed_actions',
+          topic : '/fetch_pbd/programmed_actions',
           camera : this._viewer.camera,
           rootObject : this._viewer.selectableObjects
         });
@@ -416,7 +416,7 @@
           ros : this.ros,
           tfClient : this.tfClient,
           path : 'http://resources.robotwebtools.org/',
-          topic : 'world_objects',
+          topic : '/fetch_pbd/world_objects',
           camera : this._viewer.camera,
           rootObject : this._viewer.selectableObjects
         });
@@ -427,13 +427,13 @@
 
         this.inputSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/gui_input',
+          name : '/fetch_pbd/gui_input',
           serviceType : 'fetch_pbd_interaction/GuiInput'
         });
 
         this.expSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/get_session_state',
+          name : '/fetch_pbd/get_session_state',
           serviceType : 'fetch_pbd_interaction/GetSessionState'
         });
 
@@ -445,7 +445,7 @@
 
         this.expListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/session_state',
+          name : '/fetch_pbd/session_state',
           messageType : 'fetch_pbd_interaction/SessionState'
         });
 
@@ -455,7 +455,7 @@
 
         this.statusListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/current_action_status',
+          name : '/fetch_pbd/fetch_pbd_status',
           messageType : 'std_msgs/String'
         });
 
@@ -465,7 +465,7 @@
 
         this.loadedPublisher = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/action_loaded',
+          name : '/fetch_pbd/action_loaded',
           messageType : 'std_msgs/Empty'
         });
 

@@ -3,8 +3,7 @@
 namespace fetch_pbd_interaction {
 
 World::World(ros::NodeHandle n, ros::NodeHandle pn, 
-              const std::string grasp_suggestion_service, const std::string& im_topic, 
-              const std::string& add_grasp_topic, const std::string& world_update_topic,
+              const std::string grasp_suggestion_service,
               const std::string& segmentation_service_name, const std::string& segmented_objects_topic_name,
               const std::string& segmented_table_topic_name, const std::string& planning_scene_topic, 
               const float&  obj_similar_distance_threshold, const float&  obj_add_distance_threshold,
@@ -12,7 +11,7 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn,
               const float& obj_distance_zero_clamp, const float& text_h, 
               const float&  surface_h, const float&  text_off, 
               const std::string& base_frame_name)
-              : im_server(im_topic){
+              : im_server("/fetch_pbd/world_objects"){
   // Two objects must be closer than this to be considered 'the same'.
   obj_similar_dist_threshold = obj_similar_distance_threshold;
 
@@ -56,15 +55,15 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn,
   geometry_msgs::Vector3 scale_text = geometry_msgs::Vector3();
   scale_text.z = text_height;
 
-  add_grasp_pub = n.advertise<fetch_pbd_interaction::Landmark>(add_grasp_topic, 100);
-  world_update_pub = n.advertise<fetch_pbd_interaction::WorldState>(world_update_topic, 100);
+  add_grasp_pub = n.advertise<fetch_pbd_interaction::Landmark>("/fetch_pbd/add_grasp", 100);
+  world_update_pub = n.advertise<fetch_pbd_interaction::WorldState>("/fetch_pbd/world_updates", 100);
   segmentation_service_client =  n.serviceClient<std_srvs::Empty>(segmentation_service_name);
-  nearest_object_service = n.advertiseService("get_nearest_object", &World::getNearestObjectCallback, this);
-  object_list_service = n.advertiseService("get_object_list", &World::getObjectListCallback, this);
-  similar_object_service = n.advertiseService("get_most_similar_object", &World::getMostSimilarObjectCallback, this);
-  object_from_name_service = n.advertiseService("get_object_from_name", &World::getObjectFromNameCallback, this);
-  clear_world_objects_service = n.advertiseService("clear_world_objects", &World::clearObjectsCallback, this);
-  update_world_service = n.advertiseService("update_world", &World::updateWorldCallback, this);
+  nearest_object_service = n.advertiseService("/fetch_pbd/get_nearest_object", &World::getNearestObjectCallback, this);
+  object_list_service = n.advertiseService("/fetch_pbd/get_object_list", &World::getObjectListCallback, this);
+  similar_object_service = n.advertiseService("/fetch_pbd/get_most_similar_object", &World::getMostSimilarObjectCallback, this);
+  object_from_name_service = n.advertiseService("/fetch_pbd/get_object_from_name", &World::getObjectFromNameCallback, this);
+  clear_world_objects_service = n.advertiseService("/fetch_pbd/clear_world_objects", &World::clearObjectsCallback, this);
+  update_world_service = n.advertiseService("/fetch_pbd/update_world", &World::updateWorldCallback, this);
   // segmented_objects_topic = segmented_objects_topic_name;
   table_subscriber = n.subscribe(segmented_table_topic_name, 1, &World::tablePositionUpdateCallback, this);
   // object_subscriber = n.subscribe(segmented_objects_topic_name, 1, &World::objectsUpdateCallback, this);
@@ -199,12 +198,6 @@ std::vector<fetch_pbd_interaction::Landmark> World::getObjectList(){
   std::vector<fetch_pbd_interaction::Landmark> object_list;
   for (int i=0; i < objects.size(); i++){
     object_list.push_back(objects[i].object);
-    ROS_INFO("orientation now: %f, %f, %f, %f", 
-        objects[i].object.pose.orientation.x,
-        objects[i].object.pose.orientation.y,
-        objects[i].object.pose.orientation.z,
-        objects[i].object.pose.orientation.w
-        );
   }
   if (object_list.size() == 0){
     ROS_WARN("No objects detected");
@@ -317,8 +310,6 @@ void World::objectsUpdateCallback(const rail_manipulation_msgs::SegmentedObjectL
     geometry_msgs::Pose pose;
     getBoundingBox(pc2, &dimensions, &pose);
     added = addNewObject(pose, dimensions, pc2);
-    ROS_INFO("orientation now: %f, %f, %f, %f", pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w); 
-
   }
   if (!added){
     ROS_WARN("Failed to add object");
@@ -362,7 +353,6 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
     eigenvectors_temp.col(2) = eigenvectors_temp.col(0).cross(eigenvectors_temp.col(1));
     eigenvectors = eigenvectors_temp;
   }
-  ROS_INFO("eigenvectors z: %f, %f, %f", eigenvectors.col(2)(0), eigenvectors.col(2)(1), eigenvectors.col(2)(2));
 
   Eigen::Quaternionf q1(eigenvectors);
   // Find min/max x and y, based on the points in eigenspace.
@@ -399,7 +389,6 @@ void World::getBoundingBox(sensor_msgs::PointCloud2 pc2, geometry_msgs::Vector3*
   pose->orientation.x = q1.x();
   pose->orientation.y = q1.y();
   pose->orientation.z = q1.z();
-  ROS_INFO("orientation: %f, %f, %f, %f", q1.x(), q1.y(), q1.z(), q1.w()); 
   // Output dimensions.
   if (!switched){
     dimensions->x = x_length;
@@ -473,7 +462,7 @@ bool World::getNearestObjectCallback(fetch_pbd_interaction::GetNearestObject::Re
   }
 
   if (distances.size() > 0){
-    int min = *std::min_element(distances.begin(), distances.end());
+    float min = *std::min_element(distances.begin(), distances.end());
     if (min < obj_nearest_dist_threshold){
       for (int i=0; i < distances.size(); i++){
         if (distances[i] == min) {
@@ -483,6 +472,9 @@ bool World::getNearestObjectCallback(fetch_pbd_interaction::GetNearestObject::Re
         }
       }
     }
+  }
+  else {
+    ROS_INFO("No objects");
   }
   resp.has_nearest = false;
   return true;
@@ -611,17 +603,9 @@ void World::publishTfPose(geometry_msgs::Pose pose, std::string name, std::strin
   transform.setOrigin( tf::Vector3(pose.position.x, pose.position.y, pose.position.z));
   tf::Quaternion q;
   tf::quaternionMsgToTF(pose.orientation, q); 
-  ROS_INFO("orientation tf: %f, %f, %f, %f", 
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w
-        );
+
   transform.setRotation(q);
-  tf::Quaternion qu = transform.getRotation();
-  ROS_INFO("orientation tf again: %f", 
-        qu.getW()
-        );
+
   if (name == ""){
     ROS_INFO("No name");
   }
@@ -639,8 +623,10 @@ void World::removeObject(const visualization_msgs::InteractiveMarkerFeedbackCons
   getObjectFromNameCallback(req, resp);
   for (int i=0; i < objects.size(); i ++){
     if (objects[i].object.name == resp.obj.name){
-      objects.erase(objects.begin() + i );
+      ROS_INFO("deleting %s", objects[i].int_marker.name.c_str());
+      ROS_INFO("want to delete %s", feedback->marker_name.c_str()); 
       im_server.erase(objects[i].int_marker.name);
+      objects.erase(objects.begin() + i );
       im_server.applyChanges();
       break;
     }

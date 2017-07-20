@@ -5,6 +5,8 @@ where the arm moves to a single pose.
 # ######################################################################
 # Imports
 # ######################################################################
+# System builtins
+import math
 
 # Core ROS imports come first.
 import rospy
@@ -108,7 +110,7 @@ class ArmTarget(Primitive):
             number (int, optional): The number of this primitive in the
             action sequence
         '''
-        self._name = '' #Unused currently
+        self._name = "" #Unused currently
         self._im_server = im_server
         self._robot = robot
         self._arm_state = arm_state
@@ -133,14 +135,15 @@ class ArmTarget(Primitive):
         self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
-                                                       GetObjectList)
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._get_object_list_srv = rospy.ServiceProxy(
+                                        '/fetch_pbd/get_object_list',
+                                        GetObjectList)
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10,
                                                 latch=True)
@@ -335,7 +338,7 @@ class ArmTarget(Primitive):
             self._color_mesh_reachable = COLOR_MESH_REACHABLE
             self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
 
-        self.update_viz(False)
+        # self.update_viz(False)
 
     def is_selected(self):
         '''Return whether or not primitive is selected
@@ -382,6 +385,7 @@ class ArmTarget(Primitive):
                     self._menu_handler.apply(self._im_server, self.get_name())
                     self._im_server.applyChanges()
             except Exception, e:
+                rospy.logwarn("Error when updating primitive viz")
                 rospy.logwarn(e)
 
     def get_primitive_number(self):
@@ -675,6 +679,20 @@ class ArmTarget(Primitive):
         return pose
 
     @staticmethod
+    def _diff(float1, float2, thresh):
+        '''Return true if floats are different by a threshold
+
+        Args:
+            float1 (float)
+            float2 (float)
+            thresh (float)
+        '''
+        if math.fabs(float1 - float2) < thresh:
+            return False
+        else:
+            return True
+
+    @staticmethod
     def _offset_pose(pose, constant=1):
         '''Offsets the world pose for visualization.
 
@@ -754,7 +772,6 @@ class ArmTarget(Primitive):
 
     def _update_menu(self):
         '''Recreates the menu when something has changed.'''
-
         rospy.loginfo("Making new menu")
         self._menu_handler = MenuHandler()
 
@@ -813,7 +830,6 @@ class ArmTarget(Primitive):
             MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
 
         # Update.
-        rospy.loginfo("Viz core")
 
     def _get_menu_ref_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
@@ -999,7 +1015,10 @@ class ArmTarget(Primitive):
             return
 
         if check_reachable:
-            self.is_reachable()
+            if not self.is_reachable():
+                rospy.logwarn("Marker pose not reachable")
+            else:
+                rospy.loginfo("Marker pose is reachable")
 
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
@@ -1013,15 +1032,28 @@ class ArmTarget(Primitive):
         self._add_6dof_marker(int_marker, True)
         int_marker.controls.append(menu_control)
         prev_marker = self._im_server.get(self.get_name())
+        prev_color = None
+        if not prev_marker is None:
+            if len(prev_marker.controls) > 0:
+                if len(prev_marker.controls[-1].markers) > 0:
+                    prev_color = prev_marker.controls[-1].markers[-1].color
+        new_color = None
+        if len(int_marker.controls) > 0:
+            if len(int_marker.controls[-1].markers) > 0:
+                new_color = int_marker.controls[-1].markers[-1].color
+
         if not prev_marker:
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
+            rospy.logwarn("Adding marker for primitive {}".format(self.get_number()))
             return True
-        elif prev_marker.pose != int_marker.pose:
-            rospy.loginfo("New marker")
+        elif (prev_marker.pose != int_marker.pose) or (prev_color != new_color):
+            rospy.loginfo("Updating marker")
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
             return True
+
+        rospy.logwarn("Not updating marker for primitive {}".format(self.get_number()))
         return False
 
     def _add_6dof_marker(self, int_marker, is_fixed):
@@ -1094,6 +1126,48 @@ class ArmTarget(Primitive):
                                                     pose_stamped_transformed,
                                                     -1)
         self.update_viz()
+
+    def _pose_changed(self, new_pose, frame_id):
+        '''Check if marker pose has changed
+
+        Args: 
+            pose (Pose)
+        '''
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = frame_id
+        pose_stamped.pose = new_pose
+        pose_stamped_transformed = self._tf_listener.transformPose(
+                                                    self.get_ref_frame_name(),
+                                                    pose_stamped)
+        offset_pose = ArmTarget._offset_pose(pose_stamped_transformed,
+                                                    -1)
+        if ArmTarget._diff(offset_pose.pose.position.x, 
+                            self._arm_state.ee_pose.pose.position.x,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.position.y, 
+                            self._arm_state.ee_pose.pose.position.y,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.position.z, 
+                            self._arm_state.ee_pose.pose.position.z,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.orientation.x, 
+                            self._arm_state.ee_pose.pose.orientation.x,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.y, 
+                            self._arm_state.ee_pose.pose.orientation.y,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.z, 
+                            self._arm_state.ee_pose.pose.orientation.z,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.w, 
+                            self._arm_state.ee_pose.pose.orientation.w,
+                            0.01):
+            rospy.loginfo("New pose: {}".format(new_pose))
+            rospy.loginfo("New pose transformed: {}".format(offset_pose))
+            rospy.loginfo("Old pose: {}".format(self._arm_state.ee_pose))
+            return True
+        else:
+            return False
 
     def _get_mesh_marker_color(self):
         '''Gets the color for the mesh marker (thing that looks like a
@@ -1245,19 +1319,24 @@ class ArmTarget(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
-            rospy.logdebug('Changing visibility of the pose controls.')
-            self._is_control_visible = not self._is_control_visible
-            self._marker_click_cb(
-                self._number, self._is_control_visible)
-        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._set_new_pose(feedback.pose, feedback.header.frame_id)
-            self._pose_change_cb()
-            self._action_change_cb()
+            if self._pose_changed(feedback.pose, feedback.header.frame_id):
+                rospy.loginfo('Pose change.')
+                self._set_new_pose(feedback.pose, feedback.header.frame_id)
+                self._pose_change_cb()
+                self._action_change_cb()
+            else:
+                rospy.loginfo('Changing visibility of the pose controls.')
+                self._is_control_visible = not self._is_control_visible
+                self._marker_click_cb(
+                    self._number, self._is_control_visible)
+                self._set_new_pose(feedback.pose, feedback.header.frame_id)
+                self._pose_change_cb()
+                self._action_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls

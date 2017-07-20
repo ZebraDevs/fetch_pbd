@@ -99,7 +99,7 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_relative_pose(self):
+    def get_relative_pose(self, use_final=True):
         pass
 
     @abstractmethod

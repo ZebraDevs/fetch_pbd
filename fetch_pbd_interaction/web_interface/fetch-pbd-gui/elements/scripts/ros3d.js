@@ -1102,10 +1102,10 @@ ROS3D.InteractiveMarkerControl = function(options) {
     this.addEventListener('mouseup', this.parent.stopDrag.bind(this.parent, this));
     this.addEventListener('contextmenu', this.parent.showMenu.bind(this.parent, this));
     this.addEventListener('mouseup', function(event3d) {
-      if (that.startMousePos.distanceToSquared(event3d.mousePos) === 0) {
-        event3d.type = 'contextmenu';
-        that.dispatchEvent(event3d);
-      }
+      // if (that.startMousePos.distanceToSquared(event3d.mousePos) === 0) {
+      //   event3d.type = 'contextmenu';
+      //   that.dispatchEvent(event3d);
+      // }
     });
     this.addEventListener('mouseover', stopPropagation);
     this.addEventListener('mouseout', stopPropagation);
@@ -1399,6 +1399,7 @@ ROS3D.InteractiveMarkerHandle.prototype.onButtonClick = function(event) {
  * @param event - the event associated with the mousedown
  */
 ROS3D.InteractiveMarkerHandle.prototype.onMouseDown = function(event) {
+  this.sendFeedback(ROS3D.INTERACTIVE_MARKER_POSE_UPDATE, event.clickPosition, 0, event.controlName);
   this.sendFeedback(ROS3D.INTERACTIVE_MARKER_MOUSE_DOWN, event.clickPosition, 0, event.controlName);
   this.dragging = true;
 };
@@ -1409,6 +1410,7 @@ ROS3D.InteractiveMarkerHandle.prototype.onMouseDown = function(event) {
  * @param event - the event associated with the mouseup
  */
 ROS3D.InteractiveMarkerHandle.prototype.onMouseUp = function(event) {
+  this.sendFeedback(ROS3D.INTERACTIVE_MARKER_POSE_UPDATE, event.clickPosition, 0, event.controlName);
   this.sendFeedback(ROS3D.INTERACTIVE_MARKER_MOUSE_UP, event.clickPosition, 0, event.controlName);
   this.dragging = false;
   if (this.timeoutHandle) {

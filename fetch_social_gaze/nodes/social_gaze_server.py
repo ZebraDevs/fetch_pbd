@@ -83,12 +83,12 @@ class SocialGaze:
 
         ## Server for gaze requested gaze actions
         self._gaze_action_server = SimpleActionServer(
-            'gaze_action', GazeAction, self._execute_gaze_action, False)
+            '/fetch_pbd/gaze_action', GazeAction, self._execute_gaze_action, False)
         self._gaze_action_server.start()
 
         self._is_action_complete = True
 
-        rospy.Service('get_current_gaze_goal', GetGazeGoal,
+        rospy.Service('/fetch_pbd/get_current_gaze_goal', GetGazeGoal,
                       self._get_gaze_goal)
 
     # ##################################################################

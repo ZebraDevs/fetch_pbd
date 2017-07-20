@@ -80,7 +80,7 @@ class Arm:
         self._is_executing = False
 
         self._lock = threading.Lock()
-        rospy.Subscriber('joint_states', JointState, self._joint_states_cb)
+        rospy.Subscriber('/joint_states', JointState, self._joint_states_cb)
 
         controller_states = "/query_controller_states"
 
@@ -105,7 +105,7 @@ class Arm:
         # Initialise all the Moveit stuff
 
         # Wait for move_group to be ready
-        rospy.wait_for_service('compute_ik')
+        rospy.wait_for_service('/compute_ik')
         self._move_group = moveit_commander.MoveGroupCommander("arm")
         self._move_group.set_planning_time(5.0)
         self._move_group.set_planner_id('RRTConnectkConfigDefault')

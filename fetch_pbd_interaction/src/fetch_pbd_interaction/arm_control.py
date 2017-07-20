@@ -66,30 +66,30 @@ class ArmControl:
         self._arm.close_gripper()
         self._status = ExecutionStatus.NOT_EXECUTING
 
-        rospy.Service('move_arm_to_joints_plan', MoveArm,
+        rospy.Service('/fetch_pbd/move_arm_to_joints_plan', MoveArm,
                       self._move_to_joints_plan)
-        rospy.Service('move_arm_to_joints', MoveArmTraj, self._move_to_joints)
+        rospy.Service('/fetch_pbd/move_arm_to_joints', MoveArmTraj, self._move_to_joints)
 
-        rospy.Service('move_arm_to_pose', MoveArm, self._move_to_pose)
-        rospy.Service('start_move_arm_to_pose', MoveArm,
+        rospy.Service('/fetch_pbd/move_arm_to_pose', MoveArm, self._move_to_pose)
+        rospy.Service('/fetch_pbd/start_move_arm_to_pose', MoveArm,
                       self._start_move_to_pose)
 
-        rospy.Service('is_reachable', MoveArm, self._is_reachable)
-        rospy.Service('is_arm_moving', GetArmMovement, self._is_arm_moving)
+        rospy.Service('/fetch_pbd/is_reachable', MoveArm, self._is_reachable)
+        rospy.Service('/fetch_pbd/is_arm_moving', GetArmMovement, self._is_arm_moving)
 
 
-        rospy.Service('relax_arm', Empty, self._relax_arm)
+        rospy.Service('/fetch_pbd/relax_arm', Empty, self._relax_arm)
 
-        rospy.Service('reset_arm_movement_history', Empty,
+        rospy.Service('/fetch_pbd/reset_arm_movement_history', Empty,
                       self._reset_movement_history)
 
-        rospy.Service('get_gripper_state', GetGripperState,
+        rospy.Service('/fetch_pbd/get_gripper_state', GetGripperState,
                       self._get_gripper_state)
-        rospy.Service('get_ee_pose', GetEEPose, self._get_ee_pose)
-        rospy.Service('get_joint_states', GetJointStates,
+        rospy.Service('/fetch_pbd/get_ee_pose', GetEEPose, self._get_ee_pose)
+        rospy.Service('/fetch_pbd/get_joint_states', GetJointStates,
                       self._get_joint_states)
 
-        rospy.Service('set_gripper_state', SetGripperState,
+        rospy.Service('/fetch_pbd/set_gripper_state', SetGripperState,
                       self._set_gripper_state)
 
         rospy.loginfo('Arm initialized.')

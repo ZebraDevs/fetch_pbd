@@ -62,7 +62,7 @@ You can also pass arguments to the launch file to save your actions to a json fi
 This behaviour is a bit complicated. It is recommended that you specify the full path to files or else it will look in your .ros folder.
 If you specify a from_file then actions will be loaded from that file. They will replace the ones in your session database.
 Whatever was in your session database will get stored in a timestamped file in your .ros folder (not overwritten).
-If you specify a to_file then whatever is in your current session file be saved to that file.
+If you specify a to_file then the session you are starting will be saved to that file.
 ```bash
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd.launch from_file:=/full/path/from.json to_file:=/full/path/to.json
@@ -93,8 +93,27 @@ You can change the frame that certain primitives are relative to by right-clicki
 You can also change the name of the action.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989396/d05f44d4-6ae1-11e6-9363-f242c5ea15b6.png)
 
+You can record objects in the environment using the "Record Objects" button. The objects will appear in the viewer. Poses can be relative to these objects in the environment.
+![](https://user-images.githubusercontent.com/1470402/28444453-2f3502bc-6d72-11e7-9c64-0fc8e03ed9b5.png)
+![](https://user-images.githubusercontent.com/1470402/28444447-2c0d509e-6d72-11e7-899c-46247b95446a.png)
+
+### Grasping in Fetch PbD
+You can now (optionally) run Fetch PbD with a grasp suggestion service. This is a service that takes in a point cloud for an object and returns a PoseArray of possible grasps for that object. Fetch Pbd provides feedback by publishing which grasp was chosen by the user. Any service that adheres to the .srv interface defined by [SuggestGrasps.srv](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/srv/SuggestGrasps.srv) and optionally the feedback .msg interface, [GraspFeedback.msg](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/msg/GraspFeedback.msg), can be used. If you want to start Fetch PbD with a grasp suggestion service:
+```bash
+source ~/catkin_ws/devel/setup.bash
+roslaunch fetch_pbd_interaction pbd.launch grasp_suggestion_service:=grasp_service_name grasp_feedback_topic:=grasp_feedback
+```
+Then in the interface you can right-click on objects in the scene and add a grasp for that object. Initially a grasp primitive is generated that is just a placeholder and does not specify any poses. To use the grasp suggestion service to generate grasps, you then right click the blue placeholder box and select "Generate grasps". The service will return a list of grasp poses. Fetch PbD sets a pre-grasp that is 15 cm away from the grasp. The first grasp generated is shown and you can switch to other grasp options by right-clicking the grasp marker and selecting one from the list. 
+
+![](https://user-images.githubusercontent.com/1470402/28444632-6e349ec2-6d73-11e7-9b50-1ed4a26292d3.png)
+![](https://user-images.githubusercontent.com/1470402/28444631-6e34a084-6d73-11e7-83ca-cbeb900877ab.png)
+![](https://user-images.githubusercontent.com/1470402/28444630-6e2cf802-6d73-11e7-9edd-dfa3caf08674.png)
+
+Grasps are executed like any other primitve and can be added to actions in combination with other primitives.
+
 ### Code Interface
 You can also access the actions you've programmed through code. You still need to run pbd_backend.launch. 
+
 #### Commands on Fetch
 ```bash
 source ~/catkin_ws/devel/setup.bash

@@ -49,80 +49,92 @@ class Robot:
     '''Robot class that provides an interface to arm
     and head (maybe base later)'''
 
-    def __init__(self, tf_listener):
+    def __init__(self, tf_listener, play_sound=True, social_gaze=True):
         '''
         Args:
             tf_listener (TransformListener)
         '''
-        self._social_gaze = rospy.get_param("/social_gaze")
-        self._play_sound = rospy.get_param("/play_sound")
+        self._social_gaze = social_gaze
+        self._play_sound = play_sound
         self._tf_listener = tf_listener
 
         # arm services
         self.move_arm_to_joints_plan_srv = rospy.ServiceProxy(
-                                        'move_arm_to_joints_plan', MoveArm)
-        rospy.wait_for_service('move_arm_to_joints_plan')
+                                        '/fetch_pbd/move_arm_to_joints_plan', 
+                                        MoveArm)
+        rospy.wait_for_service('/fetch_pbd/move_arm_to_joints_plan')
 
         self.move_arm_to_joints_srv = rospy.ServiceProxy(
-                                        'move_arm_to_joints', MoveArmTraj)
-        rospy.wait_for_service('move_arm_to_joints')
+                                        '/fetch_pbd/move_arm_to_joints', 
+                                        MoveArmTraj)
+        rospy.wait_for_service('/fetch_pbd/move_arm_to_joints')
 
         self.move_arm_to_pose_srv = rospy.ServiceProxy(
-                                        'move_arm_to_pose', MoveArm)
-        rospy.wait_for_service('move_arm_to_pose')
+                                        '/fetch_pbd/move_arm_to_pose', 
+                                        MoveArm)
+        rospy.wait_for_service('/fetch_pbd/move_arm_to_pose')
 
         self.start_move_arm_to_pose_srv = rospy.ServiceProxy(
-                                            'start_move_arm_to_pose', MoveArm)
-        rospy.wait_for_service('start_move_arm_to_pose')
+                                            '/fetch_pbd/start_move_arm_to_pose', 
+                                            MoveArm)
+        rospy.wait_for_service('/fetch_pbd/start_move_arm_to_pose')
 
-        self.is_reachable_srv = rospy.ServiceProxy('is_reachable', MoveArm)
-        rospy.wait_for_service('is_reachable')
+        self.is_reachable_srv = rospy.ServiceProxy('/fetch_pbd/is_reachable', MoveArm)
+        rospy.wait_for_service('/fetch_pbd/is_reachable')
 
         self.is_arm_moving_srv = rospy.ServiceProxy(
-                                    'is_arm_moving', GetArmMovement)
-        rospy.wait_for_service('is_arm_moving')
+                                    '/fetch_pbd/is_arm_moving', GetArmMovement)
+        rospy.wait_for_service('/fetch_pbd/is_arm_moving')
 
-        self.relax_arm_srv = rospy.ServiceProxy('relax_arm', Empty)
-        rospy.wait_for_service('relax_arm')
+        self.relax_arm_srv = rospy.ServiceProxy('/fetch_pbd/relax_arm', Empty)
+        rospy.wait_for_service('/fetch_pbd/relax_arm')
 
         self.reset_arm_movement_history_srv = rospy.ServiceProxy(
-                                        'reset_arm_movement_history', Empty)
-        rospy.wait_for_service('reset_arm_movement_history')
+                                        '/fetch_pbd/reset_arm_movement_history', 
+                                        Empty)
+        rospy.wait_for_service('/fetch_pbd/reset_arm_movement_history')
 
         self.get_gripper_state_srv = rospy.ServiceProxy(
-                                        'get_gripper_state', GetGripperState)
-        rospy.wait_for_service('get_gripper_state')
+                                        '/fetch_pbd/get_gripper_state', 
+                                        GetGripperState)
+        rospy.wait_for_service('/fetch_pbd/get_gripper_state')
 
         self.get_joint_states_srv = rospy.ServiceProxy(
-                                        'get_joint_states', GetJointStates)
-        rospy.wait_for_service('get_joint_states')
+                                        '/fetch_pbd/get_joint_states', 
+                                        GetJointStates)
+        rospy.wait_for_service('/fetch_pbd/get_joint_states')
 
-        self.get_ee_pose_srv = rospy.ServiceProxy('get_ee_pose', GetEEPose)
-        rospy.wait_for_service('get_ee_pose')
+        self.get_ee_pose_srv = rospy.ServiceProxy('/fetch_pbd/get_ee_pose', 
+                                                    GetEEPose)
+        rospy.wait_for_service('/fetch_pbd/get_ee_pose')
 
         self.set_gripper_state_srv = rospy.ServiceProxy(
-                                        'set_gripper_state', SetGripperState)
-        rospy.wait_for_service('set_gripper_state')
+                                        '/fetch_pbd/set_gripper_state', 
+                                        SetGripperState)
+        rospy.wait_for_service('/fetch_pbd/set_gripper_state')
 
         rospy.loginfo("Got all arm services")
 
         # head services
 
-        self.gaze_client = SimpleActionClient('gaze_action', GazeAction)
+        self.gaze_client = SimpleActionClient('/fetch_pbd/gaze_action', 
+                                                GazeAction)
 
         self.gaze_client.wait_for_server(rospy.Duration(5))
 
         self.current_gaze_goal_srv = rospy.ServiceProxy(
-                                        'get_current_gaze_goal', GetGazeGoal)
-        rospy.wait_for_service('get_current_gaze_goal')
+                                        '/fetch_pbd/get_current_gaze_goal', 
+                                        GetGazeGoal)
+        rospy.wait_for_service('/fetch_pbd/get_current_gaze_goal')
 
         rospy.loginfo("Got all head services")
 
         # world services
 
         self._get_nearest_object_srv = rospy.ServiceProxy(
-                                        'get_nearest_object', GetNearestObject)
-        rospy.wait_for_service('get_nearest_object')
+                                        '/fetch_pbd/get_nearest_object', 
+                                        GetNearestObject)
+        rospy.wait_for_service('/fetch_pbd/get_nearest_object')
 
         rospy.loginfo("Got all world services")
 
@@ -253,6 +265,7 @@ class Robot:
                 abs_ee_pose)
             has_nearest = resp.has_nearest
         except Exception, e:
+            rospy.logwarn(str(e))
             has_nearest = False
 
         if not has_nearest:
@@ -312,6 +325,7 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
+        rospy.loginfo("Head shake requested")
         if self._social_gaze:
             try:
                 goal = GazeGoal()
@@ -320,8 +334,12 @@ class Robot:
                 current_goal = self.current_gaze_goal_srv().gaze_goal
                 if goal.action != current_goal:
                     self.gaze_client.send_goal(goal)
+                    self.gaze_client.wait_for_result()
+                    rospy.loginfo("Gaze result: {}".format(self.gaze_client.get_result()))
+                else:
+                    rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                pass
+                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
 
     def nod_head(self, num=5):
         '''Nods robot's head
@@ -329,6 +347,7 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
+        rospy.loginfo("Head nod requested")
         if self._social_gaze:
             try:
                 goal = GazeGoal()
@@ -337,8 +356,12 @@ class Robot:
                 current_goal = self.current_gaze_goal_srv().gaze_goal
                 if goal.action != current_goal:
                     self.gaze_client.send_goal(goal)
+                    self.gaze_client.wait_for_result()
+                    rospy.loginfo("Gaze result: {}".format(self.gaze_client.get_result()))
+                else:
+                    rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                pass
+                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
 
     def look_at_point(self, point):
         '''Points robot's head at point
