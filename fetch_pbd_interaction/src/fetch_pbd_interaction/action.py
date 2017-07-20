@@ -223,6 +223,7 @@ class Action:
         '''
         # This will take long; create a thread.
         self._preempt = False
+        self._status = ExecutionStatus.EXECUTING
         thread = threading.Thread(
             group=None,
             target=self._execute_action,
@@ -733,7 +734,6 @@ class Action:
 
     def _execute_action(self):
         ''' Function to replay the demonstrated action.'''
-        self._status = ExecutionStatus.EXECUTING
         primitive = self.get_primitive(0)
 
         rospy.loginfo("Starting to execute action!")
