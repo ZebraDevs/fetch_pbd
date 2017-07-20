@@ -9,9 +9,6 @@ int main(int argc, char **argv)
   ros::AsyncSpinner spinner(2);
   spinner.start();
   std::string grasp_suggestion_service;
-  std::string im_topic;
-  std::string add_grasp_topic;
-  std::string world_update_topic;
   std::string segmentation_service_name;
   std::string segmented_objects_topic_name;
   std::string segmented_table_topic_name;
@@ -26,9 +23,6 @@ int main(int argc, char **argv)
   std::string base_frame;
 
   pn.getParam("grasp_suggestion_service", grasp_suggestion_service);
-  pn.getParam("interactive_marker_topic", im_topic);
-  pn.getParam("add_grasp_topic", add_grasp_topic);
-  pn.getParam("world_update_topic", world_update_topic);
   pn.getParam("segmentation_service", segmentation_service_name);
   pn.getParam("segmented_objects_topic", segmented_objects_topic_name);
   pn.getParam("segmented_table_topic", segmented_table_topic_name);
@@ -42,8 +36,7 @@ int main(int argc, char **argv)
   pn.getParam("text_offset", text_offset);
   pn.getParam("base_frame", base_frame);
 
-  World world(n, pn, grasp_suggestion_service, im_topic, 
-              add_grasp_topic, world_update_topic,
+  World world(n, pn, grasp_suggestion_service, 
               segmentation_service_name, segmented_objects_topic_name, segmented_table_topic_name,
               planning_scene_topic, obj_similar_dist_threshold, obj_add_dist_threshold,
               obj_nearest_dist_threshold, 

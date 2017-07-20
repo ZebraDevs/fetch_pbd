@@ -60,49 +60,49 @@ class Robot:
 
         # arm services
         self.move_arm_to_joints_plan_srv = rospy.ServiceProxy(
-                                        'move_arm_to_joints_plan', MoveArm)
-        rospy.wait_for_service('move_arm_to_joints_plan')
+                                        '/move_arm_to_joints_plan', MoveArm)
+        rospy.wait_for_service('/move_arm_to_joints_plan')
 
         self.move_arm_to_joints_srv = rospy.ServiceProxy(
-                                        'move_arm_to_joints', MoveArmTraj)
-        rospy.wait_for_service('move_arm_to_joints')
+                                        '/move_arm_to_joints', MoveArmTraj)
+        rospy.wait_for_service('/move_arm_to_joints')
 
         self.move_arm_to_pose_srv = rospy.ServiceProxy(
-                                        'move_arm_to_pose', MoveArm)
-        rospy.wait_for_service('move_arm_to_pose')
+                                        '/move_arm_to_pose', MoveArm)
+        rospy.wait_for_service('/move_arm_to_pose')
 
         self.start_move_arm_to_pose_srv = rospy.ServiceProxy(
-                                            'start_move_arm_to_pose', MoveArm)
-        rospy.wait_for_service('start_move_arm_to_pose')
+                                            '/start_move_arm_to_pose', MoveArm)
+        rospy.wait_for_service('/start_move_arm_to_pose')
 
-        self.is_reachable_srv = rospy.ServiceProxy('is_reachable', MoveArm)
-        rospy.wait_for_service('is_reachable')
+        self.is_reachable_srv = rospy.ServiceProxy('/is_reachable', MoveArm)
+        rospy.wait_for_service('/is_reachable')
 
         self.is_arm_moving_srv = rospy.ServiceProxy(
-                                    'is_arm_moving', GetArmMovement)
-        rospy.wait_for_service('is_arm_moving')
+                                    '/is_arm_moving', GetArmMovement)
+        rospy.wait_for_service('/is_arm_moving')
 
-        self.relax_arm_srv = rospy.ServiceProxy('relax_arm', Empty)
-        rospy.wait_for_service('relax_arm')
+        self.relax_arm_srv = rospy.ServiceProxy('/relax_arm', Empty)
+        rospy.wait_for_service('/relax_arm')
 
         self.reset_arm_movement_history_srv = rospy.ServiceProxy(
-                                        'reset_arm_movement_history', Empty)
-        rospy.wait_for_service('reset_arm_movement_history')
+                                        '/reset_arm_movement_history', Empty)
+        rospy.wait_for_service('/reset_arm_movement_history')
 
         self.get_gripper_state_srv = rospy.ServiceProxy(
-                                        'get_gripper_state', GetGripperState)
-        rospy.wait_for_service('get_gripper_state')
+                                        '/get_gripper_state', GetGripperState)
+        rospy.wait_for_service('/get_gripper_state')
 
         self.get_joint_states_srv = rospy.ServiceProxy(
-                                        'get_joint_states', GetJointStates)
-        rospy.wait_for_service('get_joint_states')
+                                        '/get_joint_states', GetJointStates)
+        rospy.wait_for_service('/get_joint_states')
 
-        self.get_ee_pose_srv = rospy.ServiceProxy('get_ee_pose', GetEEPose)
-        rospy.wait_for_service('get_ee_pose')
+        self.get_ee_pose_srv = rospy.ServiceProxy('/get_ee_pose', GetEEPose)
+        rospy.wait_for_service('/get_ee_pose')
 
         self.set_gripper_state_srv = rospy.ServiceProxy(
-                                        'set_gripper_state', SetGripperState)
-        rospy.wait_for_service('set_gripper_state')
+                                        '/set_gripper_state', SetGripperState)
+        rospy.wait_for_service('/set_gripper_state')
 
         rospy.loginfo("Got all arm services")
 

@@ -234,7 +234,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         this.expListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/session_state',
+          name : '/fetch_pbd/session_state',
           messageType : 'fetch_pbd_interaction/SessionState'
         });
 
@@ -244,19 +244,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         this.pagePub = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/page_change',
+          name : '/fetch_pbd/page_change',
           messageType : 'std_msgs/String'
         });
 
         this.inputSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/gui_input',
+          name : '/fetch_pbd/gui_input',
           serviceType : 'fetch_pbd_interaction/GuiInput'
         });
 
         this.expSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/get_session_state',
+          name : '/fetch_pbd/get_session_state',
           serviceType : 'fetch_pbd_interaction/GetSessionState'
         });
 
@@ -268,7 +268,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         this.statusListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/actions_status',
+          name : '/fetch_pbd/fetch_pbd_status',
           messageType : 'std_msgs/String'
         });
 

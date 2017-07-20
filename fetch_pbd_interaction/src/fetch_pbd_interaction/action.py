@@ -67,7 +67,7 @@ class Action:
 
         '''
         # Initialize a bunch of state.
-        self._name = ''  # Human-friendly name for this action.
+        self._name = ""  # Human-friendly name for this action.
         self._im_server = im_server
         self._seq = []
         self._action_id = action_id
@@ -78,7 +78,6 @@ class Action:
         self._preempt = False
         self._tf_listener = tf_listener
         self._primitive_counter = 0
-        # self._marker_visibility = []
 
         # Markers to connect consecutive primitives together
         self._link_markers = {}
@@ -102,7 +101,7 @@ class Action:
         # primitives that exist) was learned while this lock was acquired,
         # you cannot assume it is true.
         self._lock = threading.Lock()
-        self._status_publisher = rospy.Publisher('current_action_status',
+        self._status_publisher = rospy.Publisher('fetch_pbd_status',
                                                 String,
                                                 queue_size=10)
 
@@ -227,7 +226,7 @@ class Action:
         thread = threading.Thread(
             group=None,
             target=self._execute_action,
-            name='action_execution_thread'
+            name="action_execution_thread"
         )
         thread.start()
 
@@ -315,12 +314,11 @@ class Action:
         return len(self._seq)
 
     def reset_viz(self):
-        '''Removes all visualization from Rviz relating to this action.'''
+        '''Removes all visualization relating to this action.'''
         self._lock.acquire()
 
         # Destroy the primitive markers.
         for primitive in self._seq:
-            rospy.loginfo("Deleting marker")
             primitive.hide_marker()
         self._im_server.clear()
         # Mark the links for destruction.
@@ -333,7 +331,6 @@ class Action:
             m_array.markers.append(self._link_markers[i])
         self._marker_publisher.publish(m_array)
 
-        # rospy.sleep(2.0)
         self._link_markers = {}
         self._lock.release()
 
@@ -571,7 +568,6 @@ class Action:
 
     def update_viz(self):
         '''Updates the visualization of the action.'''
-        # rospy.loginfo("Updating action viz")
         self._lock.acquire()
         self._update_links()
         m_array = MarkerArray()
@@ -647,9 +643,6 @@ class Action:
         # if (to_delete + 1) < self.n_primitives():
         self._seq[to_delete].hide_marker()
         for i in range(to_delete + 1, self.n_primitives()):
-            rospy.loginfo("Frame name: {}, {}, {}".format(i, 
-                           self._seq[i].get_ref_frame_name(), 
-                           self._seq[i].get_number()))
             self._seq[i].decrease_id()
 
         if self.n_primitives() > (to_delete + 1):
@@ -720,8 +713,7 @@ class Action:
 
     def _primitive_pose_change(self):
         '''Update links when primitive pose changes'''
-        # self._lock.acquire()
-        for idx, primitive in enumerate(self._seq):
+        for primitive in self._seq:
             primitive.update_viz()
         # self._lock.release()
         self.update_viz()
@@ -739,13 +731,12 @@ class Action:
         # TODO(mcakmak): Implement.
         return True
 
-
     def _execute_action(self):
         ''' Function to replay the demonstrated action.'''
         self._status = ExecutionStatus.EXECUTING
         primitive = self.get_primitive(0)
 
-        rospy.loginfo("Starting to execute action!!!")
+        rospy.loginfo("Starting to execute action!")
 
         # Make sure the primitive exists.
         if primitive is None:
@@ -757,15 +748,15 @@ class Action:
         # Not actually implemented right now.
         elif not self._is_condition_met(primitive.get_pre_condition()):
             rospy.logwarn(
-                'First precond is not met, first make sure the robot is' +
-                'ready to execute action (hand object or free hands).')
+                "First precondition is not met, first make sure the robot is" +
+                "ready to execute action (hand object or free hands).")
             self._status = ExecutionStatus.CONDITION_ERROR
             self._status_publisher.publish(
                 String("Precondition is not met."))
         else:
             # Check that all parts of the action are reachable
             if not self._is_action_reachable():
-                rospy.logwarn('Problem finding IK solutions.')
+                rospy.logwarn("Problem finding IK solutions.")
                 self._status = ExecutionStatus.NO_IK
                 self._status_publisher.publish(
                     String("Problem finding IK solutions."))
@@ -777,7 +768,7 @@ class Action:
             # If we haven't been preempted, we now report success.
             if self._status == ExecutionStatus.EXECUTING:
                 self._status = ExecutionStatus.SUCCEEDED
-                rospy.loginfo('Action execution has succeeded.')
+                rospy.loginfo("Action execution has succeeded.")
 
     def _is_action_reachable(self):
         '''Make sure that action is possible to execute entire action'''
@@ -797,7 +788,7 @@ class Action:
         '''
         # Go over primitives of the action
         for i in range(self.n_primitives()):
-            rospy.loginfo('Executing primitive ' + str(i))
+            rospy.loginfo("Executing primitive " + str(i))
             primitive = self.get_primitive(i)
 
             # Make sure primitive exists.
@@ -810,12 +801,12 @@ class Action:
             # Check that preconditions are met (doesn't do anything right now)
             elif not self._is_condition_met(primitive.get_pre_condition()):
                 rospy.logwarn(
-                    '\tPreconditions of primitive ' + str(i) + ' are not ' +
-                    'satisfied. Aborting.')
+                    "\tPreconditions of primitive " + str(i) + " are not " +
+                    "satisfied. Aborting.")
                 self._status = ExecutionStatus.CONDITION_ERROR
                 self._status_publisher.publish(
-                    String('Preconditions of primitive ' + str(i) +
-                        ' are not ' + 'satisfied. Aborting.'))
+                    String("Preconditions of primitive " + str(i) +
+                        " are not satisfied. Aborting."))
                 break
             else:
                 # Try executing.
@@ -831,35 +822,34 @@ class Action:
                     rospy.loginfo('\tPost-conditions of the action are met.')
                 else:
                     rospy.logwarn(
-                        '\tPost-conditions of action primitive ' + str(i) +
-                        ' are not satisfied. Aborting.')
+                        "\tPost-conditions of action primitive " + str(i) +
+                        " are not satisfied. Aborting.")
                     self._status = ExecutionStatus.CONDITION_ERROR
                     self._status_publisher.publish(
-                        String('Post-conditions of action primitive ' +
-                            str(i) + ' are not satisfied. Aborting.'))
+                        String("Post-conditions of action primitive " +
+                            str(i) + " are not satisfied. Aborting."))
                     break
 
             # Perhaps the execution was pre-empted by the user. Check
             # this before continuing onto the next primitive.
             if self._preempt:
-                rospy.logwarn('\tExecution preempted by user.')
+                rospy.logwarn("\tExecution preempted by user.")
                 self._status = ExecutionStatus.PREEMPTED
                 self._status_publisher.publish(
-                    String('Execution preempted by user.'))
+                    String("Execution preempted by user."))
                 break
 
             # Primitive completed successfully.
-            rospy.loginfo('\tPrimitive ' + str(i) + ' of action is complete.')
+            rospy.loginfo("\tPrimitive " + str(i) + " of action is complete.")
 
     def _update_markers(self):
         '''Updates the markers after a change.'''
         rospy.loginfo("Updating viz markers")
-        for idx, primitive in enumerate(self._seq):
+        for primitive in self._seq:
             primitive.update_viz()
 
     def _update_links(self):
         '''Updates the visualized links b/w action primitives.'''
-        # rospy.loginfo("Updating marker links")
         current_num_links = len(self._link_markers)
         new_num_links = len(self._seq) - 1
 

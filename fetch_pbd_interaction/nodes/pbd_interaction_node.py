@@ -22,7 +22,7 @@ from fetch_pbd_interaction import Interaction
 if __name__ == '__main__':
 
     # Register as a ROS node.
-    rospy.init_node('fetch_pbd_interaction', anonymous=True)
+    rospy.init_node('interaction', anonymous=True)
     grasp_suggestion_service = rospy.get_param('~grasp_suggestion_service')
     external_ee_link = rospy.get_param('~grasp_suggestion_ee_link')
 

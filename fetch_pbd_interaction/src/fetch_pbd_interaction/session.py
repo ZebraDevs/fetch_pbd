@@ -88,7 +88,7 @@ class Session:
         self._state_publisher = rospy.Publisher('session_state',
                                                 SessionState,
                                                 queue_size=10)
-        self._status_publisher = rospy.Publisher('actions_status',
+        self._status_publisher = rospy.Publisher('fetch_pbd_status',
                                                 String,
                                                 queue_size=10)
         rospy.Service('get_session_state', GetSessionState,
@@ -110,8 +110,6 @@ class Session:
 
         self._load_session_state()
         rospy.loginfo("Session state loaded.")
-        # if not self._current_action_id is None:
-        #     self._marker_visibility = [True] * self.n_primitives()
 
         # Send initial broadcast of experiment state.
         self._update_session_state()
@@ -139,14 +137,14 @@ class Session:
             primitive_id (int): ID of the primitive to select.
         '''
         # If already selected, un-select, else select
-        rospy.loginfo("new: {}, selected: {}".format(primitive_id, self._selected_primitive))
+        rospy.loginfo("new: {}, selected: {}".format(primitive_id, 
+                        self._selected_primitive))
         if primitive_id == self._selected_primitive:
             is_selected = False
         else:
             is_selected = True
-        self._actions[self._current_action_id].select_primitive(primitive_id, is_selected)
-        # self._selected_primitive = primitive_id
-
+        self._actions[self._current_action_id].select_primitive(primitive_id, 
+                                                                is_selected)
 
     def new_action(self, name=None):
         '''Creates new action.'''
@@ -171,7 +169,7 @@ class Session:
             action.set_name(name)
         else:
             time_str = datetime.datetime.now().strftime('%c')
-            action.set_name('Untitled action {}'.format(time_str))
+            action.set_name("Untitled action {}".format(time_str))
 
         self._actions.update({
             self._current_action_id: action
@@ -350,7 +348,7 @@ class Session:
         '''
         index = self._action_ids.index(self._current_action_id)
         if index == len(self._actions) - 1:
-            rospy.logerr('Already on the last action.')
+            rospy.logerr("Already on the last action.")
             return False
         action_id = self._action_ids[index + 1]
         return self.switch_to_action_by_index(action_id)
@@ -363,7 +361,7 @@ class Session:
         '''
         index = self._action_ids.index(self._current_action_id)
         if index == 0:
-            rospy.logerr('Already on the first action.')
+            rospy.logerr("Already on the first action.")
             return False
         action_id = self._action_ids[index - 1]
         return self.switch_to_action_by_index(action_id)
@@ -669,7 +667,8 @@ class Session:
 
                     else:
                         # An object is required, but we didn't get it.
-                        rospy.logwarn("An object is required for this action but none were found")
+                        rospy.logwarn("An object is required for" + 
+                                        " this action but none were found")
                         return False
                 else:
                     # No object is required: start execution now.
@@ -715,14 +714,6 @@ class Session:
         action = self._actions[self._current_action_id]
         action.update_primitive_pose(primitive_number, position, orientation)
 
-    # def update_viz(self):
-    #     '''Updates visualization, specifically links between markerks'''
-    #     if not self._current_action_id is None:
-    #         self._lock.acquire()
-    #         action = self._actions[self._current_action_id]
-    #         action.update_viz()
-    #         self._lock.release()
-
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
@@ -731,7 +722,7 @@ class Session:
         '''Callback to add a grasp for the specified object to 
         the current action
         '''
-        rospy.loginfo("Asking for grasp suggestions from service!")
+        rospy.loginfo("Attempting to add grasp")
         if self.n_actions() > 0:
             current_action = self._actions[self._current_action_id]
             primitive_number = current_action.n_primitives()
@@ -743,7 +734,7 @@ class Session:
                               primitive_number)
             current_action.add_primitive(grasp)            
         else:
-            rospy.logwarn("Can't add primitive: No actions created yet.")
+            rospy.logwarn("Can't add grasp: No actions created yet.")
         self._update_session_state()
 
     def _get_marker_visibility(self):
@@ -961,7 +952,8 @@ class Session:
                        self._selected_primitive_cb, self._action_change_cb, 
                        grasp_suggestion_service=self._grasp_suggestion_service,
                        external_ee_link=self._external_ee_link)
-            self._actions_disabled.append(not action.build_from_json(result.value))
+            success = action.build_from_json(result.value)
+            self._actions_disabled.append(not success)
             self._actions[int(result.value['id'])] = action
             self._action_ids.append(int(result.value['id']))
             self._update_db_with_action(action)
@@ -987,7 +979,8 @@ class Session:
                        self._selected_primitive_cb, self._action_change_cb,
                        grasp_suggestion_service=self._grasp_suggestion_service,
                        external_ee_link=self._external_ee_link)
-                self._actions_disabled.append(not action.build_from_json(self._json[key]))
+                success = action.build_from_json(self._json[key])
+                self._actions_disabled.append(not success)
                 self._actions[int(self._json[key]['id'])] = action
                 self._action_ids.append(int(self._json[key]['id']))
                 self._update_db_with_action(action)
@@ -1017,7 +1010,8 @@ class Session:
                 position = pose.pose.position
                 orientation = pose.pose.orientation
                 pos = (position.x, position.y, position.z)
-                rot = (orientation.x, orientation.y, orientation.z, orientation.w)
+                rot = (orientation.x, orientation.y, 
+                        orientation.z, orientation.w)
                 name = "primitive_" + str(primitive.get_number())
                 # TODO(mbforbes): Is it necessary to change the position
                 # and orientation into tuples to send to TF?
@@ -1025,4 +1019,3 @@ class Session:
                     pos, rot, rospy.Time.now(), name, parent)
         except Exception, e:
             rospy.logwarn(str(e))
-            pass
