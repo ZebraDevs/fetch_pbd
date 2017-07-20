@@ -338,7 +338,7 @@ class ArmTarget(Primitive):
             self._color_mesh_reachable = COLOR_MESH_REACHABLE
             self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
 
-        self.update_viz(False)
+        # self.update_viz(False)
 
     def is_selected(self):
         '''Return whether or not primitive is selected
@@ -385,6 +385,7 @@ class ArmTarget(Primitive):
                     self._menu_handler.apply(self._im_server, self.get_name())
                     self._im_server.applyChanges()
             except Exception, e:
+                rospy.logwarn("Error when updating primitive viz")
                 rospy.logwarn(e)
 
     def get_primitive_number(self):
@@ -829,7 +830,6 @@ class ArmTarget(Primitive):
             MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
 
         # Update.
-        rospy.loginfo("Viz core")
 
     def _get_menu_ref_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
@@ -1029,15 +1029,28 @@ class ArmTarget(Primitive):
         self._add_6dof_marker(int_marker, True)
         int_marker.controls.append(menu_control)
         prev_marker = self._im_server.get(self.get_name())
+        prev_color = None
+        if not prev_marker is None:
+            if len(prev_marker.controls) > 0:
+                if len(prev_marker.controls[-1].markers) > 0:
+                    prev_color = prev_marker.controls[-1].markers[-1].color
+        new_color = None
+        if len(int_marker.controls) > 0:
+            if len(int_marker.controls[-1].markers) > 0:
+                new_color = int_marker.controls[-1].markers[-1].color
+
         if not prev_marker:
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
+            rospy.logwarn("Adding marker for primitive {}".format(self.get_number()))
             return True
-        elif prev_marker.pose != int_marker.pose:
-            rospy.loginfo("New marker")
+        elif (prev_marker.pose != int_marker.pose) or (prev_color != new_color):
+            rospy.loginfo("Updating marker")
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
             return True
+
+        rospy.logwarn("Not updating marker for primitive {}".format(self.get_number()))
         return False
 
     def _add_6dof_marker(self, int_marker, is_fixed):
