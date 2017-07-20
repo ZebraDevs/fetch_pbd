@@ -174,6 +174,7 @@ class Session:
         self._actions.update({
             self._current_action_id: action
         })
+        self._actions_disabled.append(False)
         self._action_ids.append(self._current_action_id)
         self._marker_visibility = [True] * self.n_primitives()
         self._update_session_state()
@@ -651,18 +652,22 @@ class Session:
                     # objects = resp.objects
                     if resp.object_list:
                         # An object is required, and we got one. Execute.
-                        self.get_current_action().update_objects()
-                        self.get_current_action().start_execution()
+                        action = self.get_current_action()
+                        action.update_objects()
+                        action.start_execution()
                         # Wait a certain max time for execution to finish
                         for i in range(1000):
-                            action = self.get_current_action()
                             status = action.get_status()
                             if status != ExecutionStatus.EXECUTING:
                                 break
+                            if i % 10 == 0:
+                                rospy.loginfo("Still executing")
                             rospy.sleep(0.1)
                         if status == ExecutionStatus.SUCCEEDED:
+                            action.end_execution()
                             return True
                         else:
+                            action.end_execution()
                             return False
 
                     else:
@@ -672,25 +677,31 @@ class Session:
                         return False
                 else:
                     # No object is required: start execution now.
-                    self.get_current_action().start_execution()
+                    action = self.get_current_action()
+                    action.start_execution()
 
                     for i in range(1000):
-                        action = self.get_current_action()
+                        
                         status = action.get_status()
                         if status != ExecutionStatus.EXECUTING:
                             break
+                        if i % 10 == 0:
+                            rospy.loginfo("Still executing")
                         rospy.sleep(0.1)
                     if status == ExecutionStatus.SUCCEEDED:
+                        action.end_execution()
                         return True
                     else:
+                        rospy.logwarn("Execution failed")
+                        action.end_execution()
                         return False
             else:
                 # No primitives / poses / frames recorded.
-                rospy.loginfo("No primitives recorded")
+                rospy.logwarn("No primitives recorded")
                 return False
         else:
             # No actions.
-            rospy.loginfo("No current action")
+            rospy.logwarn("No current action")
             return False
 
     def publish_primitive_tf(self):

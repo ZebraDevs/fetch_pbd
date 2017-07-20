@@ -312,6 +312,7 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
+        rospy.loginfo("Head shake requested")
         if self._social_gaze:
             try:
                 goal = GazeGoal()
@@ -320,8 +321,12 @@ class Robot:
                 current_goal = self.current_gaze_goal_srv().gaze_goal
                 if goal.action != current_goal:
                     self.gaze_client.send_goal(goal)
+                    self.gaze_client.wait_for_result()
+                    rospy.loginfo("Gaze result: {}".format(self.gaze_client.get_result()))
+                else:
+                    rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                pass
+                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
 
     def nod_head(self, num=5):
         '''Nods robot's head
@@ -329,6 +334,7 @@ class Robot:
         Args:
             num (int) : number of times to perform action
         '''
+        rospy.loginfo("Head nod requested")
         if self._social_gaze:
             try:
                 goal = GazeGoal()
@@ -337,8 +343,12 @@ class Robot:
                 current_goal = self.current_gaze_goal_srv().gaze_goal
                 if goal.action != current_goal:
                     self.gaze_client.send_goal(goal)
+                    self.gaze_client.wait_for_result()
+                    rospy.loginfo("Gaze result: {}".format(self.gaze_client.get_result()))
+                else:
+                    rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                pass
+                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
 
     def look_at_point(self, point):
         '''Points robot's head at point

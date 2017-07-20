@@ -902,6 +902,7 @@ class Grasp(Primitive):
         grasps = resp.grasp_list
         if not len(grasps.poses) > 0:
             rospy.logwarn("No grasps received")
+            self._robot.look_forward()
             self._head_busy = False
             return False
         else:
@@ -918,6 +919,7 @@ class Grasp(Primitive):
             self._current_grasp_num = 0
             self._pose_change_cb()
             self._head_busy = False
+            self._robot.look_forward()
             return True
 
     def _change_grasp_frames(self, target_frame):

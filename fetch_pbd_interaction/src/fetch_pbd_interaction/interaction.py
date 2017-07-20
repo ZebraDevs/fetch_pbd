@@ -594,9 +594,11 @@ class Interaction:
         self._robot.play_sound(RobotSound.STARTING_EXECUTION)
         if self._session.execute_current_action():
             self._robot.play_sound(RobotSound.SUCCESS)
+            rospy.loginfo("Action succeeded")
             self._robot.nod_head()
         else:
             self._robot.play_sound(RobotSound.ERROR)
+            rospy.logwarn("Action failed")
             self._robot.shake_head()
         self._head_busy = False
 
