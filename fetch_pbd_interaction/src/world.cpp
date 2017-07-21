@@ -11,7 +11,7 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn,
               const float& obj_distance_zero_clamp, const float& text_h, 
               const float&  surface_h, const float&  text_off, 
               const std::string& base_frame_name)
-              : im_server("world_objects"){
+              : im_server("/fetch_pbd/world_objects"){
   // Two objects must be closer than this to be considered 'the same'.
   obj_similar_dist_threshold = obj_similar_distance_threshold;
 
@@ -55,15 +55,15 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn,
   geometry_msgs::Vector3 scale_text = geometry_msgs::Vector3();
   scale_text.z = text_height;
 
-  add_grasp_pub = n.advertise<fetch_pbd_interaction::Landmark>("add_grasp", 100);
-  world_update_pub = n.advertise<fetch_pbd_interaction::WorldState>("world_updates", 100);
+  add_grasp_pub = n.advertise<fetch_pbd_interaction::Landmark>("/fetch_pbd/add_grasp", 100);
+  world_update_pub = n.advertise<fetch_pbd_interaction::WorldState>("/fetch_pbd/world_updates", 100);
   segmentation_service_client =  n.serviceClient<std_srvs::Empty>(segmentation_service_name);
-  nearest_object_service = n.advertiseService("get_nearest_object", &World::getNearestObjectCallback, this);
-  object_list_service = n.advertiseService("get_object_list", &World::getObjectListCallback, this);
-  similar_object_service = n.advertiseService("get_most_similar_object", &World::getMostSimilarObjectCallback, this);
-  object_from_name_service = n.advertiseService("get_object_from_name", &World::getObjectFromNameCallback, this);
-  clear_world_objects_service = n.advertiseService("clear_world_objects", &World::clearObjectsCallback, this);
-  update_world_service = n.advertiseService("update_world", &World::updateWorldCallback, this);
+  nearest_object_service = n.advertiseService("/fetch_pbd/get_nearest_object", &World::getNearestObjectCallback, this);
+  object_list_service = n.advertiseService("/fetch_pbd/get_object_list", &World::getObjectListCallback, this);
+  similar_object_service = n.advertiseService("/fetch_pbd/get_most_similar_object", &World::getMostSimilarObjectCallback, this);
+  object_from_name_service = n.advertiseService("/fetch_pbd/get_object_from_name", &World::getObjectFromNameCallback, this);
+  clear_world_objects_service = n.advertiseService("/fetch_pbd/clear_world_objects", &World::clearObjectsCallback, this);
+  update_world_service = n.advertiseService("/fetch_pbd/update_world", &World::updateWorldCallback, this);
   // segmented_objects_topic = segmented_objects_topic_name;
   table_subscriber = n.subscribe(segmented_table_topic_name, 1, &World::tablePositionUpdateCallback, this);
   // object_subscriber = n.subscribe(segmented_objects_topic_name, 1, &World::objectsUpdateCallback, this);
@@ -620,8 +620,10 @@ void World::removeObject(const visualization_msgs::InteractiveMarkerFeedbackCons
   getObjectFromNameCallback(req, resp);
   for (int i=0; i < objects.size(); i ++){
     if (objects[i].object.name == resp.obj.name){
-      objects.erase(objects.begin() + i );
+      ROS_INFO("deleting %s", objects[i].int_marker.name.c_str());
+      ROS_INFO("want to delete %s", feedback->marker_name.c_str()); 
       im_server.erase(objects[i].int_marker.name);
+      objects.erase(objects.begin() + i );
       im_server.applyChanges();
       break;
     }

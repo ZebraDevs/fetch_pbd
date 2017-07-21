@@ -20,7 +20,7 @@ from tf import TransformListener
 # Local
 from fetch_arm_control.msg import GripperState
 from fetch_pbd_interaction.session import Session
-from fetch_pbd_interaction.msg import ExecutionStatus
+from fetch_pbd_interaction.msg import ExecutionStatus, Landmark
 from fetch_pbd_interaction.srv import Ping, PingResponse, GetObjectList, \
                                       GuiInput, GuiInputRequest, \
                                       GuiInputResponse
@@ -33,7 +33,7 @@ from std_srvs.srv import Empty
 # ######################################################################
 
 BASE_LINK = 'base_link'
-TOPIC_IM_SERVER = 'programmed_actions'
+TOPIC_IM_SERVER = '/fetch_pbd/programmed_actions'
 
 
 # ######################################################################
@@ -51,28 +51,35 @@ class Interaction:
     recording trajectories.
     '''
 
-    def __init__(self, grasp_suggestion_service, grasp_feedback_topic, external_ee_link):
+    def __init__(self, grasp_suggestion_service, 
+                grasp_feedback_topic, external_ee_link,
+                to_file, from_file, play_sound, social_gaze):
 
         # Create main components.
         self._tf_listener = TransformListener()
-        self._robot = Robot(self._tf_listener)
+        self._robot = Robot(self._tf_listener, play_sound, social_gaze)
         self._im_server = InteractiveMarkerServer(TOPIC_IM_SERVER)
-        self._session = Session(self._robot, self._tf_listener,
-                                self._im_server, 
-                                grasp_suggestion_service_name=grasp_suggestion_service,
-                                grasp_feedback_topic=grasp_feedback_topic,
-                                external_ee_link=external_ee_link)
+        self._session = Session(
+                        self._robot, self._tf_listener,
+                        self._im_server,
+                        to_file=to_file, 
+                        from_file=from_file,
+                        grasp_suggestion_service_name=grasp_suggestion_service,
+                        grasp_feedback_topic=grasp_feedback_topic,
+                        external_ee_link=external_ee_link)
         self._head_busy = False
 
         # ROS publishers, subscribers, services
-        self._viz_publisher = rospy.Publisher('visualization_marker_array',
-                                              MarkerArray,
-                                              queue_size=10)
+        self._viz_publisher = rospy.Publisher(
+                                '/fetch_pbd/visualization_marker_array',
+                                MarkerArray,
+                                queue_size=10)
 
         # rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
-        rospy.Service('gui_input', GuiInput, self._gui_input_cb)
+        rospy.Service('/fetch_pbd/gui_input', GuiInput, self._gui_input_cb)
 
-        rospy.Subscriber('world_update', WorldState, self._world_update_cb)
+        rospy.Subscriber('/fetch_pbd/world_update', WorldState, 
+                            self._world_update_cb)
 
         # Initialize trajectory recording state.
         self._is_recording_motion = False
@@ -85,7 +92,6 @@ class Interaction:
             GuiInputRequest.NEXT_ACTION: self._next_action,
             GuiInputRequest.PREV_ACTION: self._previous_action,
             GuiInputRequest.UPDATE_ACTION_NAME: self._update_action_name,
-            # GuiInputRequest.DELETE_CURRENT_ACTION: self._delete_current_action,
             GuiInputRequest.DELETE_ACTION: self._delete_action,
             GuiInputRequest.COPY_ACTION: self._copy_action,
             # Primitive Creation Navigation
@@ -115,8 +121,11 @@ class Interaction:
         # The PbD backend is ready.
         # This basically exists for tests that aren't actually written yet
         rospy.loginfo('Interaction initialized.')
-        self._ping_srv = rospy.Service('interaction_ping', Ping,
+        self._ping_srv = rospy.Service('/fetch_pbd/interaction_ping', Ping,
                                        self._interaction_ping)
+
+        rospy.Subscriber('/fetch_pbd/add_grasp', Landmark,
+                      self._add_grasp)
 
         # Make sure gravity compensation controllers are on before we start
         self._robot.relax_arm()
@@ -526,6 +535,24 @@ class Interaction:
         self._head_busy = True
         if self._session.n_actions() > 0:
             self._session.add_arm_target_to_action()
+            self._robot.play_sound(RobotSound.POSE_SAVED)
+            self._robot.nod_head()
+        else:
+            self._robot.play_sound(RobotSound.ERROR)
+            self._robot.shake_head()
+        self._head_busy = False
+
+    def _add_grasp(self, msg):
+        '''Callback to add a grasp for the specified object to 
+        the current action
+
+        Args:
+            msg (Landmark)
+        '''
+        rospy.loginfo("Attempting to add grasp")
+        self._head_busy = True
+        if self._session.n_actions() > 0:
+            self._session.add_grasp_to_action(msg)
             self._robot.play_sound(RobotSound.POSE_SAVED)
             self._robot.nod_head()
         else:

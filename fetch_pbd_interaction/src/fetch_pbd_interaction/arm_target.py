@@ -135,15 +135,15 @@ class ArmTarget(Primitive):
         self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
         self._get_object_list_srv = rospy.ServiceProxy(
-                                        'get_object_list',
+                                        '/fetch_pbd/get_object_list',
                                         GetObjectList)
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10,
                                                 latch=True)
@@ -1015,7 +1015,10 @@ class ArmTarget(Primitive):
             return
 
         if check_reachable:
-            self.is_reachable()
+            if not self.is_reachable():
+                rospy.logwarn("Marker pose not reachable")
+            else:
+                rospy.loginfo("Marker pose is reachable")
 
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)

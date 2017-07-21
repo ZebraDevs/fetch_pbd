@@ -103,7 +103,7 @@ class Action:
         # primitives that exist) was learned while this lock was acquired,
         # you cannot assume it is true.
         self._lock = threading.Lock()
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10)
 

@@ -26,9 +26,17 @@ if __name__ == '__main__':
     grasp_suggestion_service = rospy.get_param('~grasp_suggestion_service')
     external_ee_link = rospy.get_param('~grasp_suggestion_ee_link')
     grasp_feedback_topic = rospy.get_param('~grasp_feedback_topic')
+    to_file = rospy.get_param('~to_file')
+    from_file = rospy.get_param('~from_file')
+    play_sound = rospy.get_param('~play_sound')
+    social_gaze = rospy.get_param('~social_gaze')
 
     # Run the system    
-    interaction = Interaction(grasp_suggestion_service, grasp_feedback_topic, external_ee_link)
+    interaction = Interaction(grasp_suggestion_service, 
+                                grasp_feedback_topic, 
+                                external_ee_link, 
+                                to_file, from_file, 
+                                play_sound, social_gaze)
 
     while not rospy.is_shutdown():
         interaction.update()

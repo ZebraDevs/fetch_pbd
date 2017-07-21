@@ -136,12 +136,12 @@ class ArmTrajectory(Primitive):
         self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
+        self._get_object_list_srv = rospy.ServiceProxy('/fetch_pbd/get_object_list',
                                                        GetObjectList)
 
     # ##################################################################

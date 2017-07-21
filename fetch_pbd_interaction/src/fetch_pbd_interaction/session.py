@@ -87,27 +87,28 @@ class Session:
         self._actions_disabled = []
 
         # Publishers & Services
-        self._state_publisher = rospy.Publisher('session_state',
+        self._state_publisher = rospy.Publisher('/fetch_pbd/session_state',
                                                 SessionState,
                                                 queue_size=10)
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10)
-        rospy.Service('get_session_state', GetSessionState,
+        rospy.Service('/fetch_pbd/get_session_state', GetSessionState,
                       self._get_session_state_cb)
-        rospy.Subscriber('add_grasp', Landmark,
-                      self._add_grasp)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
-                                                       GetObjectList)
-        self._update_world_srv = rospy.ServiceProxy('update_world',
+        
+        self._get_object_list_srv = rospy.ServiceProxy(
+                                                '/fetch_pbd/get_object_list',
+                                                GetObjectList)
+        self._update_world_srv = rospy.ServiceProxy('/fetch_pbd/update_world',
                                                     GetObjectList)
-        rospy.wait_for_service('update_world')
+        rospy.wait_for_service('/fetch_pbd/update_world')
         rospy.loginfo("Got update_world service.")
 
 
         self._clear_world_objects_srv = \
-                        rospy.ServiceProxy('clear_world_objects', EmptySrv)
-        rospy.wait_for_service('clear_world_objects')
+                        rospy.ServiceProxy('/fetch_pbd/clear_world_objects', 
+                                            EmptySrv)
+        rospy.wait_for_service('/fetch_pbd/clear_world_objects')
         rospy.loginfo("Got clear_world_objects service.")
 
         self._load_session_state()
@@ -260,8 +261,26 @@ class Session:
             rospy.logwarn("Can't add primitive: No actions created yet.")
         self._update_session_state()
 
-    def add_grasp_to_action(self):
-        '''Add a grasp primitive to the current action.'''
+    def add_grasp_to_action(self, landmark):
+        '''Add a grasp primitive to the current action.
+
+        Args:
+            landmark (Landmark)
+        '''
+        if self.n_actions() > 0:
+            current_action = self._actions[self._current_action_id]
+            primitive_number = current_action.n_primitives()
+            grasp = Grasp(self._robot, self._tf_listener, 
+                              self._im_server, 
+                              self._grasp_suggestion_service,
+                              self._grasp_feedback_topic,
+                              self._external_ee_link, 
+                              landmark,
+                              primitive_number)
+            current_action.add_primitive(grasp)            
+        else:
+            rospy.logwarn("Can't add grasp: No actions created yet.")
+        self._update_session_state()
 
     def delete_last_primitive(self):
         '''Removes the last primitive of the action.'''
@@ -308,7 +327,7 @@ class Session:
         self._clear_world_objects_srv()
         self._lock.release()
         try:
-            rospy.wait_for_message('action_loaded', EmptyMsg, timeout=100)
+            rospy.wait_for_message('/fetch_pbd/action_loaded', EmptyMsg, timeout=100)
         except Exception, e:
             rospy.logwarn("Timed out waiting for frontend to respond")
         self.get_current_action().initialize_viz()
@@ -733,26 +752,6 @@ class Session:
     # ##################################################################
     # Instance methods: Internal ("private")
     # ##################################################################
-
-    def _add_grasp(self, msg):
-        '''Callback to add a grasp for the specified object to 
-        the current action
-        '''
-        rospy.loginfo("Attempting to add grasp")
-        if self.n_actions() > 0:
-            current_action = self._actions[self._current_action_id]
-            primitive_number = current_action.n_primitives()
-            grasp = Grasp(self._robot, self._tf_listener, 
-                              self._im_server, 
-                              self._grasp_suggestion_service,
-                              self._grasp_feedback_topic,
-                              self._external_ee_link, 
-                              msg,
-                              primitive_number)
-            current_action.add_primitive(grasp)            
-        else:
-            rospy.logwarn("Can't add grasp: No actions created yet.")
-        self._update_session_state()
 
     def _get_marker_visibility(self):
         '''Get the visibility of the markers

@@ -153,13 +153,13 @@ class Grasp(Primitive):
         self._viewed_grasps = []
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
         self._get_object_list_srv = rospy.ServiceProxy(
-                                        'get_object_list',
+                                        '/fetch_pbd/get_object_list',
                                         GetObjectList)
         self._grasp_suggestion_srv = \
                 rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
@@ -167,7 +167,7 @@ class Grasp(Primitive):
                                                         GraspFeedback,
                                                         queue_size=10,
                                                         latch=True)
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
+        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
                                                 queue_size=10,
                                                 latch=True)

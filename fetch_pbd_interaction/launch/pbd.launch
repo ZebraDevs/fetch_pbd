@@ -7,9 +7,7 @@
 	<arg name="social_gaze" default="true" />
 	<arg name="play_sound" default="true" />
 	<arg name="from_file" default="" />
-	<param name="from_file" value="$(arg from_file)" />
 	<arg name="to_file" default="" />
-	<param name="to_file" value="$(arg to_file)" />
 	<arg name="grasp_suggestion_service" default="" />
 	<arg name="grasp_feedback_topic" default="" />
 	<arg name="grasp_suggestion_ee_link" default="gripper_link" />
@@ -31,8 +29,6 @@
 	work, such as interactive manipulation backend and social gaze. -->
 	<include file="$(find fetch_pbd_interaction)/launch/pbd_prereqs.launch" >
 		<arg name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
-		<arg name="social_gaze" value="$(arg social_gaze)" />
-		<arg name="play_sound" value="$(arg play_sound)" />
     	<arg name="segmentation_service" value="$(arg segmentation_service)" />
     	<arg name="segmented_objects_topic" value="$(arg segmented_objects_topic)" />
     	<arg name="segmented_table_topic" value="$(arg segmented_table_topic)" />
@@ -49,9 +45,13 @@
 
 	<!-- This runs the interaction node itself.	It is the main state
 	machine for interaction and PbD -->
-	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_interaction_node.py" output="screen" ns="fetch_pbd">
+	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_interaction_node.py" output="screen" >
 		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
 		<param name="grasp_feedback_topic" value="$(arg grasp_feedback_topic)" />
 		<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
+		<param name="to_file" value="$(arg to_file)" />
+		<param name="from_file" value="$(arg from_file)" />
+		<param name="play_sound" value="$(arg play_sound)" />
+		<param name="social_gaze" value="$(arg social_gaze)" />
 	</node>
 </launch>
