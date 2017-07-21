@@ -54,6 +54,7 @@ class Action:
     def __init__(self, robot, tf_listener, im_server, primitive_click_cb,
                  action_change_cb, action_id=None, 
                  grasp_suggestion_service=None,
+                 grasp_feedback_topic=None,
                  external_ee_link=None):
         '''
         Args:
@@ -82,6 +83,7 @@ class Action:
         # Markers to connect consecutive primitives together
         self._link_markers = {}
         self._grasp_suggestion_service = grasp_suggestion_service
+        self._grasp_feedback_topic = grasp_feedback_topic
         self._external_ee_link = external_ee_link
 
         # TODO(sarah): Understand this note better
@@ -204,6 +206,7 @@ class Action:
                 primitive = Grasp(self._robot, self._tf_listener,
                             self._im_server, 
                             self._grasp_suggestion_service,
+                            self._grasp_feedback_topic,
                             self._external_ee_link)
                 primitive.build_from_json(target)
 

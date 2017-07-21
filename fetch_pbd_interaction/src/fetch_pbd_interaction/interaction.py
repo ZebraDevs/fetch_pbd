@@ -51,7 +51,7 @@ class Interaction:
     recording trajectories.
     '''
 
-    def __init__(self, grasp_suggestion_service, external_ee_link):
+    def __init__(self, grasp_suggestion_service, grasp_feedback_topic, external_ee_link):
 
         # Create main components.
         self._tf_listener = TransformListener()
@@ -60,6 +60,7 @@ class Interaction:
         self._session = Session(self._robot, self._tf_listener,
                                 self._im_server, 
                                 grasp_suggestion_service_name=grasp_suggestion_service,
+                                grasp_feedback_topic=grasp_feedback_topic,
                                 external_ee_link=external_ee_link)
         self._head_busy = False
 

@@ -18,6 +18,7 @@ from visualization_msgs.msg import InteractiveMarkerControl
 from visualization_msgs.msg import InteractiveMarkerFeedback
 from interactive_markers.menu_handler import MenuHandler
 from rail_manipulation_msgs.srv import SuggestGrasps, SuggestGraspsRequest
+from rail_manipulation_msgs.msg import GraspFeedback
 
 # Local
 from fetch_pbd_interaction.primitive import Primitive
@@ -103,6 +104,7 @@ class Grasp(Primitive):
 
     def __init__(self, robot, tf_listener, im_server, 
                     grasp_suggestion_service_name=None, 
+                    grasp_feedback_topic=None, 
                     external_ee_link=None, 
                     landmark=None, number=None):
         '''
@@ -148,6 +150,7 @@ class Grasp(Primitive):
         self._marker_delete_cb = None
         self._pose_change_cb = None
         self._action_change_cb = None
+        self._viewed_grasps = []
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
                                          'get_object_from_name',
@@ -160,6 +163,10 @@ class Grasp(Primitive):
                                         GetObjectList)
         self._grasp_suggestion_srv = \
                 rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
+        self._grasp_feedback_publisher = rospy.Publisher(grasp_feedback_topic,
+                                                        GraspFeedback,
+                                                        queue_size=10,
+                                                        latch=True)
         self._status_publisher = rospy.Publisher('fetch_pbd_status',
                                                 String,
                                                 queue_size=10,
@@ -486,6 +493,10 @@ class Grasp(Primitive):
             return False
         if not self._robot.get_gripper_state() == GripperState.CLOSED:
             self._robot.set_gripper_state(GripperState.CLOSED)
+        feedback_msg = GraspFeedback()
+        feedback_msg.indices_considered = self._viewed_grasps
+        feedback_msg.index_selected = self._current_grasp_num
+        self._grasp_feedback_publisher.publish(feedback_msg)
         return True
 
     def head_busy(self):
@@ -881,6 +892,7 @@ class Grasp(Primitive):
         '''Callback to switch between grasps indicated by menu entries'''
         menu_id = feedback.menu_entry_id
         self._current_grasp_num = self._grasp_menu_entries.index(menu_id)
+        self._viewed_grasps.append(self._current_grasp_num)
         grasp_pose = self._current_grasp_list[self._current_grasp_num]
         self.build_from_pose(grasp_pose, 
                                 self._grasp_state.ref_landmark, 
@@ -920,6 +932,7 @@ class Grasp(Primitive):
             self._pose_change_cb()
             self._head_busy = False
             self._robot.look_forward()
+            self._viewed_grasps.append(0)
             return True
 
     def _change_grasp_frames(self, target_frame):

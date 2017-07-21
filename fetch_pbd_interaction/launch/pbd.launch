@@ -11,9 +11,8 @@
 	<arg name="to_file" default="" />
 	<param name="to_file" value="$(arg to_file)" />
 	<arg name="grasp_suggestion_service" default="" />
-	<param name="grasp_suggestion_service_name" value="$(arg grasp_suggestion_service)" />
+	<arg name="grasp_feedback_topic" default="" />
 	<arg name="grasp_suggestion_ee_link" default="gripper_link" />
-	<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
 
     <arg name="segmentation_service" default="/rail_segmentation/segment" />
     <arg name="segmented_objects_topic" default="/rail_segmentation/segmented_objects" />
@@ -52,6 +51,7 @@
 	machine for interaction and PbD -->
 	<node name="fetch_pbd_interaction" pkg="fetch_pbd_interaction" type="pbd_interaction_node.py" output="screen" ns="fetch_pbd">
 		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
+		<param name="grasp_feedback_topic" value="$(arg grasp_feedback_topic)" />
 		<param name="grasp_suggestion_ee_link" value="$(arg grasp_suggestion_ee_link)" />
 	</node>
 </launch>

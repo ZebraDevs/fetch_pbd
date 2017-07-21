@@ -25,9 +25,10 @@ if __name__ == '__main__':
     rospy.init_node('interaction', anonymous=True)
     grasp_suggestion_service = rospy.get_param('~grasp_suggestion_service')
     external_ee_link = rospy.get_param('~grasp_suggestion_ee_link')
+    grasp_feedback_topic = rospy.get_param('~grasp_feedback_topic')
 
     # Run the system    
-    interaction = Interaction(grasp_suggestion_service, external_ee_link)
+    interaction = Interaction(grasp_suggestion_service, grasp_feedback_topic, external_ee_link)
 
     while not rospy.is_shutdown():
         interaction.update()

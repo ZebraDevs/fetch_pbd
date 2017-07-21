@@ -46,6 +46,7 @@ class Session:
     def __init__(self, robot, _tf_listener, im_server, 
                 from_file=None, to_file=None, 
                 grasp_suggestion_service_name=None,
+                grasp_feedback_topic=None,
                 external_ee_link=None):
         '''
         Args:
@@ -57,6 +58,7 @@ class Session:
         self._from_file = from_file
         self._to_file = to_file
         self._grasp_suggestion_service = grasp_suggestion_service_name
+        self._grasp_feedback_topic = grasp_feedback_topic
         self._external_ee_link = external_ee_link
         
         self._json = {}
@@ -164,6 +166,7 @@ class Session:
                         self._action_change_cb,
                         self._current_action_id,
                         self._grasp_suggestion_service,
+                        self._grasp_feedback_topic,
                         self._external_ee_link)
         if not name is None:
             action.set_name(name)
@@ -413,6 +416,7 @@ class Session:
                 action = Action(self._robot, self._tf_listener, self._im_server,
                            self._selected_primitive_cb, self._action_change_cb,
                            grasp_suggestion_service=self._grasp_suggestion_service,
+                           grasp_feedback_topic=self._grasp_feedback_topic,
                            external_ee_link=self._external_ee_link)
                 result.value['id'] = new_id
                 action.build_from_json(result.value)
@@ -468,6 +472,7 @@ class Session:
                                                self._tf_listener,
                                                self._im_server,
                                                self._grasp_suggestion_service,
+                                               self._grasp_feedback_topic,
                                                self._external_ee_link)
                             primitive_copy.build_from_json(target)
                             primitive_copy.set_primitive_number(new_num)
@@ -692,7 +697,7 @@ class Session:
                         action.end_execution()
                         return True
                     else:
-                        rospy.logwarn("Execution failed")
+                        rospy.logwarn("Execution failed, with status: {}".format(status))
                         action.end_execution()
                         return False
             else:
@@ -740,6 +745,7 @@ class Session:
             grasp = Grasp(self._robot, self._tf_listener, 
                               self._im_server, 
                               self._grasp_suggestion_service,
+                              self._grasp_feedback_topic,
                               self._external_ee_link, 
                               msg,
                               primitive_number)
@@ -962,6 +968,7 @@ class Session:
             action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb, 
                        grasp_suggestion_service=self._grasp_suggestion_service,
+                       grasp_feedback_topic=self._grasp_feedback_topic,
                        external_ee_link=self._external_ee_link)
             success = action.build_from_json(result.value)
             self._actions_disabled.append(not success)
@@ -989,6 +996,7 @@ class Session:
                 action = Action(self._robot, self._tf_listener, self._im_server,
                        self._selected_primitive_cb, self._action_change_cb,
                        grasp_suggestion_service=self._grasp_suggestion_service,
+                       grasp_feedback_topic=self._grasp_feedback_topic,
                        external_ee_link=self._external_ee_link)
                 success = action.build_from_json(self._json[key])
                 self._actions_disabled.append(not success)
