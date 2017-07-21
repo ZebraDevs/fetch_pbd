@@ -265,6 +265,7 @@ class Robot:
                 abs_ee_pose)
             has_nearest = resp.has_nearest
         except Exception, e:
+            rospy.logwarn(str(e))
             has_nearest = False
 
         if not has_nearest:

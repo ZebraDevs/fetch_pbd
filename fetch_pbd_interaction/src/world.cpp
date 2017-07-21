@@ -462,7 +462,7 @@ bool World::getNearestObjectCallback(fetch_pbd_interaction::GetNearestObject::Re
   }
 
   if (distances.size() > 0){
-    int min = *std::min_element(distances.begin(), distances.end());
+    float min = *std::min_element(distances.begin(), distances.end());
     if (min < obj_nearest_dist_threshold){
       for (int i=0; i < distances.size(); i++){
         if (distances[i] == min) {
@@ -472,6 +472,9 @@ bool World::getNearestObjectCallback(fetch_pbd_interaction::GetNearestObject::Re
         }
       }
     }
+  }
+  else {
+    ROS_INFO("No objects");
   }
   resp.has_nearest = false;
   return true;
