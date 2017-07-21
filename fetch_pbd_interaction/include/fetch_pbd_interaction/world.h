@@ -108,6 +108,7 @@ private:
     ros::ServiceServer clear_world_objects_service;
     ros::ServiceServer update_world_service;
     interactive_markers::MenuHandler menu_handler;
+    geometry_msgs::Vector3 scale_text;
     // Two objects must be closer than this to be considered 'the same'.
     float obj_similar_dist_threshold;
 

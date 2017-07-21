@@ -124,8 +124,6 @@ class ArmTarget(Primitive):
         self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
         self._reachable = True
 
-        # self._ref_names = []
-        # self._im_server = InteractiveMarkerServer("programmed_actions")
         self._menu_handler = MenuHandler()
 
         self._sub_ref_entries = None
@@ -145,8 +143,7 @@ class ArmTarget(Primitive):
                                         GetObjectList)
         self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
-                                                queue_size=10,
-                                                latch=True)
+                                                queue_size=10)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -245,7 +242,7 @@ class ArmTarget(Primitive):
                 self._im_server.applyChanges()
                 self._marker_visible = True
             except Exception, e:
-                rospy.logwarn(e)
+                rospy.logwarn("Show marker error: {}".format(e))
 
         return self._marker_visible
 
@@ -992,8 +989,9 @@ class ArmTarget(Primitive):
                                                         BASE_LINK,
                                                         self._arm_state.ee_pose)
             offset_pose = ArmTarget._offset_pose(intermediate_pose)
-            return self._tf_listener.transformPose(self.get_ref_frame_name(),
-                                                offset_pose)
+            # return self._tf_listener.transformPose(BASE_LINK,
+            #                                     offset_pose)
+            return offset_pose
         except Exception, e:
             rospy.logwarn(e)
             rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
@@ -1009,7 +1007,7 @@ class ArmTarget(Primitive):
         menu_control = InteractiveMarkerControl()
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
-        frame_id = self.get_ref_frame_name()
+        frame_id = BASE_LINK #self.get_ref_frame_name()
         pose = self._get_marker_pose()
         if pose is None:
             return

@@ -52,7 +52,7 @@ World::World(ros::NodeHandle n, ros::NodeHandle pn,
   marker_duration = ros::Duration(0.0);
   segmented_objects_topic = segmented_objects_topic_name;
   
-  geometry_msgs::Vector3 scale_text = geometry_msgs::Vector3();
+  scale_text = geometry_msgs::Vector3();
   scale_text.z = text_height;
 
   add_grasp_pub = n.advertise<fetch_pbd_interaction::Landmark>("/fetch_pbd/add_grasp", 100);
@@ -179,7 +179,7 @@ visualization_msgs::InteractiveMarker World::getSurfaceMarker(geometry_msgs::Pos
 
 
   visualization_msgs::InteractiveMarkerControl button_control;
-  button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::BUTTON;
+  button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::NONE;         
   button_control.always_visible = true;
   button_control.markers.push_back(marker);
   int_marker.controls.push_back(button_control);
@@ -551,6 +551,22 @@ visualization_msgs::InteractiveMarker World::getObjectMarker(int index){
   button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::BUTTON;
   button_control.always_visible = true;
   button_control.markers.push_back(marker);
+  visualization_msgs::Marker text_marker;
+  text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+  text_marker.id = index;
+  text_marker.scale = scale_text;
+  text_marker.text = int_marker.name;
+  text_marker.color.a = 0.5; //= color_text;
+  // text_marker.header.frame_id = base_frame;
+  geometry_msgs::Point text_pos;
+  // text_pos.x = objects[index].object.pose.position.x;
+  // text_pos.y = objects[index].object.pose.position.y;
+  text_pos.z = objects[index].object.dimensions.z / 2.0 + text_offset;
+  //     objects[index].object.pose.position.z +
+  //     objects[index].object.dimensions.z / 2.0 + text_offset);
+  text_marker.pose.position = text_pos;
+  text_marker.pose.orientation.w = 1.0;
+  button_control.markers.push_back(text_marker);
   int_marker.controls.push_back(button_control);
 
   return int_marker;

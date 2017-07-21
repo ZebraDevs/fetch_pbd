@@ -33,7 +33,7 @@ LINK_SCALE = Vector3(0.01, 0.03, 0.03)
 LINK_COLOR = ColorRGBA(0.8, 0.8, 0.8, 0.3)  # sort of light gray
 
 # ROS topics, etc.
-TOPIC_MARKERS = 'visualization_marker_array'
+TOPIC_MARKERS = '/fetch_pbd/visualization_marker_array'
 
 # TODO(sarah): Is this necessary?
 BASE_LINK = 'base_link'
@@ -623,7 +623,6 @@ class Action:
                         pose)
                     primitive.set_pose(new_pose)
 
-        self._update_links()
 
         self._lock.release()
         self.update_viz()
