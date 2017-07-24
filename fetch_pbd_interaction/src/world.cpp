@@ -179,7 +179,7 @@ visualization_msgs::InteractiveMarker World::getSurfaceMarker(geometry_msgs::Pos
 
 
   visualization_msgs::InteractiveMarkerControl button_control;
-  button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::BUTTON;         
+  button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::NONE;         
   button_control.always_visible = true;
   button_control.markers.push_back(marker);
   int_marker.controls.push_back(button_control);
