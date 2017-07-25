@@ -189,7 +189,7 @@ class ArmTrajectory(Primitive):
             gripper_state = json['gripper_states'][i]
             self._gripper_states.append(gripper_state)
 
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met before a
             primitive can be executed. This could be something like
@@ -198,10 +198,9 @@ class ArmTrajectory(Primitive):
             Returns:
                 None
         '''
+        return True, None
 
-        return None
-
-    def get_post_condition(self):
+    def check_post_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met after a
             primitive is executed in order for execution to be a success.
@@ -210,7 +209,7 @@ class ArmTrajectory(Primitive):
             Returns:
                 None
         '''
-        return None
+        return True, None
 
     def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
@@ -386,7 +385,10 @@ class ArmTrajectory(Primitive):
         gripper_state = self._gripper_states[-1]
 
         self._robot.set_gripper_state(gripper_state)
-        return all_states
+        if all_states:
+            return True, None
+        else:
+            return False, "Problem finding IK solution"
 
     def head_busy(self):
         '''Return true if head busy

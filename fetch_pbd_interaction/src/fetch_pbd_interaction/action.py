@@ -721,19 +721,6 @@ class Action:
         # self._lock.release()
         self.update_viz()
 
-    def _is_condition_met(self, condition):
-        '''Returns whether the given pre-condition or post-condition is
-        currently met. Actually not implemented right now.
-
-        Args:
-            condition (Condition): The pre or post condition for the primitive
-
-        Returns:
-            bool: Whether the given pre/post-condition is met.
-        '''
-        # TODO(mcakmak): Implement.
-        return True
-
     def _execute_action(self):
         ''' Function to replay the demonstrated action.'''
         primitive = self.get_primitive(0)
@@ -748,13 +735,8 @@ class Action:
                 String("First primitive does not exist."))
         # Check if the very first precondition is met.
         # Not actually implemented right now.
-        elif not self._is_condition_met(primitive.get_pre_condition()):
-            rospy.logwarn(
-                "First precondition is not met, first make sure the robot is" +
-                "ready to execute action (hand object or free hands).")
+        elif not self._check_pre_conditions():
             self._status = ExecutionStatus.CONDITION_ERROR
-            self._status_publisher.publish(
-                String("Precondition is not met."))
         else:
             # Check that all parts of the action are reachable
             if not self._is_action_reachable():
@@ -771,6 +753,39 @@ class Action:
             if self._status == ExecutionStatus.EXECUTING:
                 self._status = ExecutionStatus.SUCCEEDED
                 rospy.loginfo("Action execution has succeeded.")
+
+    def _check_pre_conditions(self):
+        '''Loop through primitives and make sure all of their 
+        preconditions are met
+
+        Returns:
+            bool
+        '''
+        for i in range(self.n_primitives()):
+            rospy.loginfo("checking preconditions " + str(i))
+            primitive = self.get_primitive(i)
+
+            # Make sure primitive exists.
+            if primitive is None:
+                rospy.logwarn("Primitive " + str(i) + " does not exist.")
+                self._status = ExecutionStatus.CONDITION_ERROR
+                self._status_publisher.publish(
+                    String("Primitive " + str(i) + " does not exist."))
+
+                return False
+            # Check that preconditions are met (doesn't do anything right now)
+            else:
+                success, msg = primitive.check_pre_condition()
+                if not success:
+                    rospy.logwarn(
+                        "\tPreconditions of primitive " + str(i) + " are not " +
+                        "satisfied. " + msg)
+                    self._status = ExecutionStatus.CONDITION_ERROR
+                    self._status_publisher.publish(
+                        String("Preconditions of primitive " + str(i) +
+                            " are not satisfied. " + msg))
+                    return False
+        return True
 
     def _is_action_reachable(self):
         '''Make sure that action is possible to execute entire action'''
@@ -801,26 +816,20 @@ class Action:
                     String("Primitive " + str(i) + " does not exist."))
                 break
             # Check that preconditions are met (doesn't do anything right now)
-            elif not self._is_condition_met(primitive.get_pre_condition()):
-                rospy.logwarn(
-                    "\tPreconditions of primitive " + str(i) + " are not " +
-                    "satisfied. Aborting.")
-                self._status = ExecutionStatus.CONDITION_ERROR
-                self._status_publisher.publish(
-                    String("Preconditions of primitive " + str(i) +
-                        " are not satisfied. Aborting."))
-                break
             else:
+
                 # Try executing.
                 self._status = ExecutionStatus.EXECUTING
-                if not primitive.execute():
+                success, msg = primitive.execute()
+                if not success:
                     self._status = ExecutionStatus.NO_IK
                     self._status_publisher.publish(
-                        String("Problem finding IK solutions."))
+                        String(msg))
                     break
 
                 # Finished executing; check that postconditions are met
-                if self._is_condition_met(primitive.get_post_condition()):
+                success, msg = primitive.check_post_condition()
+                if success:
                     rospy.loginfo('\tPost-conditions of the action are met.')
                 else:
                     rospy.logwarn(
@@ -829,7 +838,7 @@ class Action:
                     self._status = ExecutionStatus.CONDITION_ERROR
                     self._status_publisher.publish(
                         String("Post-conditions of action primitive " +
-                            str(i) + " are not satisfied. Aborting."))
+                            str(i) + " are not satisfied. " + msg))
                     break
 
             # Perhaps the execution was pre-empted by the user. Check

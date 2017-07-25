@@ -20,11 +20,11 @@ class Primitive:
         pass
 
     @abstractmethod
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         pass
 
     @abstractmethod
-    def get_post_condition(self):
+    def check_post_condition(self):
         pass
 
     @abstractmethod

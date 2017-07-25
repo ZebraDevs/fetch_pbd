@@ -123,6 +123,7 @@ class ArmTarget(Primitive):
         self._color_mesh_reachable = COLOR_MESH_REACHABLE
         self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
         self._reachable = True
+        self._landmark_found = False
 
         self._menu_handler = MenuHandler()
 
@@ -141,9 +142,6 @@ class ArmTarget(Primitive):
         self._get_object_list_srv = rospy.ServiceProxy(
                                         '/fetch_pbd/get_object_list',
                                         GetObjectList)
-        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
-                                                String,
-                                                queue_size=10)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -196,7 +194,7 @@ class ArmTarget(Primitive):
 
         self._arm_state.ref_landmark.dimensions = landmark_dimensions
 
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met before a
             primitive can be executed. This could be something like
@@ -205,10 +203,16 @@ class ArmTarget(Primitive):
             Returns:
                 None
         '''
+        if self._arm_state.ref_type == ArmState.OBJECT:
+            if not self._landmark_found:
+                return False, "No matching object found" + \
+                        " for primitive: {}".format(self.get_number())
+            else:
+                return True, None
+        else: 
+            return True, None
 
-        return None
-
-    def get_post_condition(self):
+    def check_post_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met after a
             primitive is executed in order for execution to be a success.
@@ -218,7 +222,7 @@ class ArmTarget(Primitive):
                 None
         '''
 
-        return None
+        return True, None
 
     def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
@@ -272,8 +276,10 @@ class ArmTarget(Primitive):
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
+                self._landmark_found = True
                 return True
             else:
+                self._landmark_found = False
                 return False
         else:
             return True
@@ -423,10 +429,10 @@ class ArmTarget(Primitive):
             bool : Success of execution
         '''
         if not self._robot.move_arm_to_pose(self._arm_state):
-            return False
+            return False, "Problem finding IK solution"
         if not self._gripper_state == self._robot.get_gripper_state():
             self._robot.set_gripper_state(self._gripper_state)
-        return True
+        return True, None
 
     def head_busy(self):
         '''Return true if head busy
@@ -915,6 +921,7 @@ class ArmTarget(Primitive):
         rospy.loginfo("Setting reference of primitive" + 
                       "{} to object".format(self._number))
         self._arm_state.ref_landmark = new_ref_obj
+        self._landmark_found = True
         self._arm_state.ee_pose.header.frame_id = new_ref_obj.name
 
     def _set_ref(self, new_ref):
@@ -954,6 +961,7 @@ class ArmTarget(Primitive):
                                     self._arm_state.ee_pose
                                 )
                 self._arm_state.ref_landmark = new_landmark
+                self._landmark_found = True
                 self._arm_state.ee_pose = ee_pose
         elif self._arm_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
@@ -962,6 +970,7 @@ class ArmTarget(Primitive):
                                 )
             self._arm_state.ee_pose = ee_pose
             self._arm_state.ref_landmark = Landmark()
+            self._landmark_found = False
         elif self._arm_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = 'primitive_' + str(self._number - 1)
             rospy.loginfo("Original pose: {}".format(self._arm_state.ee_pose))
@@ -973,6 +982,7 @@ class ArmTarget(Primitive):
 
             self._arm_state.ee_pose = ee_pose
             self._arm_state.ref_landmark = Landmark()
+            self._landmark_found = False
 
     def _get_marker_pose(self):
         '''Returns the pose of the primitive.

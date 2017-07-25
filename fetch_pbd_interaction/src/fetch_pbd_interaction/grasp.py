@@ -167,11 +167,6 @@ class Grasp(Primitive):
                                                         GraspFeedback,
                                                         queue_size=10,
                                                         latch=True)
-        self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
-                                                String,
-                                                queue_size=10,
-                                                latch=True)
-
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -261,7 +256,7 @@ class Grasp(Primitive):
         self._grasp_state.ref_landmark.dimensions = landmark_dimensions
         self._pre_grasp_state.ref_landmark.dimensions = landmark_dimensions
 
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met before a
             primitive can be executed. This could be something like
@@ -270,10 +265,15 @@ class Grasp(Primitive):
             Returns:
                 None
         '''
+        if self._current_grasp_num is None:
+            msg = "Cannot execute action." + \
+                            " No grasp chosen. Right-click the blue" + \
+                            " grasp marker to generate grasp options."
+            return False, msg
+        else:
+            return True, None
 
-        return None
-
-    def get_post_condition(self):
+    def check_post_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met after a
             primitive is executed in order for execution to be a success.
@@ -283,7 +283,7 @@ class Grasp(Primitive):
                 None
         '''
 
-        return None
+        return True, None
 
     def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
@@ -483,21 +483,27 @@ class Grasp(Primitive):
         Returns
             bool : Success of execution
         '''
-        rospy.loginfo("Executing grasp")
-        if not self._robot.move_arm_to_pose(self._pre_grasp_state):
-            return False
-        if not self._robot.get_gripper_state() == GripperState.OPEN:
-            self._robot.set_gripper_state(GripperState.OPEN)
+        if self._current_grasp_num is None:
+            msg = "Cannot execute action." + \
+                            " No grasp chosen. Right-click the blue" + \
+                            " grasp marker to generate grasp options."
+            return False, msg
+        else:
+            rospy.loginfo("Executing grasp")
+            if not self._robot.move_arm_to_pose(self._pre_grasp_state):
+                return False, "Problem finding IK solution"
+            if not self._robot.get_gripper_state() == GripperState.OPEN:
+                self._robot.set_gripper_state(GripperState.OPEN)
 
-        if not self._robot.move_arm_to_pose(self._grasp_state):
-            return False
-        if not self._robot.get_gripper_state() == GripperState.CLOSED:
-            self._robot.set_gripper_state(GripperState.CLOSED)
-        feedback_msg = GraspFeedback()
-        feedback_msg.indices_considered = self._viewed_grasps
-        feedback_msg.index_selected = self._current_grasp_num
-        self._grasp_feedback_publisher.publish(feedback_msg)
-        return True
+            if not self._robot.move_arm_to_pose(self._grasp_state):
+                return False, "Problem finding IK solution"
+            if not self._robot.get_gripper_state() == GripperState.CLOSED:
+                self._robot.set_gripper_state(GripperState.CLOSED)
+            feedback_msg = GraspFeedback()
+            feedback_msg.indices_considered = self._viewed_grasps
+            feedback_msg.index_selected = self._current_grasp_num
+            self._grasp_feedback_publisher.publish(feedback_msg)
+            return True, None
 
     def head_busy(self):
         '''Return true if head busy
