@@ -327,7 +327,7 @@ class Session:
         self._clear_world_objects_srv()
         self._lock.release()
         try:
-            rospy.wait_for_message('/fetch_pbd/action_loaded', EmptyMsg, timeout=100)
+            rospy.wait_for_message('/fetch_pbd/action_loaded', EmptyMsg, timeout=1000)
         except Exception, e:
             rospy.logwarn("Timed out waiting for frontend to respond")
         self.get_current_action().initialize_viz()

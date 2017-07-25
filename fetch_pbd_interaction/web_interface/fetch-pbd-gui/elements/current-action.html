@@ -25,7 +25,6 @@
   <template>
     <style include='iron-flex iron-flex-alignment'>
     <style is='custom-style'>
-
       .flex-vertical {
         @apply(--layout-vertical);
         height: 500px;
@@ -61,6 +60,7 @@
       #viewer {
         overflow:hidden;
         padding-left: 32px;
+        height: 600px;
       }
       #actionName {
         padding-left: 32px;
@@ -353,6 +353,7 @@
       },
 
       attached: function() {
+        console.log('attached');
 
         if (screen.width <= 500) {
             var viewer = document.getElementById('viewer');
@@ -471,6 +472,8 @@
 
         var empty_msg = new ROSLIB.Message({});
         this.loadedPublisher.publish(empty_msg);
+
+        this.resize();
 
       },
 

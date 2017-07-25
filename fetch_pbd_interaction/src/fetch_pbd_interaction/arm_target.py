@@ -143,8 +143,7 @@ class ArmTarget(Primitive):
                                         GetObjectList)
         self._status_publisher = rospy.Publisher('/fetch_pbd/fetch_pbd_status',
                                                 String,
-                                                queue_size=10,
-                                                latch=True)
+                                                queue_size=10)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -243,7 +242,7 @@ class ArmTarget(Primitive):
                 self._im_server.applyChanges()
                 self._marker_visible = True
             except Exception, e:
-                rospy.logwarn(e)
+                rospy.logwarn("Show marker error: {}".format(e))
 
         return self._marker_visible
 
