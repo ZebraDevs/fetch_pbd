@@ -1701,6 +1701,12 @@ ROS3D.Marker = function(options) {
         var p2 = new THREE.Vector3(message.points[1].x, message.points[1].y, message.points[1].z);
         direction = p1.clone().negate().add(p2);
         // direction = p2 - p1;
+        if (direction.x === 0.0){
+          direction.x = 0.0000001;
+        }
+        if (direction.z === 0.0){
+          direction.z = 0.0000001;
+        }
         len = direction.length();
         headDiameter = message.scale.y;
         shaftDiameter = message.scale.x;
