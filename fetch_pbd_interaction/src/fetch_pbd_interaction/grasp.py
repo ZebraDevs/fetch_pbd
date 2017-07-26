@@ -1239,17 +1239,29 @@ class Grasp(Primitive):
         rospy.loginfo("Marker name: {}".format(self.get_name()))
         int_marker.controls.append(menu_control)
         prev_marker = self._im_server.get(self.get_name())
+        prev_color = None
+        if not prev_marker is None:
+            if len(prev_marker.controls) > 0:
+                if len(prev_marker.controls[-1].markers) > 0:
+                    prev_color = prev_marker.controls[-1].markers[-1].color
+        new_color = None
+        if len(int_marker.controls) > 0:
+            if len(int_marker.controls[-1].markers) > 0:
+                new_color = int_marker.controls[-1].markers[-1].color
+
         if not prev_marker:
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
+            rospy.logwarn("Adding marker for primitive {}".format(self.get_number()))
             return True
-        elif prev_marker.pose != int_marker.pose:
-            rospy.loginfo("New marker")
+        elif (prev_marker.pose != int_marker.pose) or (prev_color != new_color):
+            rospy.loginfo("Updating marker")
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
             return True
-        return False
 
+        rospy.logwarn("Not updating marker for primitive {}".format(self.get_number()))
+        return False
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.
 
@@ -1343,6 +1355,8 @@ class Grasp(Primitive):
             pre_grasp_mesh_color = self._color_mesh_reachable
         else:
             pre_grasp_mesh_color = self._color_mesh_unreachable
+
+        rospy.loginfo("Mesh color: {}".format(grasp_mesh_color))
 
 
         # Make grasp marker
@@ -1451,19 +1465,15 @@ class Grasp(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
-            rospy.logdebug("Changing visibility of the pose controls.")
-            # self._is_control_visible = not self._is_control_visible
+            rospy.logdebug("Changing selected-ness.")
+            self._is_control_visible = not self._is_control_visible
             self._marker_click_cb(
                 self._number, self._is_control_visible)
-        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._set_new_pose(feedback.pose, feedback.header.frame_id)
-            self._pose_change_cb()
-            self._action_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
