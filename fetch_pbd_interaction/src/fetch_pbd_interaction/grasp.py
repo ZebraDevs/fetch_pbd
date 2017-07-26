@@ -393,6 +393,7 @@ class Grasp(Primitive):
         Args:
             is_selected (bool)
         '''
+        rospy.loginfo("Selecting primitive: {}".format(self.get_number()))
         self._selected = is_selected
         self.set_control_visible(is_selected)
         if is_selected:
@@ -1216,7 +1217,10 @@ class Grasp(Primitive):
             marker.scale = self._grasp_state.ref_landmark.dimensions
             marker.pose = Pose()
             marker.pose.orientation.w = 1.0
-            marker.color = COLOR_MESH_REACHABLE
+            if self._selected:
+                marker.color = COLOR_MESH_REACHABLE_SELECTED
+            else:
+                marker.color = COLOR_MESH_REACHABLE
             menu_control.markers.append(marker)
         else:
             pose = self._get_marker_pose()
