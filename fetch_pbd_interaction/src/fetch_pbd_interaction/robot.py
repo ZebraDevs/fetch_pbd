@@ -339,7 +339,7 @@ class Robot:
                 else:
                     rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
+                rospy.logwarn("Fetch social gaze exception: {}".format(str(e)))
 
     def nod_head(self, num=5):
         '''Nods robot's head

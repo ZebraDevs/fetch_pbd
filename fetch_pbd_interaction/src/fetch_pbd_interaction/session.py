@@ -673,6 +673,8 @@ class Session:
                     rospy.loginfo("An object is required for this action")
                     self._robot.look_down()
                     resp = self._update_world_srv()
+                    self._robot.look_forward()
+
                     # objects = resp.objects
                     if resp.object_list:
                         # An object is required, and we got one. Execute.
