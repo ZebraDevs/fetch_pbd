@@ -78,7 +78,7 @@ class Interaction:
         # rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
         rospy.Service('/fetch_pbd/gui_input', GuiInput, self._gui_input_cb)
 
-        rospy.Subscriber('/fetch_pbd/world_update', WorldState, 
+        rospy.Subscriber('/fetch_pbd/world_updates', WorldState, 
                             self._world_update_cb)
 
         # Initialize trajectory recording state.
@@ -653,4 +653,6 @@ class Interaction:
         Args:
             gui_input (GuiInputRequest) : contains index of primitive to execute
         '''
+        self._head_busy = True
         self._session.execute_primitive(int(gui_input.param))
+        self._head_busy = False

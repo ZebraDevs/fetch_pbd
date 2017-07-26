@@ -1850,7 +1850,7 @@ ROS3D.Marker = function(options) {
       var numSpherePoints = message.points.length;
       var createSphereColors = (numSpherePoints === message.colors.length);
       // do not render giant lists
-      var sphereStepSize = Math.ceil(numSpherePoints / 3000);
+      var sphereStepSize = Math.ceil(numSpherePoints / 300);
         
       // add the points
       var q, sphere, curSphereColor, newSphereMesh;

@@ -137,7 +137,9 @@ private:
     std::string base_frame;
     ros::Duration marker_duration;
 
-    static visualization_msgs::Marker pc2ToMarker(sensor_msgs::PointCloud2, int index, ros::Duration duration, std::string output_frame);
+    static void pc2ToMarker(sensor_msgs::PointCloud2 pc2, int index, 
+                                  ros::Duration duration, std::string output_frame,
+                                  visualization_msgs::Marker* pc2_marker_points, visualization_msgs::Marker* pc2_marker_sphere_list);
 
     static float objectDissimilarity(fetch_pbd_interaction::Landmark obj1, fetch_pbd_interaction::Landmark obj2);
 

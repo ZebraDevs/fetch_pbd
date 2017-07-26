@@ -303,11 +303,15 @@ class Action:
         the locations of objects in the world
         '''
         self._lock.acquire()
-        self._update_markers()
         rospy.loginfo("Updating objects")
         for primitive in self._seq:
-            primitive.update_ref_frames()
+            if not primitive.update_ref_frames():
+                primitive.hide_marker()
+            else:
+                primitive.show_marker()
+        self._update_markers()
         self._lock.release()
+        self._action_change_cb()
 
     def n_primitives(self):
         '''Returns the number of primitives in this action.
@@ -350,14 +354,18 @@ class Action:
             primitive.hide_marker()
 
     def make_primitive_marker(self, primitive_number):
-        '''Delete marker with certain index
+        '''Show marker with certain index
 
         Args:
             primitive_number (int)
         '''
         # self._marker_visibility[primitive_number] = True
         primitive = self._seq[primitive_number]
-        primitive.show_marker()
+        if not primitive.show_marker():
+            rospy.logwarn
+            self._status_publisher.publish(
+                'Not showing marker for {}'.format(primitive.get_name()) + 
+                ' because no matching object found. Try "record objects"?')
 
     def get_marker_visibility(self):
         '''Returns visibility status of primitive markers
@@ -413,7 +421,6 @@ class Action:
             # Construct the markers.
             marker_visibility.append(primitive.show_marker())
 
-            self._update_links()
         if False in marker_visibility:
             rospy.logwarn("Not showing primitive markers because " +
                           "no objects present")
@@ -623,11 +630,11 @@ class Action:
                         pose)
                     primitive.set_pose(new_pose)
 
-
         self._lock.release()
         self.update_viz()
-        for i in range(self.n_primitives()):
-            self.select_primitive(i, False)
+        for idx, primitive in enumerate(self._seq):
+            if primitive.is_selected():
+                self._primitive_click_cb(idx)
         self._action_change_cb()
 
     def delete_primitive(self, to_delete):
@@ -645,6 +652,8 @@ class Action:
         self._lock.acquire()
         # if (to_delete + 1) < self.n_primitives():
         self._seq[to_delete].hide_marker()
+        if self._seq[to_delete].is_selected():
+            self._primitive_click_cb(-1)
         for i in range(to_delete + 1, self.n_primitives()):
             self._seq[i].decrease_id()
 
@@ -663,7 +672,6 @@ class Action:
                     next_primitive.set_pose(new_pose)
         self._seq.pop(to_delete)
         # self._marker_visibility.pop(to_delete)
-        self._update_links()
         self._lock.release()
         self.update_viz()
 
@@ -767,10 +775,10 @@ class Action:
 
             # Make sure primitive exists.
             if primitive is None:
-                rospy.logwarn("Primitive " + str(i) + " does not exist.")
+                rospy.logwarn("Primitive " + str(primitive.get_name()) + " does not exist.")
                 self._status = ExecutionStatus.CONDITION_ERROR
                 self._status_publisher.publish(
-                    String("Primitive " + str(i) + " does not exist."))
+                    String("Primitive " + str(primitive.get_name()) + " does not exist."))
 
                 return False
             # Check that preconditions are met (doesn't do anything right now)
@@ -778,11 +786,11 @@ class Action:
                 success, msg = primitive.check_pre_condition()
                 if not success:
                     rospy.logwarn(
-                        "\tPreconditions of primitive " + str(i) + " are not " +
+                        "\tPreconditions of primitive " + str(primitive.get_name()) + " are not " +
                         "satisfied. " + msg)
                     self._status = ExecutionStatus.CONDITION_ERROR
                     self._status_publisher.publish(
-                        String("Preconditions of primitive " + str(i) +
+                        String("Preconditions of primitive " + str(primitive.get_name()) +
                             " are not satisfied. " + msg))
                     return False
         return True

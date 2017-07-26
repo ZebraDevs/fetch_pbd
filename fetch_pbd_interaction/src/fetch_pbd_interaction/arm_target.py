@@ -56,11 +56,11 @@ DEFAULT_OFFSET = 0.085
 
 # Right-click menu.
 MENU_OPTIONS = {
-    'ref': 'Reference frame',
+    'ref': 'Change target:',
     'move_here': 'Move arm here',
     'move_current': 'Move to current arm pose',
-    'del': 'Delete',
-    'target': 'Change target object:'
+    'del': 'Delete'
+    # 'target': 'Change target object:'
 }
 
 # Offets to maintain globally-unique IDs but with new sets of objects.
@@ -206,7 +206,7 @@ class ArmTarget(Primitive):
         if self._arm_state.ref_type == ArmState.OBJECT:
             if not self._landmark_found:
                 return False, "No matching object found" + \
-                        " for primitive: {}".format(self.get_number())
+                        " for primitive: {}".format(self.get_name())
             else:
                 return True, None
         else: 
@@ -276,6 +276,7 @@ class ArmTarget(Primitive):
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
+                self._arm_state.ee_pose.header.frame_id = resp.similar_object.name
                 self._landmark_found = True
                 return True
             else:
@@ -804,24 +805,24 @@ class ArmTarget(Primitive):
             self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
 
-        self._sub_target_entries = []
-        target_entry = self._menu_handler.insert(MENU_OPTIONS['target'])
-        object_list = self._get_object_list_srv().object_list
-        targets = [obj.name + " " for obj in object_list]
-        for target in targets:
-            subent = self._menu_handler.insert(
-                target, parent=target_entry, callback=self._change_target_cb)
-            self._sub_target_entries += [subent]
+        # self._sub_target_entries = []
+        # target_entry = self._menu_handler.insert(MENU_OPTIONS['target'])
+        # object_list = self._get_object_list_srv().object_list
+        # targets = [obj.name + " " for obj in object_list]
+        # for target in targets:
+        #     subent = self._menu_handler.insert(
+        #         target, parent=target_entry, callback=self._change_target_cb)
+        #     self._sub_target_entries += [subent]
 
         # Make all unchecked to start.
-        for subent in self._sub_target_entries:
-            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
+        # for subent in self._sub_target_entries:
+        #     self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
 
         # Check if necessary.
-        menu_id = self._get_menu_target_id(self._get_menu_ref(target=True))
-        if not menu_id is None:
-            # self.has_object = False
-            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
+        # menu_id = self._get_menu_target_id(self._get_menu_ref(target=True))
+        # if not menu_id is None:
+        #     # self.has_object = False
+        #     self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
         # Inset main menu entries.
 
@@ -857,25 +858,25 @@ class ArmTarget(Primitive):
         else:
             return None
 
-    def _get_menu_target_id(self, ref_name):
-        '''Returns the unique menu id from its name or None if the
-        object is not found.
+    # def _get_menu_target_id(self, ref_name):
+    #     '''Returns the unique menu id from its name or None if the
+    #     object is not found.
 
-        Args:
-            ref_name (str)
-        Returns:
-            int (?)|None
-        '''
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name + " " for obj in object_list]
-        if ref_name in refs:
-            index = refs.index(ref_name)
-            if index < len(self._sub_target_entries):
-                return self._sub_target_entries[index]
-            else:
-                return None
-        else:
-            return None
+    #     Args:
+    #         ref_name (str)
+    #     Returns:
+    #         int (?)|None
+    #     '''
+    #     object_list = self._get_object_list_srv().object_list
+    #     refs = [obj.name + " " for obj in object_list]
+    #     if ref_name in refs:
+    #         index = refs.index(ref_name)
+    #         if index < len(self._sub_target_entries):
+    #             return self._sub_target_entries[index]
+    #         else:
+    #             return None
+    #     else:
+    #         return None
 
 
     def _get_menu_ref_name(self, menu_id):
@@ -894,18 +895,18 @@ class ArmTarget(Primitive):
         refs.append(BASE_LINK)
         return refs[index]
 
-    def _get_menu_target_name(self, menu_id):
-        '''Returns the menu name from its unique menu id.
+    # def _get_menu_target_name(self, menu_id):
+    #     '''Returns the menu name from its unique menu id.
 
-        Args:
-            menu_id (int)
-        Returns:
-            str
-        '''
-        index = self._sub_target_entries.index(menu_id)
-        object_list = self._get_object_list_srv().object_list
-        refs = [obj.name for obj in object_list]
-        return refs[index]
+    #     Args:
+    #         menu_id (int)
+    #     Returns:
+    #         str
+    #     '''
+    #     index = self._sub_target_entries.index(menu_id)
+    #     object_list = self._get_object_list_srv().object_list
+    #     refs = [obj.name for obj in object_list]
+    #     return refs[index]
 
 
     def _set_target(self, new_ref):
@@ -990,10 +991,13 @@ class ArmTarget(Primitive):
         Returns:
             Pose
         '''
+        rospy.loginfo("Pose frame is: {}".format(self.get_ref_frame_name()))
+
         try:
+            rospy.loginfo("Pose: {}".format(self._arm_state.ee_pose))
             self._tf_listener.waitForTransform(BASE_LINK,
                                  self._arm_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
+                                 rospy.Time.now(),
                                  rospy.Duration(4.0))
             intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
@@ -1280,6 +1284,7 @@ class ArmTarget(Primitive):
         self._arm_state = self._robot.get_arm_state()
         self._gripper_state = self._robot.get_gripper_state()
         self.update_ref_frames()
+        self.update_viz()
 
     def _change_target_cb(self, feedback):
         '''Callback for when a reference frame change is requested.

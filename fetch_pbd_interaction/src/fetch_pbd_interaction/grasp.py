@@ -141,6 +141,7 @@ class Grasp(Primitive):
         self._current_grasp_num = None
         self._current_grasp_list = []
         self._approach_dist = 0.1 # default value
+        self._landmark_found = False
 
         self._menu_handler = MenuHandler()
 
@@ -265,6 +266,10 @@ class Grasp(Primitive):
             Returns:
                 None
         '''
+        if self._grasp_state.ref_type == ArmState.OBJECT:
+            if not self._landmark_found:
+                return False, "No matching object found" + \
+                        " for primitive: {}".format(self.get_name())
         if self._current_grasp_num is None:
             msg = "Cannot execute action." + \
                             " No grasp chosen. Right-click the blue" + \
@@ -338,8 +343,15 @@ class Grasp(Primitive):
             if resp.has_similar:
                 self._grasp_state.ref_landmark = resp.similar_object
                 self._pre_grasp_state.ref_landmark = resp.similar_object
+                self._grasp_state.ee_pose.header.frame_id = \
+                            resp.similar_object.name
+                self._pre_grasp_state.ee_pose.header.frame_id = \
+                            resp.similar_object.name
+                rospy.loginfo("Found similar")
+                self._landmark_found = True
                 return True
             else:
+                self._landmark_found = False
                 return False
         else:
             rospy.logwarn("Grasp has non-OBJECT-type reference frame")
@@ -393,6 +405,7 @@ class Grasp(Primitive):
         Args:
             is_selected (bool)
         '''
+        rospy.loginfo("Selecting primitive: {}".format(self.get_number()))
         self._selected = is_selected
         self.set_control_visible(is_selected)
         if is_selected:
@@ -1102,6 +1115,7 @@ class Grasp(Primitive):
         self._grasp_state.ref_landmark = new_ref_obj
         self._pre_grasp_state.ref_landmark = new_ref_obj
         self._grasp_state.ee_pose.header.frame_id = new_ref_obj.name
+        self._landmark_found = True
 
     def _convert_ref_frame(self, new_landmark):
         '''Convert grasp_state and pre_grasp_state to be in a different 
@@ -1123,6 +1137,8 @@ class Grasp(Primitive):
                 self._grasp_state.ref_landmark = new_landmark
                 self._grasp_state.ee_pose = ee_pose
                 self._pre_grasp_state.ref_landmark = new_landmark
+                self._landmark_found = True
+
         elif self._grasp_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
                                     BASE_LINK,
@@ -1131,6 +1147,8 @@ class Grasp(Primitive):
             self._grasp_state.ee_pose = ee_pose
             self._grasp_state.ref_landmark = Landmark()
             self._pre_grasp_state.ref_landmark = Landmark()
+            self._landmark_found = False
+
         elif self._grasp_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = "primitive_" + str(self._number - 1)
             rospy.loginfo("Original pose: {}".format(self._grasp_state.ee_pose))
@@ -1143,6 +1161,7 @@ class Grasp(Primitive):
             self._grasp_state.ee_pose = ee_pose
             self._grasp_state.ref_landmark = Landmark()
             self._pre_grasp_state.ref_landmark = Landmark()
+            self._landmark_found = False
 
         self._set_pre_grasp_state_from_pose(ee_pose)
 
@@ -1178,17 +1197,32 @@ class Grasp(Primitive):
         Returns:
             Pose
         '''
+        rospy.loginfo("Grasp frame is: {}".format(self.get_ref_frame_name()))
         try:
-            self._tf_listener.waitForTransform(BASE_LINK,
-                                 self._grasp_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
-                                 rospy.Duration(4.0))
-            intermediate_pose = self._tf_listener.transformPose(
-                                                    BASE_LINK,
-                                                    self._grasp_state.ee_pose)
-            offset_pose = Grasp._offset_pose(intermediate_pose)
-            return self._tf_listener.transformPose(self.get_ref_frame_name(),
-                                                offset_pose)
+            if self._current_grasp_num is None:
+                base_pose = PoseStamped()
+                base_pose.header.frame_id = self.get_ref_frame_name()
+                base_pose.pose.orientation.w = 1.0
+                self._tf_listener.waitForTransform(BASE_LINK,
+                                     base_pose.header.frame_id,
+                                     rospy.Time.now(),
+                                     rospy.Duration(4.0))
+                intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        base_pose)
+                return intermediate_pose
+            else:
+                self._tf_listener.waitForTransform(BASE_LINK,
+                                     self._grasp_state.ee_pose.header.frame_id,
+                                     rospy.Time.now(),
+                                     rospy.Duration(4.0))
+                intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        self._grasp_state.ee_pose)
+                offset_pose = Grasp._offset_pose(intermediate_pose)
+                # return self._tf_listener.transformPose(self.get_ref_frame_name(),
+                #                                     offset_pose)
+                return offset_pose
         except Exception, e:
             rospy.logwarn(e)
             rospy.logwarn(
@@ -1206,20 +1240,21 @@ class Grasp(Primitive):
         menu_control = InteractiveMarkerControl()
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
-        frame_id = self.get_ref_frame_name()
+        frame_id = BASE_LINK
+        pose = self._get_marker_pose()
         if self._current_grasp_num is None:
-            pose = PoseStamped()
-            pose.pose.orientation.w = 1.0
             marker = Marker()
             marker.type = Marker.CUBE
             marker.action = Marker.ADD
             marker.scale = self._grasp_state.ref_landmark.dimensions
             marker.pose = Pose()
             marker.pose.orientation.w = 1.0
-            marker.color = COLOR_MESH_REACHABLE
+            if self._selected:
+                marker.color = COLOR_MESH_REACHABLE_SELECTED
+            else:
+                marker.color = COLOR_MESH_REACHABLE
             menu_control.markers.append(marker)
         else:
-            pose = self._get_marker_pose()
             if pose is None:
                 return
 
@@ -1239,17 +1274,29 @@ class Grasp(Primitive):
         rospy.loginfo("Marker name: {}".format(self.get_name()))
         int_marker.controls.append(menu_control)
         prev_marker = self._im_server.get(self.get_name())
+        prev_color = None
+        if not prev_marker is None:
+            if len(prev_marker.controls) > 0:
+                if len(prev_marker.controls[-1].markers) > 0:
+                    prev_color = prev_marker.controls[-1].markers[-1].color
+        new_color = None
+        if len(int_marker.controls) > 0:
+            if len(int_marker.controls[-1].markers) > 0:
+                new_color = int_marker.controls[-1].markers[-1].color
+
         if not prev_marker:
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
+            rospy.logwarn("Adding marker for primitive {}".format(self.get_number()))
             return True
-        elif prev_marker.pose != int_marker.pose:
-            rospy.loginfo("New marker")
+        elif (prev_marker.pose != int_marker.pose) or (prev_color != new_color):
+            rospy.loginfo("Updating marker")
             self._im_server.insert(
                 int_marker, self._marker_feedback_cb)
             return True
-        return False
 
+        rospy.logwarn("Not updating marker for primitive {}".format(self.get_number()))
+        return False
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.
 
@@ -1343,6 +1390,8 @@ class Grasp(Primitive):
             pre_grasp_mesh_color = self._color_mesh_reachable
         else:
             pre_grasp_mesh_color = self._color_mesh_unreachable
+
+        rospy.loginfo("Mesh color: {}".format(grasp_mesh_color))
 
 
         # Make grasp marker
@@ -1451,19 +1500,15 @@ class Grasp(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
-            rospy.logdebug("Changing visibility of the pose controls.")
-            # self._is_control_visible = not self._is_control_visible
+            rospy.logdebug("Changing selected-ness.")
+            self._is_control_visible = not self._is_control_visible
             self._marker_click_cb(
                 self._number, self._is_control_visible)
-        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._set_new_pose(feedback.pose, feedback.header.frame_id)
-            self._pose_change_cb()
-            self._action_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls

@@ -339,7 +339,7 @@ class Robot:
                 else:
                     rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
+                rospy.logwarn("Fetch social gaze exception: {}".format(str(e)))
 
     def nod_head(self, num=5):
         '''Nods robot's head
@@ -361,7 +361,7 @@ class Robot:
                 else:
                     rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
+                rospy.logwarn("Fetch social gaze exception: {}".format(str(e)))
 
     def look_at_point(self, point):
         '''Points robot's head at point
@@ -418,6 +418,7 @@ class Robot:
         # TODO(sarah): maybe actually scan for table instead of
         # looking at static point
         try:
+            rospy.loginfo("Requesting to look down")
             goal = GazeGoal()
             goal.action = GazeGoal.LOOK_DOWN
             current_goal = self.current_gaze_goal_srv().gaze_goal
@@ -427,7 +428,7 @@ class Robot:
                    self.gaze_client.get_state() == GoalStatus.ACTIVE):
                 rospy.sleep(0.2)
         except Exception, e:
-            pass
+            rospy.logwarn("Gaze error: {}".format(e))
 
     # Sound stuff
 

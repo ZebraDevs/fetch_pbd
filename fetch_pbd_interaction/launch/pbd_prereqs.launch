@@ -15,7 +15,7 @@
     <arg name="segmented_objects_topic" default="/rail_segmentation/segmented_objects" />
     <arg name="segmented_table_topic" default="/rail_segmentation/segmented_table" />
     <arg name="planning_scene_topic" default="/planning_scene" />
-    <arg name="object_similar_distance_threshold" default="0.075" />
+    <arg name="object_similar_distance_threshold" default="0.07" />
     <arg name="object_add_distance_threshold" default="0.02" />
     <arg name="object_nearest_distance_threshold" default="0.4" />
     <arg name="object_distance_zero_clamp" default="0.0001" />
