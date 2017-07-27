@@ -418,6 +418,7 @@ class Robot:
         # TODO(sarah): maybe actually scan for table instead of
         # looking at static point
         try:
+            rospy.loginfo("Requesting to look down")
             goal = GazeGoal()
             goal.action = GazeGoal.LOOK_DOWN
             current_goal = self.current_gaze_goal_srv().gaze_goal
@@ -427,7 +428,7 @@ class Robot:
                    self.gaze_client.get_state() == GoalStatus.ACTIVE):
                 rospy.sleep(0.2)
         except Exception, e:
-            pass
+            rospy.logwarn("Gaze error: {}".format(e))
 
     # Sound stuff
 

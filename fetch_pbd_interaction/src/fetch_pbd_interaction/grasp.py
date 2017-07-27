@@ -141,6 +141,7 @@ class Grasp(Primitive):
         self._current_grasp_num = None
         self._current_grasp_list = []
         self._approach_dist = 0.1 # default value
+        self._landmark_found = False
 
         self._menu_handler = MenuHandler()
 
@@ -265,6 +266,10 @@ class Grasp(Primitive):
             Returns:
                 None
         '''
+        if self._grasp_state.ref_type == ArmState.OBJECT:
+            if not self._landmark_found:
+                return False, "No matching object found" + \
+                        " for primitive: {}".format(self.get_number())
         if self._current_grasp_num is None:
             msg = "Cannot execute action." + \
                             " No grasp chosen. Right-click the blue" + \
@@ -338,8 +343,10 @@ class Grasp(Primitive):
             if resp.has_similar:
                 self._grasp_state.ref_landmark = resp.similar_object
                 self._pre_grasp_state.ref_landmark = resp.similar_object
+                self._landmark_found = True
                 return True
             else:
+                self._landmark_found = False
                 return False
         else:
             rospy.logwarn("Grasp has non-OBJECT-type reference frame")
@@ -1103,6 +1110,7 @@ class Grasp(Primitive):
         self._grasp_state.ref_landmark = new_ref_obj
         self._pre_grasp_state.ref_landmark = new_ref_obj
         self._grasp_state.ee_pose.header.frame_id = new_ref_obj.name
+        self._landmark_found = True
 
     def _convert_ref_frame(self, new_landmark):
         '''Convert grasp_state and pre_grasp_state to be in a different 
@@ -1124,6 +1132,8 @@ class Grasp(Primitive):
                 self._grasp_state.ref_landmark = new_landmark
                 self._grasp_state.ee_pose = ee_pose
                 self._pre_grasp_state.ref_landmark = new_landmark
+                self._landmark_found = True
+
         elif self._grasp_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
                                     BASE_LINK,
@@ -1132,6 +1142,8 @@ class Grasp(Primitive):
             self._grasp_state.ee_pose = ee_pose
             self._grasp_state.ref_landmark = Landmark()
             self._pre_grasp_state.ref_landmark = Landmark()
+            self._landmark_found = False
+
         elif self._grasp_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = "primitive_" + str(self._number - 1)
             rospy.loginfo("Original pose: {}".format(self._grasp_state.ee_pose))
@@ -1144,6 +1156,7 @@ class Grasp(Primitive):
             self._grasp_state.ee_pose = ee_pose
             self._grasp_state.ref_landmark = Landmark()
             self._pre_grasp_state.ref_landmark = Landmark()
+            self._landmark_found = False
 
         self._set_pre_grasp_state_from_pose(ee_pose)
 

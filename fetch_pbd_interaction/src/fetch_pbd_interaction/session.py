@@ -83,6 +83,7 @@ class Session:
         self._selected_primitive = -1
         self._current_arm_trajectory = None
         self._marker_visibility = []
+        self._head_busy = False
 
         self._actions_disabled = []
 
@@ -130,7 +131,7 @@ class Session:
         if self.n_actions() < 1 or self._current_action_id is None:
             return False
         action = self._actions[self._current_action_id]
-        return action.head_busy()
+        return action.head_busy() or self._head_busy
 
     def select_action_primitive(self, primitive_id):
         ''' Makes the interactive marker for the indicated action primitive
@@ -630,6 +631,7 @@ class Session:
         primitive = action.get_primitive(primitive_number)
         if primitive.is_object_required():
             # We need an object; check if we have one.
+            self._head_busy = True
             rospy.loginfo("Object required for execution")
             self._robot.look_down()
             resp = self._update_world_srv()
@@ -637,10 +639,34 @@ class Session:
                 rospy.loginfo("Object list not empty")
                 # An object is required, and we got one. Execute.
                 self.get_current_action().update_objects()
+                success, msg = primitive.check_pre_condition()
+                if not success:
+                    rospy.logwarn(
+                        "\tPreconditions of primitive " + 
+                        str(primitive_number) + " are not " +
+                        "satisfied. " + msg)
+                    self._status_publisher.publish(
+                        String("Preconditions of primitive " + 
+                        str(primitive_number) +
+                        " are not satisfied. " + msg))
                 primitive.execute()
             else:
                 rospy.logwarn("Needs object(s) but none available")
+                self._status_publisher.publish(
+                        "Primitive {}".format(primitive_number) +
+                        "requires an object but none are available")
+            self._head_busy = False
         else:
+            success, msg = primitive.check_pre_condition()
+            if not success:
+                rospy.logwarn(
+                        "\tPreconditions of primitive " + 
+                        str(primitive_number) + " are not " +
+                        "satisfied. " + msg)
+                self._status_publisher.publish(
+                    String("Preconditions of primitive " + 
+                    str(primitive_number) +
+                    " are not satisfied. " + msg))
             primitive.execute()
 
     def record_objects(self):
@@ -1007,7 +1033,7 @@ class Session:
 
         if True in self._actions_disabled:
             self._status_publisher.publish(String("Some actions have been " +
-                       "diabled because they require grasp suggestion."))
+                       "disabled because they require grasp suggestion."))
 
         # if len(self._actions) > 0:
         #     # Select the starting action as the action with the largest id
