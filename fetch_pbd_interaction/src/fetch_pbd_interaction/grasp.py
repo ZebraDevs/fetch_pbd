@@ -1193,20 +1193,47 @@ class Grasp(Primitive):
             Pose
         '''
         try:
-            self._tf_listener.waitForTransform(BASE_LINK,
-                                 self._grasp_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
-                                 rospy.Duration(4.0))
-            intermediate_pose = self._tf_listener.transformPose(
-                                                    BASE_LINK,
-                                                    self._grasp_state.ee_pose)
-            offset_pose = Grasp._offset_pose(intermediate_pose)
-            return self._tf_listener.transformPose(self.get_ref_frame_name(),
-                                                offset_pose)
+            if self._current_grasp_num is None:
+                base_pose = PoseStamped()
+                base_pose.header.frame_id = self.get_ref_frame_name()
+                base_pose.pose.orientation.w = 1.0
+                intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        base_pose)
+                return intermediate_pose
+            else:
+                self._tf_listener.waitForTransform(BASE_LINK,
+                                     self._grasp_state.ee_pose.header.frame_id,
+                                     rospy.Time(0),
+                                     rospy.Duration(4.0))
+                intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        self._grasp_state.ee_pose)
+                offset_pose = Grasp._offset_pose(intermediate_pose)
+                # return self._tf_listener.transformPose(self.get_ref_frame_name(),
+                #                                     offset_pose)
+                return offset_pose
         except Exception, e:
             rospy.logwarn(e)
             rospy.logwarn(
                 "Frame not available yet: {}".format(self.get_ref_frame_name()))
+            return None
+
+        try:
+            self._tf_listener.waitForTransform(BASE_LINK,
+                                 self._arm_state.ee_pose.header.frame_id,
+                                 rospy.Time(0),
+                                 rospy.Duration(4.0))
+            intermediate_pose = self._tf_listener.transformPose(
+                                                        BASE_LINK,
+                                                        self._arm_state.ee_pose)
+            offset_pose = ArmTarget._offset_pose(intermediate_pose)
+            # return self._tf_listener.transformPose(BASE_LINK,
+            #                                     offset_pose)
+            return offset_pose
+        except Exception, e:
+            rospy.logwarn(e)
+            rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
             return None
 
     def _update_viz_core(self, check_reachable=True):
@@ -1220,10 +1247,9 @@ class Grasp(Primitive):
         menu_control = InteractiveMarkerControl()
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
-        frame_id = self.get_ref_frame_name()
+        frame_id = BASE_LINK
+        pose = self._get_marker_pose()
         if self._current_grasp_num is None:
-            pose = PoseStamped()
-            pose.pose.orientation.w = 1.0
             marker = Marker()
             marker.type = Marker.CUBE
             marker.action = Marker.ADD
@@ -1236,7 +1262,6 @@ class Grasp(Primitive):
                 marker.color = COLOR_MESH_REACHABLE
             menu_control.markers.append(marker)
         else:
-            pose = self._get_marker_pose()
             if pose is None:
                 return
 
