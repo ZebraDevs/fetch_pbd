@@ -767,10 +767,10 @@ class Action:
 
             # Make sure primitive exists.
             if primitive is None:
-                rospy.logwarn("Primitive " + str(i) + " does not exist.")
+                rospy.logwarn("Primitive " + str(primitive.get_name()) + " does not exist.")
                 self._status = ExecutionStatus.CONDITION_ERROR
                 self._status_publisher.publish(
-                    String("Primitive " + str(i) + " does not exist."))
+                    String("Primitive " + str(primitive.get_name()) + " does not exist."))
 
                 return False
             # Check that preconditions are met (doesn't do anything right now)
@@ -778,11 +778,11 @@ class Action:
                 success, msg = primitive.check_pre_condition()
                 if not success:
                     rospy.logwarn(
-                        "\tPreconditions of primitive " + str(i) + " are not " +
+                        "\tPreconditions of primitive " + str(primitive.get_name()) + " are not " +
                         "satisfied. " + msg)
                     self._status = ExecutionStatus.CONDITION_ERROR
                     self._status_publisher.publish(
-                        String("Preconditions of primitive " + str(i) +
+                        String("Preconditions of primitive " + str(primitive.get_name()) +
                             " are not satisfied. " + msg))
                     return False
         return True

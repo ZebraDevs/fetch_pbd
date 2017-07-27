@@ -643,17 +643,17 @@ class Session:
                 if not success:
                     rospy.logwarn(
                         "\tPreconditions of primitive " + 
-                        str(primitive_number) + " are not " +
+                        str(primitive.get_name()) + " are not " +
                         "satisfied. " + msg)
                     self._status_publisher.publish(
                         String("Preconditions of primitive " + 
-                        str(primitive_number) +
+                        str(primitive.get_name()) +
                         " are not satisfied. " + msg))
                 primitive.execute()
             else:
                 rospy.logwarn("Needs object(s) but none available")
                 self._status_publisher.publish(
-                        "Primitive {}".format(primitive_number) +
+                        "Primitive {}".format(primitive.get_name()) +
                         "requires an object but none are available")
             self._head_busy = False
         else:
@@ -661,11 +661,11 @@ class Session:
             if not success:
                 rospy.logwarn(
                         "\tPreconditions of primitive " + 
-                        str(primitive_number) + " are not " +
+                        str(primitive.get_name()) + " are not " +
                         "satisfied. " + msg)
                 self._status_publisher.publish(
                     String("Preconditions of primitive " + 
-                    str(primitive_number) +
+                    str(primitive.get_name()) +
                     " are not satisfied. " + msg))
             primitive.execute()
 

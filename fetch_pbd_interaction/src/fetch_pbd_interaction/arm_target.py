@@ -206,7 +206,7 @@ class ArmTarget(Primitive):
         if self._arm_state.ref_type == ArmState.OBJECT:
             if not self._landmark_found:
                 return False, "No matching object found" + \
-                        " for primitive: {}".format(self.get_number())
+                        " for primitive: {}".format(self.get_name())
             else:
                 return True, None
         else: 

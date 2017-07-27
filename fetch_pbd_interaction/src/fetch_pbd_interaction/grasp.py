@@ -269,7 +269,7 @@ class Grasp(Primitive):
         if self._grasp_state.ref_type == ArmState.OBJECT:
             if not self._landmark_found:
                 return False, "No matching object found" + \
-                        " for primitive: {}".format(self.get_number())
+                        " for primitive: {}".format(self.get_name())
         if self._current_grasp_num is None:
             msg = "Cannot execute action." + \
                             " No grasp chosen. Right-click the blue" + \
