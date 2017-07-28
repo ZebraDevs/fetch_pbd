@@ -129,7 +129,7 @@ class Session:
             bool
         '''
         if self.n_actions() < 1 or self._current_action_id is None:
-            return False
+            return False or self._head_busy
         action = self._actions[self._current_action_id]
         return action.head_busy() or self._head_busy
 

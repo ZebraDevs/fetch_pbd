@@ -343,6 +343,7 @@ class Grasp(Primitive):
             if resp.has_similar:
                 self._grasp_state.ref_landmark = resp.similar_object
                 self._pre_grasp_state.ref_landmark = resp.similar_object
+                rospy.loginfo("Found similar")
                 self._landmark_found = True
                 return True
             else:
@@ -1192,11 +1193,16 @@ class Grasp(Primitive):
         Returns:
             Pose
         '''
+        rospy.loginfo("Grasp frame is: {}".format(self.get_ref_frame_name()))
         try:
             if self._current_grasp_num is None:
                 base_pose = PoseStamped()
                 base_pose.header.frame_id = self.get_ref_frame_name()
                 base_pose.pose.orientation.w = 1.0
+                self._tf_listener.waitForTransform(BASE_LINK,
+                                     base_pose.header.frame_id,
+                                     rospy.Time.now(),
+                                     rospy.Duration(4.0))
                 intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
                                                         base_pose)
@@ -1204,7 +1210,7 @@ class Grasp(Primitive):
             else:
                 self._tf_listener.waitForTransform(BASE_LINK,
                                      self._grasp_state.ee_pose.header.frame_id,
-                                     rospy.Time(0),
+                                     rospy.Time.now(),
                                      rospy.Duration(4.0))
                 intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
@@ -1217,23 +1223,6 @@ class Grasp(Primitive):
             rospy.logwarn(e)
             rospy.logwarn(
                 "Frame not available yet: {}".format(self.get_ref_frame_name()))
-            return None
-
-        try:
-            self._tf_listener.waitForTransform(BASE_LINK,
-                                 self._arm_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
-                                 rospy.Duration(4.0))
-            intermediate_pose = self._tf_listener.transformPose(
-                                                        BASE_LINK,
-                                                        self._arm_state.ee_pose)
-            offset_pose = ArmTarget._offset_pose(intermediate_pose)
-            # return self._tf_listener.transformPose(BASE_LINK,
-            #                                     offset_pose)
-            return offset_pose
-        except Exception, e:
-            rospy.logwarn(e)
-            rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
             return None
 
     def _update_viz_core(self, check_reachable=True):

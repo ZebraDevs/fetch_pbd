@@ -653,4 +653,6 @@ class Interaction:
         Args:
             gui_input (GuiInputRequest) : contains index of primitive to execute
         '''
+        self._head_busy = True
         self._session.execute_primitive(int(gui_input.param))
+        self._head_busy = False
