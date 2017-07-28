@@ -305,7 +305,8 @@ class Action:
         self._lock.acquire()
         rospy.loginfo("Updating objects")
         for primitive in self._seq:
-            primitive.update_ref_frames()
+            if not primitive.update_ref_frames():
+                primitive.hide_marker()
         self._update_markers()
         self._lock.release()
 

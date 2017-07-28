@@ -668,6 +668,8 @@ class Session:
                     str(primitive.get_name()) +
                     " are not satisfied. " + msg))
             primitive.execute()
+        self._async_update_session_state()
+
 
     def record_objects(self):
         '''Records poses of objects
@@ -677,8 +679,10 @@ class Session:
         if resp.object_list:
             if self.n_actions() > 0:
                 self.get_current_action().update_objects()
+            self._async_update_session_state()
             return  True
         else:
+            self._async_update_session_state()
             return False
 
     def execute_current_action(self):
@@ -717,15 +721,18 @@ class Session:
                             rospy.sleep(0.1)
                         if status == ExecutionStatus.SUCCEEDED:
                             action.end_execution()
+                            self._async_update_session_state()
                             return True
                         else:
                             action.end_execution()
+                            self._async_update_session_state()
                             return False
 
                     else:
                         # An object is required, but we didn't get it.
                         rospy.logwarn("An object is required for" + 
                                         " this action but none were found")
+                        self._async_update_session_state()
                         return False
                 else:
                     # No object is required: start execution now.
@@ -742,18 +749,22 @@ class Session:
                         rospy.sleep(0.1)
                     if status == ExecutionStatus.SUCCEEDED:
                         action.end_execution()
+                        self._async_update_session_state()
                         return True
                     else:
                         rospy.logwarn("Execution failed, with status: {}".format(status))
                         action.end_execution()
+                        self._async_update_session_state()
                         return False
             else:
                 # No primitives / poses / frames recorded.
                 rospy.logwarn("No primitives recorded")
+                self._async_update_session_state()
                 return False
         else:
             # No actions.
             rospy.logwarn("No current action")
+            self._async_update_session_state()
             return False
 
     def publish_primitive_tf(self):
