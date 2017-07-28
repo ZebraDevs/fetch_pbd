@@ -361,7 +361,7 @@ class Robot:
                 else:
                     rospy.loginfo("Gaze goal is same as previous")
             except Exception, e:
-                rospy.warn("Fetch social gaze exception: {}".format(str(e)))
+                rospy.logwarn("Fetch social gaze exception: {}".format(str(e)))
 
     def look_at_point(self, point):
         '''Points robot's head at point

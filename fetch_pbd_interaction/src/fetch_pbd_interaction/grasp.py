@@ -343,6 +343,10 @@ class Grasp(Primitive):
             if resp.has_similar:
                 self._grasp_state.ref_landmark = resp.similar_object
                 self._pre_grasp_state.ref_landmark = resp.similar_object
+                self._grasp_state.ee_pose.header.frame_id = \
+                            resp.similar_object.name
+                self._pre_grasp_state.ee_pose.header.frame_id = \
+                            resp.similar_object.name
                 rospy.loginfo("Found similar")
                 self._landmark_found = True
                 return True

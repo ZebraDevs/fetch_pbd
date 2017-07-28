@@ -276,6 +276,7 @@ class ArmTarget(Primitive):
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
+                self._arm_state.ee_pose.header.frame_id = resp.similar_object.name
                 self._landmark_found = True
                 return True
             else:
@@ -990,10 +991,13 @@ class ArmTarget(Primitive):
         Returns:
             Pose
         '''
+        rospy.loginfo("Pose frame is: {}".format(self.get_ref_frame_name()))
+
         try:
+            rospy.loginfo("Pose: {}".format(self._arm_state.ee_pose))
             self._tf_listener.waitForTransform(BASE_LINK,
                                  self._arm_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
+                                 rospy.Time.now(),
                                  rospy.Duration(4.0))
             intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
