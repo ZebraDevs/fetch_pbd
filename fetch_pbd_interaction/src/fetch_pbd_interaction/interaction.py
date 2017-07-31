@@ -78,7 +78,7 @@ class Interaction:
         # rospy.Subscriber('gui_input', GuiInput, self._gui_input_cb)
         rospy.Service('/fetch_pbd/gui_input', GuiInput, self._gui_input_cb)
 
-        rospy.Subscriber('/fetch_pbd/world_update', WorldState, 
+        rospy.Subscriber('/fetch_pbd/world_updates', WorldState, 
                             self._world_update_cb)
 
         # Initialize trajectory recording state.

@@ -305,15 +305,13 @@ class Action:
         self._lock.acquire()
         rospy.loginfo("Updating objects")
         for primitive in self._seq:
-            show_marker = False
-            if primitive.is_object_required() and not primitive.marker_visible():
-                show_marker = True
             if not primitive.update_ref_frames():
                 primitive.hide_marker()
-            elif show_marker:
+            elif primitive.is_object_required():
                 primitive.show_marker()
         self._update_markers()
         self._lock.release()
+        self._action_change_cb()
 
     def n_primitives(self):
         '''Returns the number of primitives in this action.

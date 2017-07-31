@@ -658,8 +658,6 @@ void World::removeObject(const visualization_msgs::InteractiveMarkerFeedbackCons
   getObjectFromNameCallback(req, resp);
   for (int i=0; i < objects.size(); i ++){
     if (objects[i].object.name == resp.obj.name){
-      ROS_INFO("deleting %s", objects[i].int_marker.name.c_str());
-      ROS_INFO("want to delete %s", feedback->marker_name.c_str()); 
       im_server.erase(objects[i].int_marker.name);
       objects.erase(objects.begin() + i );
       im_server.applyChanges();
