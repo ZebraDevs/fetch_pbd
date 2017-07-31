@@ -351,14 +351,18 @@ class Action:
             primitive.hide_marker()
 
     def make_primitive_marker(self, primitive_number):
-        '''Delete marker with certain index
+        '''Show marker with certain index
 
         Args:
             primitive_number (int)
         '''
         # self._marker_visibility[primitive_number] = True
         primitive = self._seq[primitive_number]
-        primitive.show_marker()
+        if not primitive.show_marker():
+            rospy.logwarn
+            self._status_publisher.publish(
+                'Not showing marker for {}'.format(primitive.get_name()) + 
+                ' because no matching object found. Try "record objects"?')
 
     def get_marker_visibility(self):
         '''Returns visibility status of primitive markers

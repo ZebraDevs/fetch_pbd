@@ -234,6 +234,7 @@ class ArmTrajectory(Primitive):
                 rospy.logwarn(e)
 
         self._marker_visible = True
+        return True
 
     def hide_marker(self):
         '''Removes marker from the world.'''
