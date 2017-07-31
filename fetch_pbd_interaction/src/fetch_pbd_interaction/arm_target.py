@@ -1284,6 +1284,7 @@ class ArmTarget(Primitive):
         self._arm_state = self._robot.get_arm_state()
         self._gripper_state = self._robot.get_gripper_state()
         self.update_ref_frames()
+        self.update_viz()
 
     def _change_target_cb(self, feedback):
         '''Callback for when a reference frame change is requested.
