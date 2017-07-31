@@ -653,6 +653,8 @@ class Action:
         self._lock.acquire()
         # if (to_delete + 1) < self.n_primitives():
         self._seq[to_delete].hide_marker()
+        if self._seq[to_delete].is_selected():
+            self._primitive_click_cb(-1)
         for i in range(to_delete + 1, self.n_primitives()):
             self._seq[i].decrease_id()
 
