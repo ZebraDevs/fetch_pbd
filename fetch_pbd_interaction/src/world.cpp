@@ -666,7 +666,7 @@ void World::removeObject(const visualization_msgs::InteractiveMarkerFeedbackCons
       break;
     }
   }
-
+  worldChanged();
 }
 
 void World::addGrasp(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback){
