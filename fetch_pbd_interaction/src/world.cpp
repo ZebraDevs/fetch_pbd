@@ -93,16 +93,26 @@ void World::update() {
 }
 
 // Private static methods
-visualization_msgs::Marker World::pc2ToMarker(sensor_msgs::PointCloud2 pc2, int index, ros::Duration duration, std::string output_frame){
-  visualization_msgs::Marker pc2_marker;
-  pc2_marker.type = visualization_msgs::Marker::SPHERE_LIST;
-  pc2_marker.id = index;
-  pc2_marker.lifetime=duration;
-  pc2_marker.scale.x = 0.005;
-  pc2_marker.scale.y = 0.005;
-  pc2_marker.scale.z = 0.005;
-  pc2_marker.header.frame_id = pc2.header.frame_id;
-  pc2_marker.pose.orientation.w = 1.0;
+void World::pc2ToMarker(sensor_msgs::PointCloud2 pc2, int index, 
+                                  ros::Duration duration, std::string output_frame,
+                                  visualization_msgs::Marker* pc2_marker_points, visualization_msgs::Marker* pc2_marker_sphere_list){
+  pc2_marker_points->type = visualization_msgs::Marker::POINTS;
+  pc2_marker_points->id = index;
+  pc2_marker_points->lifetime=duration;
+  pc2_marker_points->scale.x = 0.005;
+  pc2_marker_points->scale.y = 0.005;
+  pc2_marker_points->scale.z = 0.005;
+  pc2_marker_points->header.frame_id = pc2.header.frame_id;
+  pc2_marker_points->pose.orientation.w = 1.0;
+
+  pc2_marker_sphere_list->type = visualization_msgs::Marker::SPHERE_LIST;
+  pc2_marker_sphere_list->id = index + 500;
+  pc2_marker_sphere_list->lifetime=duration;
+  pc2_marker_sphere_list->scale.x = 0.007;
+  pc2_marker_sphere_list->scale.y = 0.007;
+  pc2_marker_sphere_list->scale.z = 0.007;
+  pc2_marker_sphere_list->header.frame_id = pc2.header.frame_id;
+  pc2_marker_sphere_list->pose.orientation.w = 1.0;
 
   pcl::PointCloud<pcl::PointXYZRGB> pc;
   // sensor_msgs::PointCloud2 transformed_cloud_msg;
@@ -116,6 +126,7 @@ visualization_msgs::Marker World::pc2ToMarker(sensor_msgs::PointCloud2 pc2, int 
   pcl::fromROSMsg(pc2, pc);
   std::vector<geometry_msgs::Point> points_msgs;
   std::vector<std_msgs::ColorRGBA> colors_msgs;
+  std::vector<std_msgs::ColorRGBA> no_colors_msgs;
 
   for (int i=0; i < pc.points.size(); i++){
     pcl::PointXYZRGB point = pc.points[i];
@@ -133,12 +144,17 @@ visualization_msgs::Marker World::pc2ToMarker(sensor_msgs::PointCloud2 pc2, int 
 
     points_msgs.push_back(point_msg);
     colors_msgs.push_back(color_msg);
+
+    color_msg.a = 0.0;
+    no_colors_msgs.push_back(color_msg);
   }
 
-  pc2_marker.colors = colors_msgs;
-  pc2_marker.points = points_msgs;
+  pc2_marker_points->colors = colors_msgs;
+  pc2_marker_points->points = points_msgs;
+  pc2_marker_sphere_list->points = points_msgs;
+  pc2_marker_sphere_list->colors = no_colors_msgs;
 
-  return pc2_marker;
+  return;
 }
 
 float World::objectDissimilarity(fetch_pbd_interaction::Landmark obj1, fetch_pbd_interaction::Landmark obj2){
@@ -545,12 +561,15 @@ visualization_msgs::InteractiveMarker World::getObjectMarker(int index){
   int_marker.pose.orientation.w = 1.0;
   int_marker.scale = 1.0;
   sensor_msgs::PointCloud2 pc2 = objects[index].object.point_cloud;
-  visualization_msgs::Marker marker = World::pc2ToMarker(pc2, index, marker_duration, base_frame);
+  visualization_msgs::Marker marker_points;
+  visualization_msgs::Marker marker_sphere_list;
+  World::pc2ToMarker(pc2, index, marker_duration, base_frame, &marker_points, &marker_sphere_list);
 
   visualization_msgs::InteractiveMarkerControl button_control;
   button_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::BUTTON;
   button_control.always_visible = true;
-  button_control.markers.push_back(marker);
+  button_control.markers.push_back(marker_sphere_list);
+  button_control.markers.push_back(marker_points);
   visualization_msgs::Marker text_marker;
   text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
   text_marker.id = index;
