@@ -578,7 +578,7 @@ class Session:
         action = self._actions[self._current_action_id]
         primitives = action.get_primitives()
         for primitive in primitives:
-            primitive.update_viz(False)
+            primitive.show_marker()
         self._update_session_state()
 
     def delete_primitive(self, primitive_number):

@@ -631,11 +631,11 @@ class Action:
                         pose)
                     primitive.set_pose(new_pose)
 
-
         self._lock.release()
         self.update_viz()
-        for i in range(self.n_primitives()):
-            self.select_primitive(i, False)
+        for idx, primitive in enumerate(self._seq):
+            if primitive.is_selected():
+                self._primitive_click_cb(idx)
         self._action_change_cb()
 
     def delete_primitive(self, to_delete):
