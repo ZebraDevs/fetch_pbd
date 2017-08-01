@@ -427,6 +427,7 @@ class Robot:
             while (self.gaze_client.get_state() == GoalStatus.PENDING or
                    self.gaze_client.get_state() == GoalStatus.ACTIVE):
                 rospy.sleep(0.2)
+            rospy.sleep(0.5)
         except Exception, e:
             rospy.logwarn("Gaze error: {}".format(e))
 

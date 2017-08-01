@@ -164,10 +164,13 @@ class Grasp(Primitive):
                                         GetObjectList)
         self._grasp_suggestion_srv = \
                 rospy.ServiceProxy(grasp_suggestion_service_name, SuggestGrasps)
-        self._grasp_feedback_publisher = rospy.Publisher(grasp_feedback_topic,
-                                                        GraspFeedback,
-                                                        queue_size=10,
-                                                        latch=True)
+        if grasp_feedback_topic != "":
+            self._grasp_feedback_publisher = rospy.Publisher(grasp_feedback_topic,
+                                                            GraspFeedback,
+                                                            queue_size=10,
+                                                            latch=True)
+        else:
+            self._grasp_feedback_publisher = None
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -515,7 +518,8 @@ class Grasp(Primitive):
             feedback_msg = GraspFeedback()
             feedback_msg.indices_considered = self._viewed_grasps
             feedback_msg.index_selected = self._current_grasp_num
-            self._grasp_feedback_publisher.publish(feedback_msg)
+            if not self._grasp_feedback_publisher is None:
+                self._grasp_feedback_publisher.publish(feedback_msg)
             return True, None
 
     def head_busy(self):
