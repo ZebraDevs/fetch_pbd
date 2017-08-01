@@ -88,14 +88,14 @@ You can edit the position and orientation of certain primitives by clicking the 
 ![](https://cloud.githubusercontent.com/assets/1470402/17989393/d05b87ea-6ae1-11e6-85d7-922c6dc4844a.png)
 
 You can change the frame that certain primitives are relative to by right-clicking the marker.
-![](https://cloud.githubusercontent.com/assets/1470402/17989395/d05d657e-6ae1-11e6-8236-459118a70b8a.png)
+![](https://user-images.githubusercontent.com/1470402/28805009-d7e45398-761b-11e7-88e2-57898dde0a99.png)
 
 You can also change the name of the action.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989396/d05f44d4-6ae1-11e6-9363-f242c5ea15b6.png)
 
 You can record objects in the environment using the "Record Objects" button. The objects will appear in the viewer. Poses can be relative to these objects in the environment.
-![](https://user-images.githubusercontent.com/1470402/28444453-2f3502bc-6d72-11e7-9c64-0fc8e03ed9b5.png)
-![](https://user-images.githubusercontent.com/1470402/28444447-2c0d509e-6d72-11e7-899c-46247b95446a.png)
+![](https://user-images.githubusercontent.com/1470402/28805010-d7e6513e-761b-11e7-9fc8-b63c0e517571.png)
+![](https://user-images.githubusercontent.com/1470402/28805011-d7edb910-761b-11e7-81a9-6e1f9c2f0be8.png)
 
 ### Grasping in Fetch PbD
 You can now (optionally) run Fetch PbD with a grasp suggestion service. This is a service that takes in a point cloud for an object and returns a PoseArray of possible grasps for that object. Fetch Pbd provides feedback by publishing which grasp was chosen by the user. Any service that adheres to the .srv interface defined by [SuggestGrasps.srv](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/srv/SuggestGrasps.srv) and optionally the feedback .msg interface, [GraspFeedback.msg](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/msg/GraspFeedback.msg), can be used. If you want to start Fetch PbD with a grasp suggestion service:
@@ -105,9 +105,9 @@ roslaunch fetch_pbd_interaction pbd.launch grasp_suggestion_service:=grasp_servi
 ```
 Then in the interface you can right-click on objects in the scene and add a grasp for that object. Initially a grasp primitive is generated that is just a placeholder and does not specify any poses. To use the grasp suggestion service to generate grasps, you then right click the blue placeholder box and select "Generate grasps". The service will return a list of grasp poses. Fetch PbD sets a pre-grasp that is 15 cm away from the grasp. The first grasp generated is shown and you can switch to other grasp options by right-clicking the grasp marker and selecting one from the list. 
 
-![](https://user-images.githubusercontent.com/1470402/28444632-6e349ec2-6d73-11e7-9b50-1ed4a26292d3.png)
-![](https://user-images.githubusercontent.com/1470402/28444631-6e34a084-6d73-11e7-83ca-cbeb900877ab.png)
-![](https://user-images.githubusercontent.com/1470402/28444630-6e2cf802-6d73-11e7-9edd-dfa3caf08674.png)
+![](https://user-images.githubusercontent.com/1470402/28805083-48681a96-761c-11e7-9921-2e9b7e07e318.png)
+![](https://user-images.githubusercontent.com/1470402/28805082-4866964e-761c-11e7-80bd-b67ebd9cc4b2.png)
+![](https://user-images.githubusercontent.com/1470402/28805081-48664284-761c-11e7-91b2-89958b14eab3.png)
 
 Grasps are executed like any other primitve and can be added to actions in combination with other primitives.
 
