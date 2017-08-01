@@ -227,6 +227,28 @@ class ArmControl:
                 solution.ee_pose = target_pose
                 solution.joint_pose = target_joints
                 return solution, True
+        elif arm_state.ref_type == ArmState.PREVIOUS_TARGET:
+            # Arm is relative to previous primitive
+
+            target_pose = arm_state.ee_pose
+            target_pose.pose.position.z = target_pose.pose.position.z + \
+                                            z_offset
+
+            # Try solving IK.
+            target_joints = self._arm.get_ik_for_ee(
+                target_pose, arm_state.joint_pose)
+            if target_joints is None:
+                # No IK found; return the original.
+                rospy.logdebug('No IK for end-effector pose' +  
+                                'relative to previous target.')
+                return arm_state, False
+            else:
+                # IK found; fill in solution ArmState and return.
+                solution = ArmState()
+                solution.ref_type = ArmState.PREVIOUS_TARGET
+                solution.ee_pose = target_pose
+                solution.joint_pose = target_joints
+                return solution, True
         else:
             return arm_state, True
 
