@@ -307,7 +307,7 @@ class Action:
         for primitive in self._seq:
             if not primitive.update_ref_frames():
                 primitive.hide_marker()
-            elif primitive.is_object_required():
+            else:
                 primitive.show_marker()
         self._update_markers()
         self._lock.release()

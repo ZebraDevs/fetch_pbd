@@ -680,9 +680,11 @@ class Session:
             if self.n_actions() > 0:
                 self.get_current_action().update_objects()
             self._async_update_session_state()
+            self._robot.look_forward()
             return  True
         else:
             self._async_update_session_state()
+            self._robot.look_forward()
             return False
 
     def execute_current_action(self):
