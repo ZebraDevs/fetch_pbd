@@ -421,7 +421,6 @@ class Action:
             # Construct the markers.
             marker_visibility.append(primitive.show_marker())
 
-            self._update_links()
         if False in marker_visibility:
             rospy.logwarn("Not showing primitive markers because " +
                           "no objects present")
@@ -673,7 +672,6 @@ class Action:
                     next_primitive.set_pose(new_pose)
         self._seq.pop(to_delete)
         # self._marker_visibility.pop(to_delete)
-        self._update_links()
         self._lock.release()
         self.update_viz()
 
