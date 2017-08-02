@@ -129,7 +129,7 @@ class SocialGaze:
 
             if is_action_possibly_complete:
                 head_state = self._head_action_client.get_state()
-                if head_state == GoalStatus.SUCCEEDED:
+                if head_state != GoalStatus.ACTIVE:
                     self._is_action_complete = True
         else:
             self._head_goal.target.point.x = self._current_focus_point.x
