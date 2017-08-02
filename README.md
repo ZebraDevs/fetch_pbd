@@ -103,7 +103,7 @@ You can now (optionally) run Fetch PbD with a grasp suggestion service. This is 
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd.launch grasp_suggestion_service:=grasp_service_name grasp_feedback_topic:=grasp_feedback
 ```
-Then in the interface you can right-click on objects in the scene and add a grasp for that object. Initially a grasp primitive is generated that is just a placeholder and does not specify any poses. To use the grasp suggestion service to generate grasps, you then right click the blue placeholder box and select "Generate grasps". The service will return a list of grasp poses. Fetch PbD sets a pre-grasp that is 15 cm away from the grasp. The first grasp generated is shown and you can switch to other grasp options by right-clicking the grasp marker and selecting one from the list. 
+The grasp_feedback_topic is optional and can be excluded. Then in the interface you can right-click on objects in the scene and add a grasp for that object. Initially a grasp primitive is generated that is just a placeholder and does not specify any poses. To use the grasp suggestion service to generate grasps, you then right click the blue placeholder box and select "Generate grasps". The service will return a list of grasp poses. Fetch PbD sets a pre-grasp that is 15 cm away from the grasp. The first grasp generated is shown and you can switch to other grasp options by right-clicking the grasp marker and selecting one from the list. 
 
 ![](https://user-images.githubusercontent.com/1470402/28805083-48681a96-761c-11e7-9921-2e9b7e07e318.png)
 ![](https://user-images.githubusercontent.com/1470402/28805082-4866964e-761c-11e7-80bd-b67ebd9cc4b2.png)

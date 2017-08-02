@@ -1,35 +1,21 @@
 sudo: required
 dist: trusty
 language: generic
-compiler:
-  - gcc
+notifications:
+  email:
+    on_success: change
+    on_failure: always
 env:
   global:
-    - CATKIN_WS=~/catkin_ws
-    - CATKIN_WS_SRC=${CATKIN_WS}/src
+    - ROS_REPO=ros
+    - NOT_TEST_INSTALL=true
   matrix:
-    - CI_ROS_DISTRO="indigo"
-
-branches:
-  only:
-    - master
-    - develop
-
+    - ROS_DISTRO=indigo UPSTREAM_WORKSPACE=file
+    - ROS_DISTRO=indigo UPSTREAM_WORKSPACE=debian
+matrix:
+  allow_failures:
+    - env: ROS_DISTRO=indigo UPSTREAM_WORKSPACE=debian
 install:
-  - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu trusty main" > /etc/apt/sources.list.d/ros-latest.list'
-  - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq -y python-rosdep python-catkin-tools
-  - sudo rosdep init
-  - rosdep update
-  - rosdep install --from-paths ./ -i -y --rosdistro $CI_ROS_DISTRO
-
+  - git clone https://github.com/ros-industrial/industrial_ci.git .ci_config
 script:
-  - source /opt/ros/$CI_ROS_DISTRO/setup.bash
-  - mkdir -p $CATKIN_WS_SRC
-  - ln -s $TRAVIS_BUILD_DIR $CATKIN_WS_SRC
-  - cd $CATKIN_WS
-  - catkin init
-  - pip install catkin-pkg
-  - catkin config --install
-  - catkin build --limit-status-rate 0.1 --no-notify -DCMAKE_BUILD_TYPE=Release
+  - .ci_config/travis.sh
