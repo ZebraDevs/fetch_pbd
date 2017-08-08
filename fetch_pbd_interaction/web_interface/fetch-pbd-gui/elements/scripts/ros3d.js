@@ -1102,10 +1102,10 @@ ROS3D.InteractiveMarkerControl = function(options) {
     this.addEventListener('mouseup', this.parent.stopDrag.bind(this.parent, this));
     this.addEventListener('contextmenu', this.parent.showMenu.bind(this.parent, this));
     this.addEventListener('mouseup', function(event3d) {
-      if (that.startMousePos.distanceToSquared(event3d.mousePos) === 0) {
-        event3d.type = 'contextmenu';
-        that.dispatchEvent(event3d);
-      }
+      // if (that.startMousePos.distanceToSquared(event3d.mousePos) === 0) {
+      //   event3d.type = 'contextmenu';
+      //   that.dispatchEvent(event3d);
+      // }
     });
     this.addEventListener('mouseover', stopPropagation);
     this.addEventListener('mouseout', stopPropagation);
@@ -1399,6 +1399,7 @@ ROS3D.InteractiveMarkerHandle.prototype.onButtonClick = function(event) {
  * @param event - the event associated with the mousedown
  */
 ROS3D.InteractiveMarkerHandle.prototype.onMouseDown = function(event) {
+  this.sendFeedback(ROS3D.INTERACTIVE_MARKER_POSE_UPDATE, event.clickPosition, 0, event.controlName);
   this.sendFeedback(ROS3D.INTERACTIVE_MARKER_MOUSE_DOWN, event.clickPosition, 0, event.controlName);
   this.dragging = true;
 };
@@ -1409,6 +1410,7 @@ ROS3D.InteractiveMarkerHandle.prototype.onMouseDown = function(event) {
  * @param event - the event associated with the mouseup
  */
 ROS3D.InteractiveMarkerHandle.prototype.onMouseUp = function(event) {
+  this.sendFeedback(ROS3D.INTERACTIVE_MARKER_POSE_UPDATE, event.clickPosition, 0, event.controlName);
   this.sendFeedback(ROS3D.INTERACTIVE_MARKER_MOUSE_UP, event.clickPosition, 0, event.controlName);
   this.dragging = false;
   if (this.timeoutHandle) {
@@ -1699,6 +1701,12 @@ ROS3D.Marker = function(options) {
         var p2 = new THREE.Vector3(message.points[1].x, message.points[1].y, message.points[1].z);
         direction = p1.clone().negate().add(p2);
         // direction = p2 - p1;
+        if (direction.x === 0.0){
+          direction.x = 0.0000001;
+        }
+        if (direction.z === 0.0){
+          direction.z = 0.0000001;
+        }
         len = direction.length();
         headDiameter = message.scale.y;
         shaftDiameter = message.scale.x;
@@ -1811,11 +1819,11 @@ ROS3D.Marker = function(options) {
       var numPoints = message.points.length;
       var createColors = (numPoints === message.colors.length);
       // do not render giant lists
-      var stepSize = Math.ceil(numPoints / 1250);
+      var stepSize = Math.ceil(numPoints / 3000);
         
       // add the points
       var p, cube, curColor, newMesh;
-      for (p = 0; p < numPoints; p+=stepSize) {
+      for (p = 0; p < numPoints; p+=1) {
         cube = new THREE.CubeGeometry(message.scale.x, message.scale.y, message.scale.z);
 
         // check the color
@@ -1842,7 +1850,7 @@ ROS3D.Marker = function(options) {
       var numSpherePoints = message.points.length;
       var createSphereColors = (numSpherePoints === message.colors.length);
       // do not render giant lists
-      var sphereStepSize = Math.ceil(numSpherePoints / 1250);
+      var sphereStepSize = Math.ceil(numSpherePoints / 300);
         
       // add the points
       var q, sphere, curSphereColor, newSphereMesh;
@@ -1938,7 +1946,7 @@ ROS3D.Marker = function(options) {
           // NOTE: This is needed for THREE.js r61, unused in r70
           useScreenCoordinates: false });
         var sprite = new THREE.Sprite( spriteMaterial );
-        var textSize = message.scale.x;
+        var textSize = message.scale.z;
         sprite.scale.set(textWidth / canvas.height * textSize, textSize, 1);
 
         this.add(sprite);      }

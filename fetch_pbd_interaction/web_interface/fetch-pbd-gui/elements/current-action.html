@@ -25,7 +25,6 @@
   <template>
     <style include='iron-flex iron-flex-alignment'>
     <style is='custom-style'>
-
       .flex-vertical {
         @apply(--layout-vertical);
         height: 500px;
@@ -61,6 +60,7 @@
       #viewer {
         overflow:hidden;
         padding-left: 32px;
+        height: 600px;
       }
       #actionName {
         padding-left: 32px;
@@ -261,7 +261,7 @@
       </div>
     </div>
 
-    <paper-dialog id="statusDialog">
+    <paper-dialog id="actionDialog">
       <h2>Status</h2>
       <p>'{{statusMessage}}'</p>
       <div class="buttons">
@@ -322,6 +322,8 @@
         inputSrv: Object,
         action_name : '',
         expListener : Object,
+        statusListener : Object,
+        loadedPublisher: Object,
         showMarkerIcon : {
           type: String,
           value: 'marker_icons:show_marker',
@@ -351,6 +353,7 @@
       },
 
       attached: function() {
+        console.log('attached');
 
         if (screen.width <= 500) {
             var viewer = document.getElementById('viewer');
@@ -387,7 +390,7 @@
         this.markerClient = new ROS3D.MarkerArrayClient({
           ros : this.ros,
           tfClient : this.tfClient,
-          topic : '/visualization_marker_array',
+          topic : '/fetch_pbd/visualization_marker_array',
           rootObject : this._viewer.scene
         });
 
@@ -405,7 +408,7 @@
           ros : this.ros,
           tfClient : this.tfClient,
           path : 'http://resources.robotwebtools.org/',
-          topic : 'programmed_actions',
+          topic : '/fetch_pbd/programmed_actions',
           camera : this._viewer.camera,
           rootObject : this._viewer.selectableObjects
         });
@@ -414,7 +417,7 @@
           ros : this.ros,
           tfClient : this.tfClient,
           path : 'http://resources.robotwebtools.org/',
-          topic : 'world_objects',
+          topic : '/fetch_pbd/world_objects',
           camera : this._viewer.camera,
           rootObject : this._viewer.selectableObjects
         });
@@ -425,13 +428,13 @@
 
         this.inputSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/gui_input',
+          name : '/fetch_pbd/gui_input',
           serviceType : 'fetch_pbd_interaction/GuiInput'
         });
 
         this.expSrv = new ROSLIB.Service({
           ros : this.ros,
-          name : '/get_session_state',
+          name : '/fetch_pbd/get_session_state',
           serviceType : 'fetch_pbd_interaction/GetSessionState'
         });
 
@@ -443,7 +446,7 @@
 
         this.expListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/session_state',
+          name : '/fetch_pbd/session_state',
           messageType : 'fetch_pbd_interaction/SessionState'
         });
 
@@ -453,13 +456,25 @@
 
         this.statusListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/fetch_pbd_status',
+          name : '/fetch_pbd/fetch_pbd_status',
           messageType : 'std_msgs/String'
         });
 
         this.statusListener.subscribe(function(message) {
           that.statusCallback(that, message);
         });
+
+        this.loadedPublisher = new ROSLIB.Topic({
+          ros : this.ros,
+          name : '/fetch_pbd/action_loaded',
+          messageType : 'std_msgs/Empty'
+        });
+
+        var empty_msg = new ROSLIB.Message({});
+        this.loadedPublisher.publish(empty_msg);
+
+        this.resize();
+
       },
 
       isAbove : function(source, target) {
@@ -517,10 +532,12 @@
       },
 
       statusCallback : function(that, message) {
-        if (message.data != '' && screen.width > 500 ) {
+        console.log("Got status update");
+        if (message.data != '') {
           that.statusMessage = message.data;
-          var statusDialog = document.getElementById('statusDialog');
-          statusDialog.open();
+          console.log("Making dialog");
+          var actionDialog = document.getElementById('actionDialog');
+          actionDialog.open();
         }
       },
 

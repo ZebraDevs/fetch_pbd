@@ -136,12 +136,12 @@ class ArmTrajectory(Primitive):
         self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
+        self._get_object_list_srv = rospy.ServiceProxy('/fetch_pbd/get_object_list',
                                                        GetObjectList)
 
     # ##################################################################
@@ -189,7 +189,7 @@ class ArmTrajectory(Primitive):
             gripper_state = json['gripper_states'][i]
             self._gripper_states.append(gripper_state)
 
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met before a
             primitive can be executed. This could be something like
@@ -198,10 +198,9 @@ class ArmTrajectory(Primitive):
             Returns:
                 None
         '''
+        return True, None
 
-        return None
-
-    def get_post_condition(self):
+    def check_post_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met after a
             primitive is executed in order for execution to be a success.
@@ -210,7 +209,7 @@ class ArmTrajectory(Primitive):
             Returns:
                 None
         '''
-        return None
+        return True, None
 
     def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
@@ -235,6 +234,7 @@ class ArmTrajectory(Primitive):
                 rospy.logwarn(e)
 
         self._marker_visible = True
+        return True
 
     def hide_marker(self):
         '''Removes marker from the world.'''
@@ -386,7 +386,18 @@ class ArmTrajectory(Primitive):
         gripper_state = self._gripper_states[-1]
 
         self._robot.set_gripper_state(gripper_state)
-        return all_states
+        if all_states:
+            return True, None
+        else:
+            return False, "Problem finding IK solution"
+
+    def head_busy(self):
+        '''Return true if head busy
+
+        Returns:
+            bool
+        '''
+        return False
 
     def is_reachable(self):
         '''Check if robot can physically reach all steps in trajectory'''
@@ -397,11 +408,9 @@ class ArmTrajectory(Primitive):
 
     def get_relative_pose(self, use_final=True):
         '''Returns the absolute pose of the primitive.
-
         Args:
-            use_final (bool, optional). For trajectories only. Whether to
+            use_final (bool, optional). Whether to
                 get the final pose in the trajectory. Defaults to True.
-
         Returns:
             PoseStamped
         '''
@@ -410,12 +419,11 @@ class ArmTrajectory(Primitive):
 
         return arm_state.ee_pose
 
-    def get_absolute_pose(self, use_final=True):
+    def get_absolute_pose(self):
         '''Returns the absolute pose of the primitive.
 
         Args:
-            use_final (bool, optional). For trajectories only. Whether to
-                get the final pose in the trajectory. Defaults to True.
+            None
 
         Returns:
             PoseStamped
