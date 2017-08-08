@@ -2,6 +2,12 @@
 Changelog for package fetch_arm_control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.8 (2017-08-08)
+------------------
+* Namespace topics and services, some marker fixes
+* Change World node to C++ and add Grasp suggestion integration
+* Contributors: Sarah Elliott
+
 0.0.7 (2017-04-20)
 ------------------
 * Make the gripper open all the way

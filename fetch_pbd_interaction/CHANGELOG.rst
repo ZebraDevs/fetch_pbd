@@ -2,6 +2,18 @@
 Changelog for package fetch_pbd_interaction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.8 (2017-08-08)
+------------------
+* Update README and CMakeLists
+* Do reachability check for ref_type PREVIOUS_TARGET
+* Interface improvements: update markers more efficiently, etc
+* Implemented pre-conditions for primitives
+* Interface improvements: object labels, marker fixes
+* Namespace topics and services, some marker fixes
+* Install specific version of polymer-cli to not get issues when polymer changes
+* Change World node to C++ and add Grasp suggestion integration
+* Contributors: Sarah Elliott
+
 0.0.7 (2017-04-20)
 ------------------
 * Built frontend and now serve pre-built frontend directly

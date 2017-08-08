@@ -2,6 +2,12 @@
 Changelog for package fetch_social_gaze
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.8 (2017-08-08)
+------------------
+* Do reachability check for ref_type PREVIOUS_TARGET
+* Namespace topics and services, some marker fixes
+* Contributors: Sarah Elliott
+
 0.0.7 (2017-04-20)
 ------------------
 
