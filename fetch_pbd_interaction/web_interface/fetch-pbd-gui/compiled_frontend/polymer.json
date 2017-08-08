@@ -1,0 +1,34 @@
+{
+  "entrypoint": "index.html",
+  "shell": "elements/pbd-gui.html",
+  "fragments": [
+    "elements/my-actions.html",
+    "elements/current-action.html"
+  ],
+  "sources": [
+    "src/**/*",
+    "index.html",
+    "elements/pbd-gui.html",
+    "elements/my-actions.html",
+    "elements/current-action.html"
+  ],
+  "extraDependencies": [
+    "bower_components/webcomponentsjs/*.js"
+  ],
+  "builds": [
+    {
+      "name": "bundled-es6",
+      "bundle": true,
+      "js": {
+        "minify": true,
+        "compile": false
+      },
+      "css": {
+        "minify": true
+      },
+      "html": {
+        "minify": true
+      }
+    }
+  ]
+}

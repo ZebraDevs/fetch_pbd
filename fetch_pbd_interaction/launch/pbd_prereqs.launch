@@ -7,27 +7,29 @@
 	be brought up separately from all of its prerequisites.
 	-->
 
-	<arg name="social_gaze" default="true" />
-	<param name="social_gaze" value="$(arg social_gaze)" />
-	<arg name="play_sound" default="true" />
-	<arg name="from_file" default="" />
-	<param name="from_file" value="$(arg from_file)" />
-	<arg name="to_file" default="" />
-	<param name="to_file" value="$(arg to_file)" />
-	<param name="play_sound" value="$(arg play_sound)" />
     <arg name="camera_frame_prefix" default="/head_camera" />
     <arg name="camera_name" default="head_camera" />
 
+	<arg name="grasp_suggestion_service" default="" />
+    <arg name="segmentation_service" default="/rail_segmentation/segment" />
+    <arg name="segmented_objects_topic" default="/rail_segmentation/segmented_objects" />
+    <arg name="segmented_table_topic" default="/rail_segmentation/segmented_table" />
+    <arg name="planning_scene_topic" default="/planning_scene" />
+    <arg name="object_similar_distance_threshold" default="0.08" />
+    <arg name="object_add_distance_threshold" default="0.02" />
+    <arg name="object_nearest_distance_threshold" default="0.4" />
+    <arg name="object_distance_zero_clamp" default="0.0001" />
+    <arg name="text_height" default="0.03" />
+    <arg name="surface_height" default="0.01" />
+    <arg name="text_offset" default="0.06" />
+    <arg name="base_frame" default="base_link" />
+
 	<!-- This makes the robot look around appropriately -->
-	<include file="$(find fetch_social_gaze)/launch/gaze.launch"/>
+	<include file="$(find fetch_social_gaze)/launch/gaze.launch" />
 
 	<include file="$(find fetch_pbd_interaction)/launch/pbd_web_prereqs.launch"/>
 
   	<include file="$(find fetch_moveit_config)/launch/move_group.launch" />
-
-	<!-- <include file="$(find tabletop_object_detector)/launch/tabletop_segmentation.launch">
-	    <arg name="tabletop_segmentation_points_in" value="$(arg camera_name)/depth_registered/points" />
-	</include> -->
 
     <node name="rail_segmentation" pkg="rail_segmentation" type="rail_segmentation" respawn="true" output="screen">
     	<param name="point_cloud_topic" value="$(arg camera_name)/depth_registered/points" />
@@ -36,6 +38,20 @@
     </node>
 
 	<node name="fetch_pbd_arm_control" pkg="fetch_pbd_interaction" type="pbd_arm_control_node.py" output="screen" />
-	<node name="pbd_world_node" pkg="fetch_pbd_interaction" type="pbd_world_node.py" output="screen" />
+	<node name="pbd_world_node" pkg="fetch_pbd_interaction" type="pbd_world_node" output="screen" > 
+		<param name="grasp_suggestion_service" value="$(arg grasp_suggestion_service)" />
+    	<param name="segmentation_service" value="$(arg segmentation_service)" />
+    	<param name="segmented_objects_topic" value="$(arg segmented_objects_topic)" />
+    	<param name="segmented_table_topic" value="$(arg segmented_table_topic)" />
+    	<param name="planning_scene_topic" value="$(arg planning_scene_topic)" />
+    	<param name="object_similar_distance_threshold" value="$(arg object_similar_distance_threshold)" type="double"/>
+    	<param name="object_add_distance_threshold" value="$(arg object_add_distance_threshold)" type="double"/>
+    	<param name="object_nearest_distance_threshold" value="$(arg object_nearest_distance_threshold)" type="double"/>
+    	<param name="object_distance_zero_clamp" value="$(arg object_distance_zero_clamp)" type="double"/>
+    	<param name="text_height" value="$(arg text_height)" type="double"/>
+    	<param name="surface_height" value="$(arg surface_height)" type="double"/>
+    	<param name="text_offset" value="$(arg text_offset)" type="double"/>
+    	<param name="base_frame" value="$(arg base_frame)" />
+	</node>
 
 </launch>

@@ -73,7 +73,8 @@
         route='{{route}}'
         pattern='/:page'
         data='{{routeData}}'
-        tail='{{subroute}}'></app-route>
+        tail='{{subroute}}'>
+    </app-route>
 
     <app-drawer-layout fullbleed>
 
@@ -99,9 +100,9 @@
         </app-header>
 
         <iron-pages id='page_options' role='main' selected='[[page]]' attr-for-selected='name'>
-          <my-actions name='my-actions'></my-actions>
 
-          <current-action name='current-action'></current-action>
+            <my-actions id='my-actions' name='my-actions'></my-actions>
+            <current-action id='current-action' name='current-action'></current-action>
 
         </iron-pages>
 
@@ -142,7 +143,7 @@
 
         this.pageListener = new ROSLIB.Topic({
           ros : this.ros,
-          name : '/page_change',
+          name : '/fetch_pbd/page_change',
           messageType : 'std_msgs/String'
         });
 
@@ -153,9 +154,27 @@
 
       pageCallback : function(that, message) {
         console.log('Gui command');
+        var to_remove = 'my-actions';
+        var to_add = 'current-action';
+        if (message.data !== 'current-action'){
+          to_add = 'my-actions';
+          to_remove = 'current-action';
+        }
+        var parent = document.getElementById("page_options");
+        console.log(parent);
+        var old_page = document.getElementById(to_remove);
+        console.log(to_remove);        
+        console.log(old_page);        
+        parent.removeChild(old_page);
+        var new_page = document.createElement(to_add);
+        new_page.setAttribute('id', to_add);
+        new_page.setAttribute('name', to_add);
+        parent.appendChild(new_page);
         that.$.selector.select(message.data);
         that.$.page_options.select(message.data);
         that.set('routeData.page', message.data);
+        
+        
         // setTimeout(that.set('routeData.page', message.data).bind(that),100);
         that._routePageChanged(message.data);
       },
@@ -169,6 +188,7 @@
         console.log('page change');
         this.importHref(
           this.resolveUrl( page + '.html'), null, null, true);
+
       }
     });
   </script>

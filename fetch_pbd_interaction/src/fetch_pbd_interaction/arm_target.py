@@ -5,6 +5,8 @@ where the arm moves to a single pose.
 # ######################################################################
 # Imports
 # ######################################################################
+# System builtins
+import math
 
 # Core ROS imports come first.
 import rospy
@@ -54,10 +56,11 @@ DEFAULT_OFFSET = 0.085
 
 # Right-click menu.
 MENU_OPTIONS = {
-    'ref': 'Reference frame',
+    'ref': 'Change target:',
     'move_here': 'Move arm here',
     'move_current': 'Move to current arm pose',
-    'del': 'Delete',
+    'del': 'Delete'
+    # 'target': 'Change target object:'
 }
 
 # Offets to maintain globally-unique IDs but with new sets of objects.
@@ -95,7 +98,7 @@ class ArmTarget(Primitive):
 
     _offset = DEFAULT_OFFSET
 
-    def __init__(self, robot, tf_listener, im_server, arm_state=None,
+    def __init__(self, robot, tf_listener, im_server, arm_state=ArmState(),
                  gripper_state=None, number=None):
         '''
         Args:
@@ -107,7 +110,7 @@ class ArmTarget(Primitive):
             number (int, optional): The number of this primitive in the
             action sequence
         '''
-        self._name = '' #Unused currently
+        self._name = "" #Unused currently
         self._im_server = im_server
         self._robot = robot
         self._arm_state = arm_state
@@ -120,29 +123,25 @@ class ArmTarget(Primitive):
         self._color_mesh_reachable = COLOR_MESH_REACHABLE
         self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
         self._reachable = True
+        self._landmark_found = False
 
-        # self._ref_names = []
-        # self._im_server = InteractiveMarkerServer("programmed_actions")
         self._menu_handler = MenuHandler()
 
-        self._sub_entries = None
+        self._sub_ref_entries = None
         self._marker_click_cb = None
         self._marker_delete_cb = None
         self._pose_change_cb = None
         self._action_change_cb = None
 
         self._get_object_from_name_srv = rospy.ServiceProxy(
-                                         'get_object_from_name',
+                                         '/fetch_pbd/get_object_from_name',
                                          GetObjectFromName)
         self._get_most_similar_obj_srv = rospy.ServiceProxy(
-                                         'get_most_similar_object',
+                                         '/fetch_pbd/get_most_similar_object',
                                          GetMostSimilarObject)
-        self._get_object_list_srv = rospy.ServiceProxy('get_object_list',
-                                                       GetObjectList)
-        self._status_publisher = rospy.Publisher('fetch_pbd_status',
-                                                String,
-                                                queue_size=10,
-                                                latch=True)
+        self._get_object_list_srv = rospy.ServiceProxy(
+                                        '/fetch_pbd/get_object_list',
+                                        GetObjectList)
 
     # ##################################################################
     # Instance methods: Public (API)
@@ -195,7 +194,7 @@ class ArmTarget(Primitive):
 
         self._arm_state.ref_landmark.dimensions = landmark_dimensions
 
-    def get_pre_condition(self):
+    def check_pre_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met before a
             primitive can be executed. This could be something like
@@ -204,10 +203,16 @@ class ArmTarget(Primitive):
             Returns:
                 None
         '''
+        if self._arm_state.ref_type == ArmState.OBJECT:
+            if not self._landmark_found:
+                return False, "No matching object found" + \
+                        " for primitive: {}".format(self.get_name())
+            else:
+                return True, None
+        else: 
+            return True, None
 
-        return None
-
-    def get_post_condition(self):
+    def check_post_condition(self):
         ''' Currently just a placeholder
             Meant to return conditions that need to be met after a
             primitive is executed in order for execution to be a success.
@@ -217,7 +222,7 @@ class ArmTarget(Primitive):
                 None
         '''
 
-        return None
+        return True, None
 
     def add_marker_callbacks(self, click_cb, delete_cb, pose_change_cb,
                     action_change_cb):
@@ -232,16 +237,18 @@ class ArmTarget(Primitive):
 
     def show_marker(self):
         '''Adds marker for primitive'''
+        self._marker_visible = False
         if self.update_ref_frames():
             try:
                 self._update_menu()
                 self._update_viz_core()
                 self._menu_handler.apply(self._im_server, self.get_name())
                 self._im_server.applyChanges()
+                self._marker_visible = True
             except Exception, e:
-                rospy.logwarn(e)
+                rospy.logwarn("Show marker error: {}".format(e))
 
-        self._marker_visible = True
+        return self._marker_visible
 
     def hide_marker(self):
         '''Removes marker from the world.'''
@@ -265,17 +272,15 @@ class ArmTarget(Primitive):
         arm_pose = self._arm_state
         if arm_pose.ref_type == ArmState.OBJECT:
             prev_ref_obj = arm_pose.ref_landmark
+            # rospy.loginfo("prev ref object: {}".format(prev_ref_obj))
             resp = self._get_most_similar_obj_srv(prev_ref_obj)
             if resp.has_similar:
                 self._arm_state.ref_landmark = resp.similar_object
+                self._arm_state.ee_pose.header.frame_id = resp.similar_object.name
+                self._landmark_found = True
                 return True
-
             else:
-                rospy.logwarn("Not showing primitive markers because " +
-                              "no objects present")
-                self._status_publisher.publish(
-                    String("Not showing primitive markers because " +
-                              "no objects present"))
+                self._landmark_found = False
                 return False
         else:
             return True
@@ -289,8 +294,7 @@ class ArmTarget(Primitive):
         self._arm_state.ref_type = ref_type
         # self._arm_state.ref_landmark = landmark
 
-        self._arm_state = self._convert_ref_frame(self._arm_state,
-                                                  landmark)
+        self._convert_ref_frame(landmark)
         rospy.loginfo(
             'Switching reference frame for primitive ' +
             self.get_name())
@@ -338,7 +342,7 @@ class ArmTarget(Primitive):
             self._color_mesh_reachable = COLOR_MESH_REACHABLE
             self._color_mesh_unreachable = COLOR_MESH_UNREACHABLE
 
-        self.update_viz(False)
+        # self.update_viz(False)
 
     def is_selected(self):
         '''Return whether or not primitive is selected
@@ -366,7 +370,6 @@ class ArmTarget(Primitive):
 
     def update_viz(self, check_reachable=True):
         '''Updates visualization fully.
-
         Args:
             check_reachable (bool) : whether to evaluate reachability
                                     before drawing marker
@@ -382,10 +385,11 @@ class ArmTarget(Primitive):
         if draw_markers and self._marker_visible:
             try:
                 self._update_menu()
-                self._update_viz_core(check_reachable)
-                self._menu_handler.apply(self._im_server, self.get_name())
-                self._im_server.applyChanges()
+                if self._update_viz_core(check_reachable):
+                    self._menu_handler.apply(self._im_server, self.get_name())
+                    self._im_server.applyChanges()
             except Exception, e:
+                rospy.logwarn("Error when updating primitive viz")
                 rospy.logwarn(e)
 
     def get_primitive_number(self):
@@ -426,10 +430,18 @@ class ArmTarget(Primitive):
             bool : Success of execution
         '''
         if not self._robot.move_arm_to_pose(self._arm_state):
-            return False
+            return False, "Problem finding IK solution"
         if not self._gripper_state == self._robot.get_gripper_state():
             self._robot.set_gripper_state(self._gripper_state)
-        return True
+        return True, None
+
+    def head_busy(self):
+        '''Return true if head busy
+
+        Returns:
+            bool
+        '''
+        return False
 
     def is_reachable(self):
         '''Check if robot can physically reach target'''
@@ -438,20 +450,19 @@ class ArmTarget(Primitive):
 
     def get_relative_pose(self, use_final=True):
         '''Returns the relative pose of the primitive.
-
         Args:
             use_final (bool, optional) : Unused
-
         Returns:
             PoseStamped
         '''
         return self._arm_state.ee_pose
 
-    def get_absolute_pose(self, use_final=True):
+
+    def get_absolute_pose(self):
         '''Returns the absolute pose of the primitive.
 
         Args:
-            use_final (bool, optional). Unused
+            None
 
         Returns:
             PoseStamped
@@ -462,7 +473,7 @@ class ArmTarget(Primitive):
             return abs_pose
         except:
             frame_id = self._arm_state.ee_pose.header.frame_id
-            # rospy.logwarn("Frame: {} does not exist".format(frame_id))
+            rospy.logwarn("Frame: {} does not exist".format(frame_id))
             return None
 
     def get_absolute_marker_pose(self, use_final=True):
@@ -672,6 +683,20 @@ class ArmTarget(Primitive):
         return pose
 
     @staticmethod
+    def _diff(float1, float2, thresh):
+        '''Return true if floats are different by a threshold
+
+        Args:
+            float1 (float)
+            float2 (float)
+            thresh (float)
+        '''
+        if math.fabs(float1 - float2) < thresh:
+            return False
+        else:
+            return True
+
+    @staticmethod
     def _offset_pose(pose, constant=1):
         '''Offsets the world pose for visualization.
 
@@ -751,12 +776,11 @@ class ArmTarget(Primitive):
 
     def _update_menu(self):
         '''Recreates the menu when something has changed.'''
-
         rospy.loginfo("Making new menu")
         self._menu_handler = MenuHandler()
 
         # Insert sub entries.
-        self._sub_entries = []
+        self._sub_ref_entries = []
         frame_entry = self._menu_handler.insert(MENU_OPTIONS['ref'])
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
@@ -767,7 +791,38 @@ class ArmTarget(Primitive):
         for ref in refs:
             subent = self._menu_handler.insert(
                 ref, parent=frame_entry, callback=self._change_ref_cb)
-            self._sub_entries += [subent]
+            self._sub_ref_entries += [subent]
+
+
+        # Make all unchecked to start.
+        for subent in self._sub_ref_entries:
+            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
+
+        # Check if necessary.
+        menu_id = self._get_menu_ref_id(self._get_menu_ref())
+        if not menu_id is None:
+            # self.has_object = False
+            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
+
+
+        # self._sub_target_entries = []
+        # target_entry = self._menu_handler.insert(MENU_OPTIONS['target'])
+        # object_list = self._get_object_list_srv().object_list
+        # targets = [obj.name + " " for obj in object_list]
+        # for target in targets:
+        #     subent = self._menu_handler.insert(
+        #         target, parent=target_entry, callback=self._change_target_cb)
+        #     self._sub_target_entries += [subent]
+
+        # Make all unchecked to start.
+        # for subent in self._sub_target_entries:
+        #     self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
+
+        # Check if necessary.
+        # menu_id = self._get_menu_target_id(self._get_menu_ref(target=True))
+        # if not menu_id is None:
+        #     # self.has_object = False
+        #     self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
 
         # Inset main menu entries.
 
@@ -778,20 +833,9 @@ class ArmTarget(Primitive):
         self._menu_handler.insert(
             MENU_OPTIONS['del'], callback=self._delete_primitive_cb)
 
-        # Make all unchecked to start.
-        for subent in self._sub_entries:
-            self._menu_handler.setCheckState(subent, MenuHandler.UNCHECKED)
-
-        # Check if necessary.
-        menu_id = self._get_menu_id(self._get_menu_ref())
-        if not menu_id is None:
-            # self.has_object = False
-            self._menu_handler.setCheckState(menu_id, MenuHandler.CHECKED)
-
         # Update.
-        rospy.loginfo("Viz core")
 
-    def _get_menu_id(self, ref_name):
+    def _get_menu_ref_id(self, ref_name):
         '''Returns the unique menu id from its name or None if the
         object is not found.
 
@@ -807,14 +851,35 @@ class ArmTarget(Primitive):
         refs.append(BASE_LINK)
         if ref_name in refs:
             index = refs.index(ref_name)
-            if index < len(self._sub_entries):
-                return self._sub_entries[index]
+            if index < len(self._sub_ref_entries):
+                return self._sub_ref_entries[index]
             else:
                 return None
         else:
             return None
 
-    def _get_menu_name(self, menu_id):
+    # def _get_menu_target_id(self, ref_name):
+    #     '''Returns the unique menu id from its name or None if the
+    #     object is not found.
+
+    #     Args:
+    #         ref_name (str)
+    #     Returns:
+    #         int (?)|None
+    #     '''
+    #     object_list = self._get_object_list_srv().object_list
+    #     refs = [obj.name + " " for obj in object_list]
+    #     if ref_name in refs:
+    #         index = refs.index(ref_name)
+    #         if index < len(self._sub_target_entries):
+    #             return self._sub_target_entries[index]
+    #         else:
+    #             return None
+    #     else:
+    #         return None
+
+
+    def _get_menu_ref_name(self, menu_id):
         '''Returns the menu name from its unique menu id.
 
         Args:
@@ -822,13 +887,43 @@ class ArmTarget(Primitive):
         Returns:
             str
         '''
-        index = self._sub_entries.index(menu_id)
+        index = self._sub_ref_entries.index(menu_id)
         object_list = self._get_object_list_srv().object_list
         refs = [obj.name for obj in object_list]
         if self._number > 0:
             refs.append(PREVIOUS_PRIMITIVE)
         refs.append(BASE_LINK)
         return refs[index]
+
+    # def _get_menu_target_name(self, menu_id):
+    #     '''Returns the menu name from its unique menu id.
+
+    #     Args:
+    #         menu_id (int)
+    #     Returns:
+    #         str
+    #     '''
+    #     index = self._sub_target_entries.index(menu_id)
+    #     object_list = self._get_object_list_srv().object_list
+    #     refs = [obj.name for obj in object_list]
+    #     return refs[index]
+
+
+    def _set_target(self, new_ref):
+        '''Changes the reference frame of the primitive to
+        new_ref_name.
+
+        Args:
+            new_ref_name
+        '''
+        # Get the id of the new ref (an int).
+        self._arm_state.ref_type = ArmState.OBJECT
+        new_ref_obj = self._get_object_from_name_srv(new_ref).obj
+        rospy.loginfo("Setting reference of primitive" + 
+                      "{} to object".format(self._number))
+        self._arm_state.ref_landmark = new_ref_obj
+        self._landmark_found = True
+        self._arm_state.ee_pose.header.frame_id = new_ref_obj.name
 
     def _set_ref(self, new_ref):
         '''Changes the reference frame of the primitive to
@@ -849,49 +944,46 @@ class ArmTarget(Primitive):
             new_ref_obj = self._get_object_from_name_srv(new_ref).obj
             rospy.loginfo("OBJECT!!!")
 
-        self._arm_state = self._convert_ref_frame(self._arm_state, new_ref_obj)
+        self._convert_ref_frame(new_ref_obj)
 
-    def _convert_ref_frame(self, arm_state, new_landmark):
+    def _convert_ref_frame(self, new_landmark):
         '''Convert arm_state to be in a different reference frame
 
             Args:
-                arm_state (ArmState)
                 new_landmark (Landmark)
             Returns:
                 ArmState
         '''
-        if arm_state.ref_type == ArmState.OBJECT:
+        if self._arm_state.ref_type == ArmState.OBJECT:
             rospy.loginfo("Relative to object")
-            if arm_state.ref_landmark.name != new_landmark.name:
+            if self._arm_state.ref_landmark.name != new_landmark.name:
                 ee_pose = self._tf_listener.transformPose(
                                     new_landmark.name,
-                                    arm_state.ee_pose
+                                    self._arm_state.ee_pose
                                 )
-                arm_state.ref_landmark = new_landmark
-                arm_state.ee_pose = ee_pose
-        elif arm_state.ref_type == ArmState.ROBOT_BASE:
+                self._arm_state.ref_landmark = new_landmark
+                self._landmark_found = True
+                self._arm_state.ee_pose = ee_pose
+        elif self._arm_state.ref_type == ArmState.ROBOT_BASE:
             ee_pose = self._tf_listener.transformPose(
                                     BASE_LINK,
-                                    arm_state.ee_pose
+                                    self._arm_state.ee_pose
                                 )
-            arm_state.ee_pose = ee_pose
-            arm_state.ref_landmark = Landmark()
-        elif arm_state.ref_type == ArmState.PREVIOUS_TARGET:
+            self._arm_state.ee_pose = ee_pose
+            self._arm_state.ref_landmark = Landmark()
+            self._landmark_found = False
+        elif self._arm_state.ref_type == ArmState.PREVIOUS_TARGET:
             prev_frame_name = 'primitive_' + str(self._number - 1)
-            rospy.loginfo("Original pose: {}".format(arm_state.ee_pose))
+            rospy.loginfo("Original pose: {}".format(self._arm_state.ee_pose))
             ee_pose = self._tf_listener.transformPose(
                                     prev_frame_name,
-                                    arm_state.ee_pose
+                                    self._arm_state.ee_pose
                                 )
             rospy.loginfo("New pose: {}".format(ee_pose))
 
-            arm_state.ee_pose = ee_pose
-            arm_state.ref_landmark = Landmark()
-        # if new_landmark.name == 'base_link':
-        #     arm_state.ref_type = ArmState.ROBOT_BASE
-        # else:
-        #     arm_state.ref_type = ArmState.OBJECT
-        return arm_state
+            self._arm_state.ee_pose = ee_pose
+            self._arm_state.ref_landmark = Landmark()
+            self._landmark_found = False
 
     def _get_marker_pose(self):
         '''Returns the pose of the primitive.
@@ -899,17 +991,21 @@ class ArmTarget(Primitive):
         Returns:
             Pose
         '''
+        rospy.loginfo("Pose frame is: {}".format(self.get_ref_frame_name()))
+
         try:
+            rospy.loginfo("Pose: {}".format(self._arm_state.ee_pose))
             self._tf_listener.waitForTransform(BASE_LINK,
                                  self._arm_state.ee_pose.header.frame_id,
-                                 rospy.Time(0),
+                                 rospy.Time.now(),
                                  rospy.Duration(4.0))
             intermediate_pose = self._tf_listener.transformPose(
                                                         BASE_LINK,
                                                         self._arm_state.ee_pose)
             offset_pose = ArmTarget._offset_pose(intermediate_pose)
-            return self._tf_listener.transformPose(self.get_ref_frame_name(),
-                                                offset_pose)
+            # return self._tf_listener.transformPose(BASE_LINK,
+            #                                     offset_pose)
+            return offset_pose
         except Exception, e:
             rospy.logwarn(e)
             rospy.logwarn("Frame not available yet: {}".format(self.get_ref_frame_name()))
@@ -925,13 +1021,16 @@ class ArmTarget(Primitive):
         menu_control = InteractiveMarkerControl()
         menu_control.interaction_mode = InteractiveMarkerControl.BUTTON
         menu_control.always_visible = True
-        frame_id = self.get_ref_frame_name()
+        frame_id = BASE_LINK #self.get_ref_frame_name()
         pose = self._get_marker_pose()
         if pose is None:
             return
 
         if check_reachable:
-            self.is_reachable()
+            if not self.is_reachable():
+                rospy.logwarn("Marker pose not reachable")
+            else:
+                rospy.loginfo("Marker pose is reachable")
 
         menu_control = self._make_gripper_marker(
                menu_control, self._gripper_state)
@@ -944,8 +1043,30 @@ class ArmTarget(Primitive):
         int_marker.scale = INT_MARKER_SCALE
         self._add_6dof_marker(int_marker, True)
         int_marker.controls.append(menu_control)
-        self._im_server.insert(
-            int_marker, self._marker_feedback_cb)
+        prev_marker = self._im_server.get(self.get_name())
+        prev_color = None
+        if not prev_marker is None:
+            if len(prev_marker.controls) > 0:
+                if len(prev_marker.controls[-1].markers) > 0:
+                    prev_color = prev_marker.controls[-1].markers[-1].color
+        new_color = None
+        if len(int_marker.controls) > 0:
+            if len(int_marker.controls[-1].markers) > 0:
+                new_color = int_marker.controls[-1].markers[-1].color
+
+        if not prev_marker:
+            self._im_server.insert(
+                int_marker, self._marker_feedback_cb)
+            rospy.logwarn("Adding marker for primitive {}".format(self.get_number()))
+            return True
+        elif (prev_marker.pose != int_marker.pose) or (prev_color != new_color):
+            rospy.loginfo("Updating marker")
+            self._im_server.insert(
+                int_marker, self._marker_feedback_cb)
+            return True
+
+        rospy.logwarn("Not updating marker for primitive {}".format(self.get_number()))
+        return False
 
     def _add_6dof_marker(self, int_marker, is_fixed):
         '''Adds a 6 DoF control marker to the interactive marker.
@@ -1017,6 +1138,48 @@ class ArmTarget(Primitive):
                                                     pose_stamped_transformed,
                                                     -1)
         self.update_viz()
+
+    def _pose_changed(self, new_pose, frame_id):
+        '''Check if marker pose has changed
+
+        Args: 
+            pose (Pose)
+        '''
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = frame_id
+        pose_stamped.pose = new_pose
+        pose_stamped_transformed = self._tf_listener.transformPose(
+                                                    self.get_ref_frame_name(),
+                                                    pose_stamped)
+        offset_pose = ArmTarget._offset_pose(pose_stamped_transformed,
+                                                    -1)
+        if ArmTarget._diff(offset_pose.pose.position.x, 
+                            self._arm_state.ee_pose.pose.position.x,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.position.y, 
+                            self._arm_state.ee_pose.pose.position.y,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.position.z, 
+                            self._arm_state.ee_pose.pose.position.z,
+                            0.001) \
+            or ArmTarget._diff(offset_pose.pose.orientation.x, 
+                            self._arm_state.ee_pose.pose.orientation.x,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.y, 
+                            self._arm_state.ee_pose.pose.orientation.y,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.z, 
+                            self._arm_state.ee_pose.pose.orientation.z,
+                            0.01) \
+            or ArmTarget._diff(offset_pose.pose.orientation.w, 
+                            self._arm_state.ee_pose.pose.orientation.w,
+                            0.01):
+            rospy.loginfo("New pose: {}".format(new_pose))
+            rospy.loginfo("New pose transformed: {}".format(offset_pose))
+            rospy.loginfo("Old pose: {}".format(self._arm_state.ee_pose))
+            return True
+        else:
+            return False
 
     def _get_mesh_marker_color(self):
         '''Gets the color for the mesh marker (thing that looks like a
@@ -1121,6 +1284,28 @@ class ArmTarget(Primitive):
         self._arm_state = self._robot.get_arm_state()
         self._gripper_state = self._robot.get_gripper_state()
         self.update_ref_frames()
+        self.update_viz()
+        self._pose_change_cb()
+
+    def _change_target_cb(self, feedback):
+        '''Callback for when a reference frame change is requested.
+
+        Args:
+            feedback (InteractiveMarkerFeedback (?))
+        '''
+        self._menu_handler.setCheckState(
+            self._get_menu_target_id(self._get_menu_ref(target=True)), MenuHandler.UNCHECKED)
+        self._menu_handler.setCheckState(
+            feedback.menu_entry_id, MenuHandler.CHECKED)
+        new_ref = self._get_menu_target_name(feedback.menu_entry_id)
+        self._set_target(new_ref)
+        rospy.loginfo(
+            'Switching reference frame to ' + new_ref + ' for primitive ' +
+            self.get_name())
+        self._menu_handler.reApply(self._im_server)
+        self._im_server.applyChanges()
+        self.update_viz(False)
+        self._action_change_cb()
 
     def _change_ref_cb(self, feedback):
         '''Callback for when a reference frame change is requested.
@@ -1129,10 +1314,10 @@ class ArmTarget(Primitive):
             feedback (InteractiveMarkerFeedback (?))
         '''
         self._menu_handler.setCheckState(
-            self._get_menu_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
+            self._get_menu_ref_id(self._get_menu_ref()), MenuHandler.UNCHECKED)
         self._menu_handler.setCheckState(
             feedback.menu_entry_id, MenuHandler.CHECKED)
-        new_ref = self._get_menu_name(feedback.menu_entry_id)
+        new_ref = self._get_menu_ref_name(feedback.menu_entry_id)
         self._set_ref(new_ref)
         rospy.loginfo(
             'Switching reference frame to ' + new_ref + ' for primitive ' +
@@ -1148,28 +1333,33 @@ class ArmTarget(Primitive):
         Args:
             feedback (InteractiveMarkerFeedback)
         '''
-        if feedback.event_type == InteractiveMarkerFeedback.BUTTON_CLICK:
+        if feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
             # Set the visibility of the 6DOF controller.
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
-            rospy.logdebug('Changing visibility of the pose controls.')
-            self._is_control_visible = not self._is_control_visible
-            self._marker_click_cb(
-                self._number, self._is_control_visible)
-        elif feedback.event_type == InteractiveMarkerFeedback.MOUSE_UP:
-            self._set_new_pose(feedback.pose, feedback.header.frame_id)
-            self._pose_change_cb()
-            self._action_change_cb()
+            if self._pose_changed(feedback.pose, feedback.header.frame_id):
+                rospy.loginfo('Pose change.')
+                self._set_new_pose(feedback.pose, feedback.header.frame_id)
+                self._pose_change_cb()
+                self._action_change_cb()
+            else:
+                rospy.loginfo('Changing visibility of the pose controls.')
+                self._is_control_visible = not self._is_control_visible
+                self._marker_click_cb(
+                    self._number, self._is_control_visible)
+                self._set_new_pose(feedback.pose, feedback.header.frame_id)
+                self._pose_change_cb()
+                self._action_change_cb()
         else:
             # This happens a ton, and doesn't need to be logged like
             # normal events (e.g. clicking on most marker controls
             # fires here).
             rospy.logdebug('Unknown event: ' + str(feedback.event_type))
 
-    def _get_menu_ref(self):
+    def _get_menu_ref(self, target=False):
         '''Returns the name string for the reference frame object of the
-        primitive. This is specifically for
+        primitive. 
 
         Returns:
             str|None: Under all normal circumstances, returns the str
@@ -1179,15 +1369,19 @@ class ArmTarget(Primitive):
         ref_type = self._arm_state.ref_type
         ref_name = self._arm_state.ref_landmark.name
 
-
-        # Update ref frame name if it's absolute.
-        if ref_type == ArmState.ROBOT_BASE:
-            ref_name = BASE_LINK
-        elif ref_type == ArmState.PREVIOUS_TARGET:
-            ref_name = PREVIOUS_PRIMITIVE
-        elif ref_name == '':
-            ref_name = BASE_LINK
-            rospy.loginfo("Empty frame: {}".format(self._number))
+        if not target:
+            # Update ref frame name if it's absolute.
+            if ref_type == ArmState.ROBOT_BASE:
+                ref_name = BASE_LINK
+            elif ref_type == ArmState.PREVIOUS_TARGET:
+                ref_name = PREVIOUS_PRIMITIVE
+            elif ref_name == '':
+                ref_name = BASE_LINK
+                rospy.loginfo("Empty frame: {}".format(self._number))
+        else:
+            ref_name = ref_name + " "
 
         return ref_name
+
+
 

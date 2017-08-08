@@ -62,7 +62,7 @@ You can also pass arguments to the launch file to save your actions to a json fi
 This behaviour is a bit complicated. It is recommended that you specify the full path to files or else it will look in your .ros folder.
 If you specify a from_file then actions will be loaded from that file. They will replace the ones in your session database.
 Whatever was in your session database will get stored in a timestamped file in your .ros folder (not overwritten).
-If you specify a to_file then whatever is in your current session file be saved to that file.
+If you specify a to_file then the session you are starting will be saved to that file.
 ```bash
 source ~/catkin_ws/devel/setup.bash
 roslaunch fetch_pbd_interaction pbd.launch from_file:=/full/path/from.json to_file:=/full/path/to.json
@@ -88,13 +88,32 @@ You can edit the position and orientation of certain primitives by clicking the 
 ![](https://cloud.githubusercontent.com/assets/1470402/17989393/d05b87ea-6ae1-11e6-85d7-922c6dc4844a.png)
 
 You can change the frame that certain primitives are relative to by right-clicking the marker.
-![](https://cloud.githubusercontent.com/assets/1470402/17989395/d05d657e-6ae1-11e6-8236-459118a70b8a.png)
+![](https://user-images.githubusercontent.com/1470402/28805009-d7e45398-761b-11e7-88e2-57898dde0a99.png)
 
 You can also change the name of the action.
 ![](https://cloud.githubusercontent.com/assets/1470402/17989396/d05f44d4-6ae1-11e6-9363-f242c5ea15b6.png)
 
+You can record objects in the environment using the "Record Objects" button. The objects will appear in the viewer. Poses can be relative to these objects in the environment.
+![](https://user-images.githubusercontent.com/1470402/28805010-d7e6513e-761b-11e7-9fc8-b63c0e517571.png)
+![](https://user-images.githubusercontent.com/1470402/28805011-d7edb910-761b-11e7-81a9-6e1f9c2f0be8.png)
+
+### Grasping in Fetch PbD
+You can now (optionally) run Fetch PbD with a grasp suggestion service. This is a service that takes in a point cloud for an object and returns a PoseArray of possible grasps for that object. Fetch Pbd provides feedback by publishing which grasp was chosen by the user. Any service that adheres to the .srv interface defined by [SuggestGrasps.srv](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/srv/SuggestGrasps.srv) and optionally the feedback .msg interface, [GraspFeedback.msg](https://github.com/GT-RAIL/rail_manipulation_msgs/blob/develop/msg/GraspFeedback.msg), can be used. If you want to start Fetch PbD with a grasp suggestion service:
+```bash
+source ~/catkin_ws/devel/setup.bash
+roslaunch fetch_pbd_interaction pbd.launch grasp_suggestion_service:=grasp_service_name grasp_feedback_topic:=grasp_feedback
+```
+The grasp_feedback_topic is optional and can be excluded. Then in the interface you can right-click on objects in the scene and add a grasp for that object. Initially a grasp primitive is generated that is just a placeholder and does not specify any poses. To use the grasp suggestion service to generate grasps, you then right click the blue placeholder box and select "Generate grasps". The service will return a list of grasp poses. Fetch PbD sets a pre-grasp that is 15 cm away from the grasp. The first grasp generated is shown and you can switch to other grasp options by right-clicking the grasp marker and selecting one from the list. 
+
+![](https://user-images.githubusercontent.com/1470402/28805083-48681a96-761c-11e7-9921-2e9b7e07e318.png)
+![](https://user-images.githubusercontent.com/1470402/28805082-4866964e-761c-11e7-80bd-b67ebd9cc4b2.png)
+![](https://user-images.githubusercontent.com/1470402/28805081-48664284-761c-11e7-91b2-89958b14eab3.png)
+
+Grasps are executed like any other primitve and can be added to actions in combination with other primitives.
+
 ### Code Interface
 You can also access the actions you've programmed through code. You still need to run pbd_backend.launch. 
+
 #### Commands on Fetch
 ```bash
 source ~/catkin_ws/devel/setup.bash
